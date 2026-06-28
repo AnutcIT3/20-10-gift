@@ -1,10 +1,28 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import BoysWish from "./Boy'swish/Boy'swish"
 import Girls from './Girls/Girls'
 import './App.css'
+import musicSrc from './music/Đường Tôi Chở Em Về ⧸ buitruonglinh _ Lyrics Video _ (mp3cut.net).mp3'
 
 function App() {
   const [page, setPage] = useState('home')
+  const audioRef = useRef(null)
+
+  // Trình duyệt chặn autoplay, nên thử phát khi người dùng click lần đầu
+  useEffect(() => {
+    const tryPlay = () => {
+      if (audioRef.current) {
+        audioRef.current.play().catch(() => {})
+      }
+      document.removeEventListener('click', tryPlay)
+    }
+    document.addEventListener('click', tryPlay)
+    // Thử phát ngay (sẽ hoạt động nếu trình duyệt cho phép)
+    if (audioRef.current) {
+      audioRef.current.play().catch(() => {})
+    }
+    return () => document.removeEventListener('click', tryPlay)
+  }, [])
 
   if (page === 'girls') {
     return (
@@ -40,8 +58,8 @@ function App() {
           <button type="button" onClick={() => setPage('boysWish')}>
             Gửi lời chúc
           </button>
-          <audio id="myAudio" autoPlay controls>
-              <source src="E:\20-10\20-10fe\src\music\Đường Tôi Chở Em Về ⧸ buitruonglinh _ Lyrics Video _ (mp3cut.net).mp3"/>
+          <audio ref={audioRef} loop controls>
+              <source src={musicSrc} type="audio/mpeg"/>
           </audio>
         </div>
       </section>
