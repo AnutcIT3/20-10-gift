@@ -58,7 +58,7 @@ function App() {
           <button type="button" onClick={() => setPage('boysWish')}>
             Gửi lời chúc
           </button>
-          <audio ref={audioRef} loop autoPlay>
+          <audio ref={audioRef} loop autoPlay controls>
             <source src={musicSrc} type="audio/mpeg" />
           </audio>
         </div>
