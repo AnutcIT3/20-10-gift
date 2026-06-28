@@ -40,6 +40,9 @@ function App() {
           <button type="button" onClick={() => setPage('boysWish')}>
             Gửi lời chúc
           </button>
+          <audio id="myAudio" autoPlay controls>
+              <source src="E:\20-10\20-10fe\src\music\Đường Tôi Chở Em Về ⧸ buitruonglinh _ Lyrics Video _ (mp3cut.net).mp3"/>
+          </audio>
         </div>
       </section>
     </main>
