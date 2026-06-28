@@ -12,14 +12,14 @@ function App() {
   useEffect(() => {
     const tryPlay = () => {
       if (audioRef.current) {
-        audioRef.current.play().catch(() => {})
+        audioRef.current.play().catch(() => { })
       }
       document.removeEventListener('click', tryPlay)
     }
     document.addEventListener('click', tryPlay)
     // Thử phát ngay (sẽ hoạt động nếu trình duyệt cho phép)
     if (audioRef.current) {
-      audioRef.current.play().catch(() => {})
+      audioRef.current.play().catch(() => { })
     }
     return () => document.removeEventListener('click', tryPlay)
   }, [])
@@ -58,8 +58,8 @@ function App() {
           <button type="button" onClick={() => setPage('boysWish')}>
             Gửi lời chúc
           </button>
-          <audio ref={audioRef} loop controls>
-              <source src={musicSrc} type="audio/mpeg"/>
+          <audio ref={audioRef} loop autoPlay>
+            <source src={musicSrc} type="audio/mpeg" />
           </audio>
         </div>
       </section>
