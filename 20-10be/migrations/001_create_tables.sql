@@ -1,0 +1,73 @@
+CREATE TABLE IF NOT EXISTS students (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  full_name VARCHAR(100) NOT NULL,
+  normalized_name VARCHAR(100) NOT NULL,
+  nickname VARCHAR(50),
+  avatar_url VARCHAR(500),
+  intro_message TEXT,
+  access_code VARCHAR(20) UNIQUE NOT NULL,
+  class_name VARCHAR(20) DEFAULT 'A1',
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_normalized_name (normalized_name)
+);
+
+CREATE TABLE IF NOT EXISTS admins (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  username VARCHAR(50) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS gallery (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  student_id INT NOT NULL,
+  image_url VARCHAR(500) NOT NULL,
+  public_id VARCHAR(200),
+  resource_type VARCHAR(20) DEFAULT 'image',
+  caption TEXT,
+  display_order INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS letters (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  student_id INT NOT NULL,
+  sender_name VARCHAR(100),
+  title VARCHAR(200),
+  content TEXT NOT NULL,
+  is_anonymous BOOLEAN DEFAULT FALSE,
+  status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS music (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  student_id INT NOT NULL,
+  title VARCHAR(100),
+  file_url VARCHAR(500) NOT NULL,
+  public_id VARCHAR(200),
+  resource_type VARCHAR(20) DEFAULT 'video',
+  source_type ENUM('upload', 'youtube') DEFAULT 'upload',
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS videos (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  student_id INT NOT NULL,
+  video_url VARCHAR(500) NOT NULL,
+  public_id VARCHAR(200),
+  resource_type VARCHAR(20) DEFAULT 'video',
+  title VARCHAR(200),
+  thumbnail_url VARCHAR(500),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+);

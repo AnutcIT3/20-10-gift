@@ -1,69 +1,42 @@
-import { useState, useRef, useEffect } from 'react'
+import { Routes, Route, Link } from 'react-router-dom'
+import GiftPage from './pages/GiftPage'
+import LandingPage from './pages/LandingPage'
 import BoysWish from "./Boy'swish/Boy'swish"
 import Girls from './Girls/Girls'
+import ProtectedAdminRoute from './components/ProtectedAdminRoute'
+import LoginPage from './pages/admin/LoginPage'
+import AdminLayout from './pages/admin/AdminLayout'
+import Dashboard from './pages/admin/Dashboard'
+import StudentManager from './pages/admin/StudentManager'
+import GalleryManager from './pages/admin/GalleryManager'
+import LetterManager from './pages/admin/LetterManager'
+import CelebrationPage from './pages/CelebrationPage'
+import AdminSwitch from './components/AdminSwitch'
+import MusicPlayer from './components/MusicPlayer'
 import './App.css'
-import musicSrc from './music/Đường Tôi Chở Em Về ⧸ buitruonglinh _ Lyrics Video _ (mp3cut.net).mp3'
 
 function App() {
-  const [page, setPage] = useState('home')
-  const audioRef = useRef(null)
-
-  // Trình duyệt chặn autoplay, nên thử phát khi người dùng click lần đầu
-  useEffect(() => {
-    const tryPlay = () => {
-      if (audioRef.current) {
-        audioRef.current.play().catch(() => { })
-      }
-      document.removeEventListener('click', tryPlay)
-    }
-    document.addEventListener('click', tryPlay)
-    // Thử phát ngay (sẽ hoạt động nếu trình duyệt cho phép)
-    if (audioRef.current) {
-      audioRef.current.play().catch(() => { })
-    }
-    return () => document.removeEventListener('click', tryPlay)
-  }, [])
-
-  if (page === 'girls') {
-    return (
-      <>
-        <button className="back-button" type="button" onClick={() => setPage('home')}>
-          Về trang chính
-        </button>
-        <Girls />
-      </>
-    )
-  }
-
-  if (page === 'boysWish') {
-    return (
-      <>
-        <button className="back-button" type="button" onClick={() => setPage('home')}>
-          Về trang chính
-        </button>
-        <BoysWish />
-      </>
-    )
-  }
-
   return (
-    <main className="home-page">
-      <section className="home-hero">
-        <p className="home-eyebrow">20/10</p>
-        <h1>Trang lời chúc lớp mình</h1>
-        <div className="home-actions">
-          <button type="button" onClick={() => setPage('girls')}>
-            Xem lời chúc bạn nữ
-          </button>
-          <button type="button" onClick={() => setPage('boysWish')}>
-            Gửi lời chúc
-          </button>
-          <audio ref={audioRef} loop autoPlay controls>
-            <source src={musicSrc} type="audio/mpeg" />
-          </audio>
-        </div>
-      </section>
-    </main>
+    <>
+      <AdminSwitch />
+      <MusicPlayer />
+      <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/gift/:accessCode" element={<GiftPage />} />
+      <Route path="/celebrate/:name" element={<CelebrationPage />} />
+      <Route path="/girls" element={<><Link to="/" className="back-button">Về trang chính</Link><Girls /></>} />
+      <Route path="/boys-wish" element={<><Link to="/" className="back-button">Về trang chính</Link><BoysWish /></>} />
+      <Route path="/admin/login" element={<LoginPage />} />
+      <Route element={<ProtectedAdminRoute />}>
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="students" element={<StudentManager />} />
+          <Route path="gallery" element={<GalleryManager />} />
+          <Route path="letters" element={<LetterManager />} />
+        </Route>
+      </Route>
+      </Routes>
+    </>
   )
 }
 

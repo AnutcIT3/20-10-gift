@@ -32,8 +32,12 @@
   gap: 14px;
 }
 
+.home-actions .home-btn,
+.home-actions .home-btn,
 .home-actions button,
 .back-button {
+  display: inline-flex;
+  align-items: center;
   min-height: 48px;
   border: 0;
   border-radius: 8px;
@@ -44,6 +48,7 @@
   font-weight: 700;
   letter-spacing: 0;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .home-actions button:hover,
@@ -256,4 +261,43 @@
   .girl-message p:last-child {
     font-size: 17px;
   }
+}
+.admin-switch {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 900;
+  padding: 9px 13px;
+  border: 1px solid rgba(111, 79, 116, .2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .88);
+  box-shadow: 0 5px 18px rgba(72, 45, 76, .12);
+  color: #684e6c;
+  font-size: 13px;
+  font-weight: 750;
+  text-decoration: none;
+  backdrop-filter: blur(8px);
+}
+
+.music-player {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 900;
+}
+
+.music-player button {
+  min-height: 44px;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #4a354e;
+  box-shadow: 0 5px 20px rgba(52, 33, 57, .25);
+  color: #fff;
+  cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  .music-player button span { display: none; }
+  .music-player button { width: 46px; padding: 0; }
 }

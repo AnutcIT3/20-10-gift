@@ -1,0 +1,51 @@
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001').replace(/\/$/, '')
+const TOKEN_KEY = 'gift_admin_token'
+
+export const adminAuth = {
+  getToken: () => localStorage.getItem(TOKEN_KEY),
+  setToken: (token) => localStorage.setItem(TOKEN_KEY, token),
+  clear: () => localStorage.removeItem(TOKEN_KEY),
+}
+
+async function request(path, options = {}) {
+  const headers = new Headers(options.headers)
+  const token = adminAuth.getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type', 'application/json')
+
+  const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers })
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) {
+    if (response.status === 401 && path !== '/api/auth/admin/login') adminAuth.clear()
+    const error = new Error(payload?.message || `Yêu cầu thất bại (${response.status})`)
+    error.status = response.status
+    throw error
+  }
+  return payload?.data
+}
+
+export const adminApi = {
+  login: (username, password) => request('/api/auth/admin/login', {
+    method: 'POST', body: JSON.stringify({ username, password }),
+  }),
+  listStudents: () => request('/api/students'),
+  createStudent: (data) => request('/api/students', { method: 'POST', body: JSON.stringify(data) }),
+  updateStudent: (id, data) => request(`/api/students/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deactivateStudent: (id) => request(`/api/students/${id}/deactivate`, { method: 'PATCH' }),
+  rotateCode: (id) => request(`/api/students/${id}/rotate-code`, { method: 'POST' }),
+  listGallery: (studentId) => request(`/api/admin/students/${studentId}/gallery`),
+  uploadImage: (formData) => request('/api/gallery/upload', { method: 'POST', body: formData }),
+  reorderGallery: (items) => request('/api/gallery/reorder', {
+    method: 'PUT', body: JSON.stringify({ items }),
+  }),
+  deleteImage: (id) => request(`/api/gallery/${id}`, { method: 'DELETE' }),
+  listLetters: ({ status, studentId, page = 1, pageSize = 20 }) => {
+    const params = new URLSearchParams({ status, page, pageSize })
+    if (studentId) params.set('studentId', studentId)
+    return request(`/api/admin/letters?${params}`)
+  },
+  updateLetterStatus: (id, status) => request(`/api/letters/${id}/status`, {
+    method: 'PATCH', body: JSON.stringify({ status }),
+  }),
+  deleteLetter: (id) => request(`/api/letters/${id}`, { method: 'DELETE' }),
+}

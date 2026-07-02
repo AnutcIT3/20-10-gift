@@ -1,0 +1,103 @@
+import { mockStudent, mockGallery, mockLetters } from '../data/mock'
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function resolveStudent(name) {
+  await delay(600)
+  const normalized = name
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+
+  if (normalized.length < 2) {
+    return null
+  }
+
+  if (normalized.includes('vy')) {
+    return { giftPath: '/gift/vy1020' }
+  }
+
+  if (normalized.includes('mai') || normalized.includes('anh')) {
+    return { giftPath: '/gift/anh2010' }
+  }
+
+  if (normalized.length <= 3) {
+    return {
+      matches: [
+        { displayName: 'Nguyễn Thúy Vy', nickname: 'Vy', avatarUrl: mockStudent.avatar_url, giftPath: '/gift/vy1020' },
+        { displayName: 'Trần Mai Anh', nickname: 'Anh', avatarUrl: mockStudent.avatar_url, giftPath: '/gift/anh2010' },
+      ],
+      message: 'Có 2 bạn trùng tên. Chọn bạn cần tìm?',
+    }
+  }
+
+  return null
+}
+
+async function getGift(accessCode) {
+  await delay(400)
+  if (accessCode === 'vy1020' || accessCode === 'anh2010') {
+    return { ...mockStudent, access_code: accessCode }
+  }
+  return null
+}
+
+async function getGallery(accessCode) {
+  await delay(500)
+  if (accessCode === 'vy1020' || accessCode === 'anh2010') {
+    return mockGallery
+  }
+  return []
+}
+
+async function getLetters(accessCode) {
+  await delay(500)
+  if (accessCode === 'vy1020' || accessCode === 'anh2010') {
+    return mockLetters
+  }
+  return []
+}
+
+async function createLetter(accessCode, data) {
+  await delay(300)
+
+  if (data._website) {
+    return { status: 'pending' }
+  }
+
+  if (!data.content || !data.content.trim()) {
+    throw new Error('Nội dung không được để trống')
+  }
+
+  if (data.content.trim().length > 5000) {
+    throw new Error('Nội dung quá dài (tối đa 5000 ký tự)')
+  }
+  if (data.title && data.title.trim().length > 200) {
+    throw new Error('Tiêu đề quá dài (tối đa 200 ký tự)')
+  }
+  if (data.sender_name && data.sender_name.trim().length > 100) {
+    throw new Error('Tên người gửi quá dài (tối đa 100 ký tự)')
+  }
+
+  return { status: 'pending' }
+}
+
+async function generateGreeting(name) {
+  await delay(300)
+  return { greeting: `Chúc ${name} một ngày 20/10 thật vui vẻ và rạng rỡ! 🌷`, source: 'mock' }
+}
+
+const mockGiftRepository = {
+  resolveStudent,
+  getGift,
+  getGallery,
+  getLetters,
+  createLetter,
+  generateGreeting,
+}
+
+export default mockGiftRepository
