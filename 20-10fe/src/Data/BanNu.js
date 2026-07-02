@@ -13,6 +13,13 @@ const dataBanNu = [
     hinhAnh: "https://example.com/images/maianh.jpg",
     loiChucCuaAdmin: "Chúc Mai Anh một ngày mới tràn đầy năng lượng và hạnh phúc nhé!",
     classA1: true
+  },
+  {
+    id: 3,
+    hoVaTen: "Nguyễn Mạnh Hùng",
+    hinhAnh: "../assets/Hung.jpg",
+    loiChucCuaAdmin: "Chúc bạn Hùng một ngày mới tràn đầy năng lượng và hạnh phúc nhé!",
+    classA1: true
   }
 ];
 
