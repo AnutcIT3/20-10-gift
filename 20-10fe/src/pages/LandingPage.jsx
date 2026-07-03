@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import giftRepository from '../api/giftRepository'
 import '../styles/landing.css'
 
@@ -43,7 +43,6 @@ function LandingPage() {
           {match.avatarUrl ? <img src={match.avatarUrl} alt="" /> : <span>{match.displayName.charAt(0)}</span>}
           <span><strong>{match.displayName}</strong>{match.nickname && <small>{match.nickname}</small>}</span>
         </button>)}</div>}
-        <Link className="landing-admin-link" to="/admin/login">Quản trị</Link>
       </section>
     </main>
   )
