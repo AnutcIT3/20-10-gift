@@ -1,3 +1,5 @@
+import hungImage from '../assets/Hung.jpg'
+
 const dataBanNu = [
   {
     id: 1,
@@ -12,6 +14,13 @@ const dataBanNu = [
     hoVaTen: "Trần Mai Anh",
     hinhAnh: "https://example.com/images/maianh.jpg",
     loiChucCuaAdmin: "Chúc Mai Anh một ngày mới tràn đầy năng lượng và hạnh phúc nhé!",
+    classA1: true
+  },
+  {
+    id: 3,
+    hoVaTen: "Nguyễn Mạnh Hùng",
+    hinhAnh: hungImage,
+    loiChucCuaAdmin: "Chúc bạn Hùng một ngày mới tràn đầy năng lượng và hạnh phúc nhé!",
     classA1: true
   }
 ];

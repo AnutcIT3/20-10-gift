@@ -1,0 +1,252 @@
+/* Container chiếm trọn vẹn 100% chiều rộng và chiều cao màn hình */
+.girl-result-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 999; /* Đảm bảo đè lên trên tất cả các thành phần khác */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* Ảnh của bạn nữ phóng to phủ kín toàn bộ background */
+.fullscreen-bg-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Giúp ảnh không bị méo, tự co giãn theo mọi màn hình */
+  z-index: 1;
+  transform: scale(1);
+  animation: backgroundZoom 10s ease-in-out infinite alternate; /* Hiệu ứng thu phóng nền nhẹ nhàng */
+}
+
+/* Lớp phủ màu tối/đỏ đô mờ giúp chữ màu trắng hiển thị cực kỳ rõ và sâu lắng */
+.fullscreen-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom, rgba(20, 0, 5, 0.6), rgba(128, 0, 32, 0.85));
+  z-index: 2;
+}
+
+/* Khối nội dung chữ nằm trên cùng, không có viền, không có hộp trắng */
+.fullscreen-content {
+  position: relative;
+  z-index: 3;
+  max-width: 800px;
+  width: 90%;
+  text-align: center; /* Căn giữa toàn bộ chữ cho trang trọng */
+  padding: 20px;
+  color: #ffffff;
+}
+
+/* Thiết lập các cỡ chữ lớn, tự do */
+.fullscreen-content .girl-label {
+  color: #cca43b; /* Màu vàng gold sang trọng */
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+}
+
+.fullscreen-content h2 {
+  font-size: 4rem; /* Tên bạn nữ phóng siêu to làm tâm điểm */
+  color: #ffffff;
+  font-weight: 800;
+  text-shadow: 2px 4px 10px rgba(0, 0, 0, 0.7); /* Tạo bóng cho chữ nổi bật trên nền ảnh */
+  margin-bottom: 25px;
+}
+
+.fullscreen-content .girl-text-content {
+  font-size: 1.6rem; /* Lời chúc phóng to chiếm không gian */
+  line-height: 1.8;
+  color: #f5f5f5;
+  text-shadow: 1px 2px 8px rgba(0, 0, 0, 0.6);
+  font-weight: 400;
+}
+
+/* Nút tìm tên khác thiết kế nổi bật */
+.search-again-btn-fs {
+  margin-top: 40px;
+  background: transparent;
+  color: #ffffff;
+  border: 2px solid #cca43b;
+  padding: 12px 35px;
+  font-size: 1.1rem;
+  border-radius: 30px;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.search-again-btn-fs:hover {
+  background-color: #cca43b;
+  color: #000000;
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(204, 164, 59, 0.6);
+}
+
+/* Hiệu ứng zoom nhẹ background tạo cảm giác điện ảnh cinematic */
+@keyframes backgroundZoom {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.08); }
+}
+
+/* Giữ nguyên hiệu ứng xuất hiện nảy nhẹ từ dưới lên */
+.animated-card {
+  animation: cardAppear 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes cardAppear {
+  0% {
+    opacity: 0;
+    transform: translateY(50px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* Bao phủ toàn bộ màn hình trình duyệt, không hộp trắng, không đổ bóng */
+.girl-result-split {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 999;
+  display: flex; /* Chia đôi trái - phải */
+  background: #140005; /* Màu nền tối nguyên bản của hệ thống */
+  overflow: hidden;
+}
+
+/* --- XỬ LÝ NỬA BÊN TRÁI: ẢNH NỀN --- */
+.split-image-side {
+  flex: 0 0 45%; /* Chiếm 45% chiều rộng màn hình */
+  height: 100%;
+  position: relative;
+}
+
+.split-bg-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Ảnh phủ kín toàn bộ nửa màn hình bên trái không bị méo */
+}
+
+/* Hiệu ứng chuyển màu mượt mà từ ảnh sang vùng chứa chữ ở bên phải */
+.split-image-side::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(to right, rgba(20, 0, 5, 0), #140005);
+}
+
+/* --- XỬ LÝ NỬA BÊN PHẢI: CHỮ LỜI CHÚC TỰ DO --- */
+.split-content-side {
+  flex: 1; /* Chiếm trọn 55% không gian còn lại */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Căn giữa chữ theo chiều dọc */
+  align-items: flex-start; /* Căn lề trái cho chữ trông trang trọng */
+  padding: 0 10% 0 5%; /* Tạo khoảng trống thoáng đãng xung quanh chữ */
+  box-sizing: border-box;
+}
+
+.split-content-side .girl-label {
+  color: #cca43b; /* Màu vàng gold thương hiệu */
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+}
+
+.split-content-side h2 {
+  font-size: 4rem; /* Tên bạn nữ khổng lồ siêu nổi bật */
+  color: #ffffff;  /* Chữ trắng trên nền tối */
+  font-weight: 800;
+  margin: 0 0 25px 0;
+}
+
+.split-content-side .girl-text-content {
+  font-size: 1.6rem; /* Lời chúc to rõ, chiếm trọn tầm nhìn */
+  line-height: 1.8;
+  color: #e0e0e0; /* Màu xám trắng mịn dễ nhìn */
+  text-align: left;
+}
+
+/* --- NÚT BẤM TÌM TÊN KHÁC --- */
+.search-again-btn-split {
+  margin-top: 40px;
+  background: transparent;
+  color: #ffffff;
+  border: 2px solid #cca43b;
+  padding: 12px 35px;
+  font-size: 1.1rem;
+  border-radius: 30px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.search-again-btn-split:hover {
+  background-color: #cca43b;
+  color: #000000;
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(204, 164, 59, 0.4);
+}
+
+/* --- HIỆU ỨNG ANIMATION --- */
+.animated-card {
+  animation: splitAppear 0.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+@keyframes splitAppear {
+  0% {
+    opacity: 0;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Tự động tối ưu giao diện dọc nếu các bạn mở bằng Điện thoại */
+@media (max-width: 900px) {
+  .girl-result-split {
+    flex-direction: column; /* Chuyển thành trên - dưới đối với điện thoại */
+  }
+  .split-image-side {
+    flex: 0 0 40%; /* Ảnh ở trên chiếm 40% màn hình */
+    width: 100%;
+  }
+  .split-image-side::after {
+    width: 100%;
+    height: 30%;
+    top: auto;
+    bottom: 0;
+    background: linear-gradient(to bottom, rgba(20, 0, 5, 0), #140005);
+  }
+  .split-content-side {
+    padding: 30px 20px;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  .split-content-side h2 {
+    font-size: 2.5rem;
+  }
+  .split-content-side .girl-text-content {
+    font-size: 1.25rem;
+    text-align: center;
+  }
+}

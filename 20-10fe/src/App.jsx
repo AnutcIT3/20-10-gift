@@ -21,20 +21,20 @@ function App() {
       <AdminSwitch />
       <MusicPlayer />
       <Routes>
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/gift/:accessCode" element={<GiftPage />} />
-      <Route path="/celebrate/:name" element={<CelebrationPage />} />
-      <Route path="/girls" element={<><Link to="/" className="back-button">Về trang chính</Link><Girls /></>} />
-      <Route path="/boys-wish" element={<><Link to="/" className="back-button">Về trang chính</Link><BoysWish /></>} />
-      <Route path="/admin/login" element={<LoginPage />} />
-      <Route element={<ProtectedAdminRoute />}>
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="students" element={<StudentManager />} />
-          <Route path="gallery" element={<GalleryManager />} />
-          <Route path="letters" element={<LetterManager />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/gift/:accessCode" element={<GiftPage />} />
+        <Route path="/celebrate/:name" element={<CelebrationPage />} />
+        <Route path="/girls" element={<><Link to="/" className="back-button">Về trang chính</Link><Girls /></>} />
+        <Route path="/boys-wish" element={<><Link to="/" className="back-button">Về trang chính</Link><BoysWish /></>} />
+        <Route path="/admin/login" element={<LoginPage />} />
+        <Route element={<ProtectedAdminRoute />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="students" element={<StudentManager />} />
+            <Route path="gallery" element={<GalleryManager />} />
+            <Route path="letters" element={<LetterManager />} />
+          </Route>
         </Route>
-      </Route>
       </Routes>
     </>
   )
