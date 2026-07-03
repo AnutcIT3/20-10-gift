@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import dataBanNu from '../data/BanNu'
+import dataBanNu from '../Data/BanNu'
 import logoclass from '../assets/logoclass.jpg'
 
 const normalizeName = (value) =>

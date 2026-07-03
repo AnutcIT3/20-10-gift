@@ -23,7 +23,7 @@ Trang web cá nhân hóa để các bạn nam trong lớp gửi lời chúc nhâ
 - **Âm nhạc:** User chủ động bật/tắt, không auto-play
 - **Routing:** `react-router-dom` với:
   - `/` — Landing + form tìm kiếm
-  - `/gift/:accessCode` — Không gian cá nhân (deep-link, fetch lại từ URL) 
+  - `/gift/:accessCode` — Không gian cá nhân (deep-link, fetch lại từ URL)
   - `/admin/login` — Admin login
   - `/admin/*` — Dashboard + CRUD
 - **Landing:** Chỉ form tìm tên (không dropdown gợi ý)

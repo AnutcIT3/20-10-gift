@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import dataBanNu from '../data/BanNu'
-import { addLoiChuc } from '../data/LoiChuc'
+import dataBanNu from '../Data/BanNu'
+import { addLoiChuc } from '../Data/LoiChuc'
 import './Style.css'
 
 const normalizeName = (value) =>
