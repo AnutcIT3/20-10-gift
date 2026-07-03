@@ -4,16 +4,23 @@ const path = require('path');
 const mysql = require('mysql2/promise');
 
 async function run() {
+  const database = process.env.DB_NAME;
+  if (!database || !/^[a-zA-Z0-9_]+$/.test(database)) {
+    throw new Error('DB_NAME is missing or contains invalid characters');
+  }
   const connection = await mysql.createConnection({
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT),
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
     multipleStatements: true, // an toàn vì SQL files là nội bộ, đáng tin cậy
   });
 
   try {
+    await connection.query(
+      `CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+    );
+    await connection.changeUser({ database });
     await connection.execute(`CREATE TABLE IF NOT EXISTS schema_migrations (
       id INT PRIMARY KEY AUTO_INCREMENT,
       filename VARCHAR(255) NOT NULL UNIQUE,

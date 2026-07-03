@@ -27,24 +27,25 @@ if not exist "%FRONTEND%\package.json" (
 )
 
 if not exist "%BACKEND%\.env" (
-  echo [ERROR] Backend .env file was not found.
-  echo Expected: %BACKEND%\.env
-  pause
-  exit /b 1
+  echo First-time configuration is required. Starting setup-local.bat...
+  call "%ROOT%setup-local.bat"
+  if errorlevel 1 exit /b 1
 )
 
 if not exist "%BACKEND%\node_modules" (
-  echo [ERROR] Backend dependencies are missing.
-  echo Run: cd /d "%BACKEND%" ^&^& npm install
-  pause
-  exit /b 1
+  echo Installing backend dependencies...
+  pushd "%BACKEND%"
+  call npm install --no-audit --no-fund
+  if errorlevel 1 (popd & pause & exit /b 1)
+  popd
 )
 
 if not exist "%FRONTEND%\node_modules" (
-  echo [ERROR] Frontend dependencies are missing.
-  echo Run: cd /d "%FRONTEND%" ^&^& npm install
-  pause
-  exit /b 1
+  echo Installing frontend dependencies...
+  pushd "%FRONTEND%"
+  call npm install --no-audit --no-fund
+  if errorlevel 1 (popd & pause & exit /b 1)
+  popd
 )
 
 echo Starting backend at http://localhost:5001 ...

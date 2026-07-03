@@ -16,7 +16,14 @@
 
 ## Chạy nhanh trên Windows
 
-Double-click `start-dev.bat` tại thư mục gốc. Script mở backend, frontend và trình duyệt.
+Lần đầu trên một máy mới:
+
+1. Cài Node.js 20+ và MySQL 8.
+2. Double-click `setup-local.bat`.
+3. Điền mật khẩu MySQL và thông tin admin khi Notepad mở ra.
+4. Sau khi setup thành công, double-click `start-dev.bat`.
+
+Các lần sau chỉ cần `start-dev.bat`. Script mở backend, frontend và trình duyệt.
 
 Chạy thủ công:
 
