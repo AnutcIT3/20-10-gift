@@ -1,7 +1,33 @@
 :root {
+  --color-pink: #ffb6c1;
+  --color-lavender: #e6e6fa;
+  --color-cream: #fff8f0;
+  --color-bg: #fff9f2;
+  --color-surface: rgba(255, 255, 255, 0.84);
+  --color-surface-solid: #fff;
+  --color-text: #4a2c4a;
+  --color-text-strong: #24151b;
+  --color-muted: #6b4f6b;
+  --color-subtle: #8a788e;
+  --color-border: #eadbea;
+  --color-danger: #a33445;
+  --color-danger-bg: #fff0f1;
+  --color-success: #2f8a4b;
+  --gradient-page:
+    radial-gradient(circle at 16% 20%, rgba(255, 182, 193, 0.52), transparent 34%),
+    radial-gradient(circle at 84% 76%, rgba(230, 230, 250, 0.9), transparent 36%),
+    var(--color-bg);
+  --gradient-primary: linear-gradient(135deg, #dc8fa7, #9275bd);
+  --gradient-soft: linear-gradient(160deg, var(--color-pink) 0%, var(--color-lavender) 42%, var(--color-cream) 82%);
+  --shadow-card: 0 25px 80px rgba(91, 62, 98, 0.13);
+  --shadow-soft: 0 8px 28px rgba(90, 58, 95, 0.08);
+  --radius-card: 28px;
+  --radius-control: 14px;
+  --radius-pill: 999px;
+  --focus-ring: 0 0 0 3px rgba(146, 117, 189, 0.28);
   font: 18px/1.45 system-ui, 'Segoe UI', Roboto, sans-serif;
-  color: #24151b;
-  background: #f7f1ee;
+  color: var(--color-text-strong);
+  background: var(--color-cream);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -18,8 +44,29 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
+}
+
+button,
+a,
+input,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-ring);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 #root {

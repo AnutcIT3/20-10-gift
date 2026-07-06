@@ -7,24 +7,33 @@ function CelebrationPage() {
   const { name: routeName } = useParams()
   const name = (routeName || '').slice(0, 100)
   const [result, setResult] = useState(null)
-  const [error, setError] = useState('')
-  const [retry, setRetry] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    giftRepository.generateGreeting(name)
-      .then((data) => { if (!cancelled) setResult(data) })
-      .catch((err) => { if (!cancelled) setError(err.message) })
+    giftRepository.generateGreeting(name, 'visitor')
+      .then((data) => { if (!cancelled) setResult({ ...data, requestName: name }) })
+      .catch(() => {
+        if (!cancelled) {
+          setResult({
+            greeting: `Dù chúng mình có thể chưa từng học cùng nhau, ${name} vẫn là một bông hoa nhỏ xứng đáng nhận được những lời chúc tốt đẹp. Chúc bạn có một ngày 20/10 thật vui vẻ, luôn rạng rỡ, tự tin và gặp nhiều may mắn! 🌷`,
+            requestName: name,
+          })
+        }
+      })
     return () => { cancelled = true }
-  }, [name, retry])
+  }, [name])
+
+  const currentResult =
+    result?.requestName === name ? result : null
 
   return <main className="celebration-page"><section className="celebration-card">
     <div className="celebration-flowers">🌷 ✨ 🌸</div>
     <p className="celebration-label">Một lời chúc bất ngờ dành cho</p><h1>{name}</h1>
-    {!result && !error && <p>Đang viết lời chúc cho bạn...</p>}
-    {result && <p className="celebration-message">{result.greeting}</p>}
-    {error && <><p className="landing-alert">{error}</p><button onClick={() => { setError(''); setRetry((value) => value + 1) }}>Thử lại</button></>}
-    <Link to="/">Tìm một cái tên khác</Link>
+    <div aria-live="polite">
+      {!currentResult && <p className="celebration-loading">Đang chuẩn bị một lời chúc cho bạn...</p>}
+      {currentResult && <p className="celebration-message">{currentResult.greeting}</p>}
+    </div>
+    <Link className="celebration-home-link" to="/">Về trang chủ</Link>
   </section></main>
 }
 

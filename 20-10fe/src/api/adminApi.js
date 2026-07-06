@@ -2,9 +2,15 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, ''
 const TOKEN_KEY = 'gift_admin_token'
 
 export const adminAuth = {
-  getToken: () => localStorage.getItem(TOKEN_KEY),
-  setToken: (token) => localStorage.setItem(TOKEN_KEY, token),
-  clear: () => localStorage.removeItem(TOKEN_KEY),
+  getToken: () => sessionStorage.getItem(TOKEN_KEY),
+  setToken: (token) => {
+    localStorage.removeItem(TOKEN_KEY)
+    sessionStorage.setItem(TOKEN_KEY, token)
+  },
+  clear: () => {
+    sessionStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(TOKEN_KEY)
+  },
 }
 
 async function request(path, options = {}) {
@@ -28,6 +34,7 @@ export const adminApi = {
   login: (username, password) => request('/api/auth/admin/login', {
     method: 'POST', body: JSON.stringify({ username, password }),
   }),
+  verifySession: () => request('/api/auth/admin/me'),
   listStudents: () => request('/api/students'),
   createStudent: (data) => request('/api/students', { method: 'POST', body: JSON.stringify(data) }),
   updateStudent: (id, data) => request(`/api/students/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -35,6 +42,9 @@ export const adminApi = {
   rotateCode: (id) => request(`/api/students/${id}/rotate-code`, { method: 'POST' }),
   listGallery: (studentId) => request(`/api/admin/students/${studentId}/gallery`),
   uploadImage: (formData) => request('/api/gallery/upload', { method: 'POST', body: formData }),
+  updateImageCaption: (id, caption) => request(`/api/gallery/${id}/caption`, {
+    method: 'PATCH', body: JSON.stringify({ caption }),
+  }),
   reorderGallery: (items) => request('/api/gallery/reorder', {
     method: 'PUT', body: JSON.stringify({ items }),
   }),

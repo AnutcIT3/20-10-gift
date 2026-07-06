@@ -1,41 +1,45 @@
-import { Routes, Route, Link } from 'react-router-dom'
-import GiftPage from './pages/GiftPage'
-import LandingPage from './pages/LandingPage'
-import BoysWish from "./Boy'swish/Boy'swish"
-import Girls from './Girls/Girls'
+import { lazy, Suspense } from 'react'
+import { Navigate, Routes, Route } from 'react-router-dom'
 import ProtectedAdminRoute from './components/ProtectedAdminRoute'
-import LoginPage from './pages/admin/LoginPage'
-import AdminLayout from './pages/admin/AdminLayout'
-import Dashboard from './pages/admin/Dashboard'
-import StudentManager from './pages/admin/StudentManager'
-import GalleryManager from './pages/admin/GalleryManager'
-import LetterManager from './pages/admin/LetterManager'
-import CelebrationPage from './pages/CelebrationPage'
 import AdminSwitch from './components/AdminSwitch'
 import MusicPlayer from './components/MusicPlayer'
 import './App.css'
+
+const LandingPage = lazy(() => import('./pages/LandingPage'))
+const GiftPage = lazy(() => import('./pages/GiftPage'))
+const CelebrationPage = lazy(() => import('./pages/CelebrationPage'))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+const LoginPage = lazy(() => import('./pages/admin/LoginPage'))
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'))
+const Dashboard = lazy(() => import('./pages/admin/Dashboard'))
+const StudentManager = lazy(() => import('./pages/admin/StudentManager'))
+const GalleryManager = lazy(() => import('./pages/admin/GalleryManager'))
+const LetterManager = lazy(() => import('./pages/admin/LetterManager'))
 
 function App() {
   return (
     <>
       <AdminSwitch />
       <MusicPlayer />
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/gift/:accessCode" element={<GiftPage />} />
-        <Route path="/celebrate/:name" element={<CelebrationPage />} />
-        <Route path="/girls" element={<><Link to="/" className="back-button">Về trang chính</Link><Girls /></>} />
-        <Route path="/boys-wish" element={<><Link to="/" className="back-button">Về trang chính</Link><BoysWish /></>} />
-        <Route path="/admin/login" element={<LoginPage />} />
-        <Route element={<ProtectedAdminRoute />}>
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="students" element={<StudentManager />} />
-            <Route path="gallery" element={<GalleryManager />} />
-            <Route path="letters" element={<LetterManager />} />
+      <Suspense fallback={<div className="app-route-loading" role="status">Đang tải...</div>}>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/gift/:accessCode" element={<GiftPage />} />
+          <Route path="/celebrate/:name" element={<CelebrationPage />} />
+          <Route path="/girls" element={<Navigate to="/" replace />} />
+          <Route path="/boys-wish" element={<Navigate to="/" replace />} />
+          <Route path="/admin/login" element={<LoginPage />} />
+          <Route element={<ProtectedAdminRoute />}>
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="students" element={<StudentManager />} />
+              <Route path="gallery" element={<GalleryManager />} />
+              <Route path="letters" element={<LetterManager />} />
+            </Route>
           </Route>
-        </Route>
-      </Routes>
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </Suspense>
     </>
   )
 }

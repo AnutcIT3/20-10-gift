@@ -6,7 +6,7 @@ function AdminLayout() {
   const navigate = useNavigate()
   const logout = () => {
     adminAuth.clear()
-    navigate('/admin/login', { replace: true })
+    navigate('/', { replace: true })
   }
   return (
     <div className="admin-shell">

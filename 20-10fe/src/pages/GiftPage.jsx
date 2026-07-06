@@ -41,7 +41,7 @@ function GiftPage() {
         setStudent(studentData)
         setGallery(galleryData || [])
         setLetters(lettersData || [])
-        giftRepository.generateGreeting(studentData.full_name)
+        giftRepository.generateGreeting(studentData.full_name, 'student')
           .then((result) => { if (!cancelled) setAiGreeting(result.greeting) })
           .catch(() => {})
       } catch (err) {
@@ -61,10 +61,24 @@ function GiftPage() {
 
   if (loading) {
     return (
-      <div className="gift-loading">
-        <div className="gift-loading-box">
-          <div className="gift-loading-icon">🎁</div>
+      <div className="gift-page gift-skeleton-page" role="status" aria-live="polite">
+        <section className="hero gift-skeleton-hero">
+          <div className="hero-bg" />
+          <div className="hero-content">
+            <div className="gift-skeleton-avatar" />
+            <div className="gift-skeleton-line title" />
+            <div className="gift-skeleton-line intro" />
+          </div>
+        </section>
+        <div className="gift-body">
           <p className="gift-loading-text">Đang mở quà...</p>
+          <section className="gift-skeleton-card">
+            <div className="gift-skeleton-line" />
+            <div className="gift-skeleton-line wide" />
+          </section>
+          <section className="gift-skeleton-grid">
+            <div /><div /><div />
+          </section>
         </div>
       </div>
     )
@@ -73,7 +87,7 @@ function GiftPage() {
   if (error) {
     return (
       <div className="gift-error">
-        <p className="gift-error-message">{error}</p>
+        <p className="gift-error-message" role="alert">{error}</p>
         <div className="gift-error-actions">
           <button type="button" className="gift-error-back" onClick={() => setRetryKey((key) => key + 1)}>Thử lại</button>
           <Link to="/" className="gift-error-back secondary">Về trang chủ</Link>
@@ -86,7 +100,10 @@ function GiftPage() {
     <div className="gift-page">
       <HeroSection student={student} />
       <div className="gift-body">
-        {aiGreeting && <section className="ai-greeting"><span>✨ Lời chúc dành riêng cho bạn</span><p>{aiGreeting}</p></section>}
+        <div className="gift-top-actions">
+          <Link to="/">← Tìm tên khác</Link>
+        </div>
+        {aiGreeting && <section className="ai-greeting" aria-live="polite"><span>✨ Một lời chúc dành riêng cho bạn</span><p>{aiGreeting}</p></section>}
         <PhotoGallery images={gallery} />
         <LetterSection letters={letters} />
       </div>

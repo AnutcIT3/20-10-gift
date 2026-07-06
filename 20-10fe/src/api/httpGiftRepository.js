@@ -25,8 +25,8 @@ async function createLetter(accessCode, data) {
   return response.data.data
 }
 
-async function generateGreeting(name) {
-  const response = await api.post('/api/greetings/generate', { name })
+async function generateGreeting(name, audienceType = 'student') {
+  const response = await api.post('/api/greetings/generate', { name, audienceType })
   return response.data.data
 }
 

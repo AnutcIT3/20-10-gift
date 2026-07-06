@@ -46,12 +46,15 @@ function PhotoGallery({ images = [] }) {
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const dialogRef = useRef(null)
   const previousFocusRef = useRef(null)
+  const touchStartRef = useRef(null)
 
   const openLightbox = useCallback((index) => {
     previousFocusRef.current = document.activeElement
     setLightboxIndex(index)
   }, [])
   const closeLightbox = useCallback(() => setLightboxIndex(null), [])
+  const showPrevious = useCallback(() => setLightboxIndex((i) => (i > 0 ? i - 1 : images.length - 1)), [images.length])
+  const showNext = useCallback(() => setLightboxIndex((i) => (i < images.length - 1 ? i + 1 : 0)), [images.length])
 
   useEffect(() => {
     if (lightboxIndex === null) return
@@ -59,8 +62,8 @@ function PhotoGallery({ images = [] }) {
     dialog?.querySelector('.lightbox-close')?.focus()
     const handleKey = (e) => {
       if (e.key === 'Escape') closeLightbox()
-      if (e.key === 'ArrowLeft') setLightboxIndex((i) => (i > 0 ? i - 1 : i))
-      if (e.key === 'ArrowRight') setLightboxIndex((i) => (i < images.length - 1 ? i + 1 : i))
+      if (e.key === 'ArrowLeft') showPrevious()
+      if (e.key === 'ArrowRight') showNext()
       if (e.key === 'Tab' && dialog) {
         const focusable = [...dialog.querySelectorAll('button:not(:disabled)')]
         const first = focusable[0]
@@ -81,7 +84,20 @@ function PhotoGallery({ images = [] }) {
       document.body.style.overflow = ''
       previousFocusRef.current?.focus()
     }
-  }, [lightboxIndex, images.length, closeLightbox])
+  }, [lightboxIndex, closeLightbox, showPrevious, showNext])
+
+  const handleTouchStart = (event) => {
+    touchStartRef.current = event.changedTouches[0].clientX
+  }
+
+  const handleTouchEnd = (event) => {
+    if (touchStartRef.current === null) return
+    const delta = event.changedTouches[0].clientX - touchStartRef.current
+    touchStartRef.current = null
+    if (Math.abs(delta) < 45) return
+    if (delta > 0) showPrevious()
+    else showNext()
+  }
 
   if (!images.length) {
     return (
@@ -105,7 +121,16 @@ function PhotoGallery({ images = [] }) {
       </div>
 
       {lightboxIndex !== null && (
-        <div ref={dialogRef} className="lightbox-overlay" onClick={closeLightbox} role="dialog" aria-modal="true" aria-label="Xem ảnh">
+        <div
+          ref={dialogRef}
+          className="lightbox-overlay"
+          onClick={closeLightbox}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Xem ảnh"
+        >
           <button type="button" className="lightbox-close" onClick={closeLightbox} aria-label="Đóng">
             ✕
           </button>
@@ -114,7 +139,7 @@ function PhotoGallery({ images = [] }) {
             className="lightbox-nav lightbox-prev"
             onClick={(e) => {
               e.stopPropagation()
-              setLightboxIndex((i) => (i > 0 ? i - 1 : images.length - 1))
+              showPrevious()
             }}
             aria-label="Ảnh trước"
           >
@@ -131,7 +156,7 @@ function PhotoGallery({ images = [] }) {
             className="lightbox-nav lightbox-next"
             onClick={(e) => {
               e.stopPropagation()
-              setLightboxIndex((i) => (i < images.length - 1 ? i + 1 : 0))
+              showNext()
             }}
             aria-label="Ảnh sau"
           >

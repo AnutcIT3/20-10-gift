@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { adminApi, adminAuth } from '../../api/adminApi'
+import '../../styles/admin.css'
 
 function LoginPage() {
   const navigate = useNavigate()

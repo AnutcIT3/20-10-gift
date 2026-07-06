@@ -1,4 +1,4 @@
-import { mockStudent, mockGallery, mockLetters } from '../Data/mock'
+import { mockStudent, mockGallery, mockLetters } from '../data/mock'
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -86,9 +86,12 @@ async function createLetter(accessCode, data) {
   return { status: 'pending' }
 }
 
-async function generateGreeting(name) {
+async function generateGreeting(name, audienceType = 'student') {
   await delay(300)
-  return { greeting: `Chúc ${name} một ngày 20/10 thật vui vẻ và rạng rỡ! 🌷`, source: 'mock' }
+  if (audienceType === 'visitor') {
+    return { greeting: `Dù chúng mình có thể chưa từng học cùng nhau, ${name} vẫn là một bông hoa nhỏ xứng đáng nhận được những lời chúc tốt đẹp. Chúc bạn có một ngày 20/10 thật vui vẻ, luôn rạng rỡ và gặp nhiều may mắn! 🌷` }
+  }
+  return { greeting: `Chúc ${name} một ngày 20/10 thật vui vẻ và rạng rỡ! 🌷` }
 }
 
 const mockGiftRepository = {
