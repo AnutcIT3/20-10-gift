@@ -5,7 +5,6 @@ const compression = require('compression');
 require('dotenv').config();
 
 const pool = require('./config/db');
-const { generalLimiter } = require('./middleware/rateLimit');
 const errorHandler = require('./middleware/errorHandler');
 const resolveRoutes = require('./routes/resolve');
 const giftRoutes = require('./routes/gifts');
@@ -41,7 +40,6 @@ app.use(cors({
 }));
 app.use(compression());
 app.use(express.json());
-app.use(generalLimiter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

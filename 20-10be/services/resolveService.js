@@ -18,11 +18,14 @@ async function resolve(name) {
     return { error: 'Không tìm thấy', status: 404 };
   }
 
-  if (rows.length === 1) {
-    return { giftPath: `/gift/${rows[0].access_code}` };
+  const exactMatches = rows.filter((row) => normalizeName(row.full_name) === normalized);
+  const resultRows = exactMatches.length > 0 ? exactMatches : rows;
+
+  if (resultRows.length === 1) {
+    return { giftPath: `/gift/${resultRows[0].access_code}` };
   }
 
-  const matches = rows.slice(0, 10).map((r) => ({
+  const matches = resultRows.slice(0, 10).map((r) => ({
     displayName: r.full_name,
     nickname: r.nickname || '',
     avatarUrl: r.avatar_url || '',
@@ -31,7 +34,7 @@ async function resolve(name) {
 
   return {
     matches,
-    message: `Có ${rows.length} bạn trùng tên. Chọn bạn cần tìm?`,
+    message: `Có ${resultRows.length} bạn trùng tên. Chọn bạn cần tìm?`,
   };
 }
 

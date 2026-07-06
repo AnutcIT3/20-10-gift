@@ -227,6 +227,10 @@ test('module 3: create student normalizes name and retries duplicate access code
   const original = pool.execute;
   let inserts = 0;
   pool.execute = async (sql, params) => {
+    if (sql.includes('SELECT id, full_name FROM students')) {
+      assert.deepEqual(params, ['nguyen thi an']);
+      return [[]];
+    }
     if (sql.includes('INSERT INTO students')) {
       inserts += 1;
       assert.equal(params[1], 'nguyen thi an');
@@ -253,6 +257,10 @@ test('module 3: updating a name also updates normalized_name', async () => {
   const original = pool.execute;
   let updateParams;
   pool.execute = async (sql, params) => {
+    if (sql.includes('SELECT id, full_name FROM students')) {
+      assert.deepEqual(params, ['do my linh', 3]);
+      return [[]];
+    }
     if (sql.startsWith('UPDATE')) {
       updateParams = params;
       return [{ affectedRows: 1 }];
@@ -347,7 +355,7 @@ test('module 4: failed DB insert cleans up the uploaded Cloudinary image', async
   try {
     await assert.rejects(() => galleryController.upload({
       body: { student_id: '1' },
-      file: { path: 'https://image.test/a.jpg', filename: 'gift/a' },
+      files: { image: [{ path: 'https://image.test/a.jpg', filename: 'gift/a' }] },
     }, mockResponse()), /db failed/);
     assert.equal(destroyed, 'gift/a');
   } finally {
@@ -368,7 +376,8 @@ test('module 4: letter list is filtered and paginated', async () => {
     const result = await letterService.listLetters({ status: 'pending', studentId: '2', page: '2', pageSize: '10' });
     assert.equal(result.items.length, 1);
     assert.deepEqual(result.pagination, { page: 2, pageSize: 10, total: 21, totalPages: 3 });
-    assert.deepEqual(queries[1].params, ['pending', 2, 10, 10]);
+    assert.match(queries[1].sql, /LIMIT 10 OFFSET 10/);
+    assert.deepEqual(queries[1].params, ['pending', 2]);
   } finally {
     pool.execute = original;
   }
@@ -386,14 +395,78 @@ test('module 4: letter status only accepts approved or rejected', async () => {
   }
 });
 
-test('Gemini greeting uses a safe static fallback when API key is unavailable', async () => {
+test('module 3: create and update reject exact duplicate visible names', async () => {
+  const original = pool.execute;
+  pool.execute = async () => [[{ id: 2, full_name: 'Hùng' }]];
+  try {
+    await assert.rejects(() => studentService.createStudent({ full_name: ' hùng ' }), { statusCode: 409 });
+    await assert.rejects(() => studentService.updateStudent(3, { full_name: ' hùng ' }), { statusCode: 409 });
+  } finally {
+    pool.execute = original;
+  }
+});
+
+test('module 2: resolve prefers a single exact normalized name over broader matches', async () => {
+  const original = pool.execute;
+  pool.execute = async () => [[
+    { full_name: 'Hùng', nickname: 'Hùng', avatar_url: null, access_code: 'code-hung' },
+    { full_name: 'Nguyễn Mạnh Hùng', nickname: 'Hùng', avatar_url: null, access_code: 'code-nguyen-hung' },
+  ]];
+  try {
+    assert.deepEqual(await resolveService.resolve('hùng'), { giftPath: '/gift/code-hung' });
+  } finally {
+    pool.execute = original;
+  }
+});
+
+test('module 3: admin me endpoint verifies a token', async (t) => {
+  const server = app.listen(0);
+  t.after(() => server.close());
+  await new Promise((resolve) => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+
+  assert.equal((await fetch(`${base}/api/auth/admin/me`)).status, 401);
+
+  const token = signToken({ sub: 9 });
+  const response = await fetch(`${base}/api/auth/admin/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.data.adminId, 9);
+});
+
+test('module 4: gallery caption can be updated with validation', async () => {
+  await assert.rejects(() => galleryService.updateCaption(1, 'x'.repeat(501)), { statusCode: 400 });
+  const original = pool.execute;
+  let updateParams;
+  pool.execute = async (sql, params) => {
+    updateParams = params;
+    return [{ affectedRows: 1 }];
+  };
+  try {
+    assert.deepEqual(await galleryService.updateCaption(5, '  Ảnh kỷ niệm  '), {});
+    assert.deepEqual(updateParams, ['Ảnh kỷ niệm', 5]);
+  } finally {
+    pool.execute = original;
+  }
+});
+
+test('Gemini greeting uses safe static fallbacks by audience type when API key is unavailable', async () => {
   const original = process.env.GEMINI_API_KEY;
   delete process.env.GEMINI_API_KEY;
   try {
-    const result = await greetingService.generateGreeting('Lan');
-    assert.equal(result.source, 'fallback');
-    assert.match(result.greeting, /Lan/);
+    const student = await greetingService.generateGreeting('Lan', 'student');
+    const visitor = await greetingService.generateGreeting('Minh Anh', 'visitor');
+    assert.equal(Object.hasOwn(student, 'source'), false);
+    assert.match(student.greeting, /Lan/);
+    assert.match(visitor.greeting, /Minh Anh/);
+    assert.match(visitor.greeting, /chưa từng học cùng nhau/);
   } finally {
     if (original !== undefined) process.env.GEMINI_API_KEY = original;
   }
+});
+
+test('Gemini greeting rejects invalid audienceType', async () => {
+  await assert.rejects(() => greetingService.generateGreeting('Lan', 'unknown'), { statusCode: 400 });
 });

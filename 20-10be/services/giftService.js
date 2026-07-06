@@ -58,6 +58,9 @@ async function createLetter(studentId, data) {
   }
 
   const senderName = data.is_anonymous ? null : submittedSenderName;
+  if (data.is_anonymous !== true && !senderName) {
+    throw Object.assign(new Error('Tên người gửi là bắt buộc khi không ẩn danh'), { statusCode: 400 });
+  }
 
   await pool.execute(
     'INSERT INTO letters (student_id, sender_name, title, content, is_anonymous, status) VALUES (?, ?, ?, ?, ?, ?)',

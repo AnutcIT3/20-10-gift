@@ -96,4 +96,15 @@ async function deleteImage(id) {
   return {};
 }
 
-module.exports = { listGallery, createImage, reorder, deleteImage, validateReorderItems };
+async function updateCaption(id, caption) {
+  const cleanCaption = typeof caption === 'string' ? caption.trim() : '';
+  if (cleanCaption.length > 500) throw httpError('Chú thích tối đa 500 ký tự', 400);
+  const [result] = await pool.execute(
+    'UPDATE gallery SET caption = ? WHERE id = ?',
+    [cleanCaption || null, id],
+  );
+  if (!result.affectedRows) throw httpError('Không tìm thấy ảnh', 404);
+  return {};
+}
+
+module.exports = { listGallery, createImage, reorder, deleteImage, updateCaption, validateReorderItems };

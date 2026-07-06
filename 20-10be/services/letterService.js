@@ -44,8 +44,8 @@ async function listLetters(query) {
     `SELECT l.id, l.student_id, s.full_name AS student_name, l.sender_name,
       l.title, l.content, l.is_anonymous, l.status, l.created_at
      FROM letters l JOIN students s ON s.id = l.student_id
-     WHERE ${where} ORDER BY l.created_at DESC LIMIT ? OFFSET ?`,
-    [...params, pageSize, offset],
+     WHERE ${where} ORDER BY l.created_at DESC LIMIT ${pageSize} OFFSET ${offset}`,
+    params,
   );
   return {
     items,

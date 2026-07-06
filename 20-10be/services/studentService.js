@@ -43,6 +43,26 @@ function generateAccessCode() {
   return crypto.randomBytes(9).toString('base64url');
 }
 
+function canonicalVisibleName(name) {
+  return name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN');
+}
+
+async function assertNoDuplicateVisibleName(fullName, excludeId = null) {
+  const normalized = normalizeName(fullName);
+  const params = [normalized];
+  let sql = 'SELECT id, full_name FROM students WHERE normalized_name = ? AND is_active = TRUE';
+  if (excludeId) {
+    sql += ' AND id <> ?';
+    params.push(excludeId);
+  }
+  const [rows] = await pool.execute(sql, params);
+  const canonical = canonicalVisibleName(fullName);
+  const duplicate = rows.find((row) => canonicalVisibleName(row.full_name) === canonical);
+  if (duplicate) {
+    throw httpError(`Đã tồn tại học sinh tên ${fullName}`, 409);
+  }
+}
+
 async function listStudents() {
   const [rows] = await pool.execute(
     `SELECT id, full_name, nickname, avatar_url, intro_message, class_name,
@@ -64,6 +84,7 @@ async function getStudent(id) {
 
 async function createStudent(data) {
   const clean = sanitizeInput(data, true);
+  await assertNoDuplicateVisibleName(clean.full_name);
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const accessCode = generateAccessCode();
     try {
@@ -84,6 +105,7 @@ async function createStudent(data) {
 
 async function updateStudent(id, data) {
   const clean = sanitizeInput(data);
+  if (clean.full_name) await assertNoDuplicateVisibleName(clean.full_name, id);
   const allowed = ['full_name', 'normalized_name', ...EDITABLE_FIELDS];
   const entries = Object.entries(clean).filter(([key]) => allowed.includes(key));
   if (!entries.length) throw httpError('Không có dữ liệu để cập nhật', 400);
@@ -122,5 +144,5 @@ async function rotateCode(id) {
 
 module.exports = {
   listStudents, getStudent, createStudent, updateStudent, deactivateStudent, rotateCode,
-  sanitizeInput, presentStudent,
+  sanitizeInput, presentStudent, canonicalVisibleName, assertNoDuplicateVisibleName,
 };

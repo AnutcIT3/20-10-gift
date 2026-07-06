@@ -13,4 +13,8 @@ async function login(req, res) {
   return sendSuccess(res, result);
 }
 
-module.exports = { login };
+async function me(req, res) {
+  return sendSuccess(res, { adminId: req.admin.sub });
+}
+
+module.exports = { login, me };

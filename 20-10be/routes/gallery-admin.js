@@ -10,8 +10,12 @@ adminStudentGalleryRouter.get('/:studentId/gallery', asyncHandler(galleryControl
 
 const galleryRouter = Router();
 galleryRouter.use(authMiddleware);
-galleryRouter.post('/upload', uploadImage.single('image'), uploadErrorHandler, asyncHandler(galleryController.upload));
+galleryRouter.post('/upload', uploadImage.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'images', maxCount: 20 },
+]), uploadErrorHandler, asyncHandler(galleryController.upload));
 galleryRouter.put('/reorder', asyncHandler(galleryController.reorder));
+galleryRouter.patch('/:id/caption', asyncHandler(galleryController.updateCaption));
 galleryRouter.delete('/:id', asyncHandler(galleryController.remove));
 
 module.exports = { adminStudentGalleryRouter, galleryRouter };
