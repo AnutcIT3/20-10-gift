@@ -1,5 +1,4 @@
 -- 20-10 Gift - Shared Data Snapshot
--- Created: 2026-07-30T18:50:26.405Z
 -- Restore: npm run migrate && npm run restore
 -- Excludes admins, secrets, and schema_migrations.
 

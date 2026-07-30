@@ -28,7 +28,9 @@ function escapeValue(value) {
 }
 
 async function tableToSql(connection, table) {
-  const [rows, fields] = await connection.query(`SELECT * FROM \`${table}\``);
+  const [rows, fields] = await connection.query(
+    `SELECT * FROM \`${table}\` ORDER BY \`id\``
+  );
   const deleteSql = `DELETE FROM \`${table}\`;`;
 
   if (!rows.length) {
@@ -69,7 +71,6 @@ async function main() {
 
     const lines = [
       '-- 20-10 Gift - Shared Data Snapshot',
-      `-- Created: ${new Date().toISOString()}`,
       '-- Restore: npm run migrate && npm run restore',
       '-- Excludes admins, secrets, and schema_migrations.',
       '',

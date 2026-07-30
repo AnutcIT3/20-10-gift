@@ -26,6 +26,12 @@ Lần đầu trên một máy mới:
 
 Các lần sau chỉ cần `start-dev.bat`. Script mở backend, frontend và trình duyệt.
 
+Để chủ động đồng bộ dữ liệu giữa các máy, double-click `sync-data.bat`:
+
+- Chọn `1` để backup database của máy hiện tại, commit snapshot và push lên Git.
+- Chọn `2` để pull snapshot mới nhất và cập nhật database của máy hiện tại.
+- Lựa chọn `2` sẽ yêu cầu xác nhận vì nó thay thế dữ liệu dùng chung trên máy.
+
 Chạy thủ công:
 
 ```powershell
@@ -132,6 +138,8 @@ git commit -m "data: update shared snapshot"
 git push
 ```
 
+Hoặc double-click `sync-data.bat` và chọn `1`.
+
 Trên máy khác, pull code rồi chạy `setup-local.bat`. Nếu máy đó đã cài đặt dự
 án, có thể cập nhật thủ công:
 
@@ -142,6 +150,8 @@ npm run migrate
 npm run restore
 npm run create-admin
 ```
+
+Hoặc double-click `sync-data.bat` và chọn `2`.
 
 `npm run restore` thay thế dữ liệu hiện có trong năm bảng dùng chung bằng nội
 dung snapshot, vì vậy hãy chạy `npm run backup` trước nếu máy đích có dữ liệu
