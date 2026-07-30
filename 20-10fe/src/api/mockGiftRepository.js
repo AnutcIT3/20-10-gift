@@ -1,37 +1,44 @@
-import { mockStudent, mockGallery, mockLetters } from '../data/mock'
+import { mockStudents, mockGallery, mockLetters } from '../Data/mock'
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function resolveStudent(name) {
-  await delay(600)
-  const normalized = name
+const normalizeName = (name) =>
+  name
     .trim()
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd')
 
+async function resolveStudent(name) {
+  await delay(600)
+  const normalized = normalizeName(name)
+
   if (normalized.length < 2) {
     return null
   }
 
-  if (normalized.includes('vy')) {
-    return { giftPath: '/gift/vy1020' }
-  }
+  const student = mockStudents.find((item) => {
+    const fullName = normalizeName(item.full_name)
+    const nickname = normalizeName(item.nickname || '')
+    return fullName.includes(normalized) || nickname.includes(normalized)
+  })
 
-  if (normalized.includes('mai') || normalized.includes('anh')) {
-    return { giftPath: '/gift/anh2010' }
+  if (student) {
+    return { giftPath: `/gift/${student.access_code}` }
   }
 
   if (normalized.length <= 3) {
     return {
-      matches: [
-        { displayName: 'Nguyễn Thúy Vy', nickname: 'Vy', avatarUrl: mockStudent.avatar_url, giftPath: '/gift/vy1020' },
-        { displayName: 'Trần Mai Anh', nickname: 'Anh', avatarUrl: mockStudent.avatar_url, giftPath: '/gift/anh2010' },
-      ],
-      message: 'Có 2 bạn trùng tên. Chọn bạn cần tìm?',
+      matches: mockStudents.map((item) => ({
+        displayName: item.full_name,
+        nickname: item.nickname,
+        avatarUrl: item.avatar_url,
+        giftPath: `/gift/${item.access_code}`,
+      })),
+      message: 'Co nhieu ban trung ten. Chon ban can tim?',
     }
   }
 
@@ -40,10 +47,7 @@ async function resolveStudent(name) {
 
 async function getGift(accessCode) {
   await delay(400)
-  if (accessCode === 'vy1020' || accessCode === 'anh2010') {
-    return { ...mockStudent, access_code: accessCode }
-  }
-  return null
+  return mockStudents.find((student) => student.access_code === accessCode) || null
 }
 
 async function getGallery(accessCode) {
@@ -70,17 +74,17 @@ async function createLetter(accessCode, data) {
   }
 
   if (!data.content || !data.content.trim()) {
-    throw new Error('Nội dung không được để trống')
+    throw new Error('Noi dung khong duoc de trong')
   }
 
   if (data.content.trim().length > 5000) {
-    throw new Error('Nội dung quá dài (tối đa 5000 ký tự)')
+    throw new Error('Noi dung qua dai (toi da 5000 ky tu)')
   }
   if (data.title && data.title.trim().length > 200) {
-    throw new Error('Tiêu đề quá dài (tối đa 200 ký tự)')
+    throw new Error('Tieu de qua dai (toi da 200 ky tu)')
   }
   if (data.sender_name && data.sender_name.trim().length > 100) {
-    throw new Error('Tên người gửi quá dài (tối đa 100 ký tự)')
+    throw new Error('Ten nguoi gui qua dai (toi da 100 ky tu)')
   }
 
   return { status: 'pending' }
@@ -89,9 +93,9 @@ async function createLetter(accessCode, data) {
 async function generateGreeting(name, audienceType = 'student') {
   await delay(300)
   if (audienceType === 'visitor') {
-    return { greeting: `Dù chúng mình có thể chưa từng học cùng nhau, ${name} vẫn là một bông hoa nhỏ xứng đáng nhận được những lời chúc tốt đẹp. Chúc bạn có một ngày 20/10 thật vui vẻ, luôn rạng rỡ và gặp nhiều may mắn! 🌷` }
+    return { greeting: `Chuc ${name} co mot ngay 20/10 that vui ve, luon rang ro va gap nhieu may man!` }
   }
-  return { greeting: `Chúc ${name} một ngày 20/10 thật vui vẻ và rạng rỡ! 🌷` }
+  return { greeting: `Chuc ${name} mot ngay 20/10 that vui ve va rang ro!` }
 }
 
 const mockGiftRepository = {

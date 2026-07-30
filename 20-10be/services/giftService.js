@@ -2,7 +2,8 @@ const pool = require('../config/db');
 
 async function getStudentByCode(accessCode) {
   const [rows] = await pool.execute(
-    'SELECT id, full_name, nickname, avatar_url, intro_message FROM students WHERE access_code = ? AND is_active = TRUE LIMIT 1',
+    `SELECT id, full_name, nickname, avatar_url, intro_message, seat_row, seat_col
+     FROM students WHERE access_code = ? AND is_active = TRUE LIMIT 1`,
     [accessCode],
   );
   return rows[0] || null;

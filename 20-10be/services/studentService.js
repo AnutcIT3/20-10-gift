@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const pool = require('../config/db');
 const normalizeName = require('../utils/normalizeName');
 
-const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'class_name'];
+const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'class_name', 'seat_row', 'seat_col'];
 
 function httpError(message, statusCode) {
   return Object.assign(new Error(message), { statusCode });
@@ -18,6 +18,16 @@ function validateText(value, field, max, required = false) {
   return trimmed || null;
 }
 
+function validateSeat(value, field) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const numberValue = Number(value);
+  if (!Number.isInteger(numberValue) || numberValue < 1 || numberValue > 20) {
+    throw httpError(`${field} khÃ´ng há»£p lá»‡`, 400);
+  }
+  return numberValue;
+}
+
 function sanitizeInput(data, requireName = false) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw httpError('Dữ liệu không hợp lệ', 400);
@@ -31,6 +41,8 @@ function sanitizeInput(data, requireName = false) {
   clean.avatar_url = validateText(data.avatar_url, 'avatar_url', 500);
   clean.intro_message = validateText(data.intro_message, 'intro_message', 65535);
   clean.class_name = validateText(data.class_name, 'class_name', 20);
+  clean.seat_row = validateSeat(data.seat_row, 'seat_row');
+  clean.seat_col = validateSeat(data.seat_col, 'seat_col');
   return Object.fromEntries(Object.entries(clean).filter(([, value]) => value !== undefined));
 }
 
@@ -66,7 +78,7 @@ async function assertNoDuplicateVisibleName(fullName, excludeId = null) {
 async function listStudents() {
   const [rows] = await pool.execute(
     `SELECT id, full_name, nickname, avatar_url, intro_message, class_name,
-      is_active, access_code, created_at, updated_at
+      seat_row, seat_col, is_active, access_code, created_at, updated_at
      FROM students ORDER BY full_name ASC`,
   );
   return rows.map(presentStudent);
@@ -75,7 +87,7 @@ async function listStudents() {
 async function getStudent(id) {
   const [rows] = await pool.execute(
     `SELECT id, full_name, nickname, avatar_url, intro_message, class_name,
-      is_active, access_code, created_at, updated_at
+      seat_row, seat_col, is_active, access_code, created_at, updated_at
      FROM students WHERE id = ? LIMIT 1`,
     [id],
   );
@@ -90,10 +102,11 @@ async function createStudent(data) {
     try {
       const [result] = await pool.execute(
         `INSERT INTO students
-          (full_name, normalized_name, nickname, avatar_url, intro_message, class_name, access_code)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          (full_name, normalized_name, nickname, avatar_url, intro_message, class_name, access_code, seat_row, seat_col)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [clean.full_name, clean.normalized_name, clean.nickname || null,
-          clean.avatar_url || null, clean.intro_message || null, clean.class_name || 'A1', accessCode],
+          clean.avatar_url || null, clean.intro_message || null, clean.class_name || 'A1', accessCode,
+          clean.seat_row || null, clean.seat_col || null],
       );
       return getStudent(result.insertId);
     } catch (error) {

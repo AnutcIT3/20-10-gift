@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import giftRepository from '../api/giftRepository'
+import SeatLetterReveal from '../components/SeatLetterReveal'
 import '../styles/landing.css'
 
 function LandingPage() {
@@ -21,6 +22,7 @@ function LandingPage() {
   const [wishMessage, setWishMessage] = useState('')
   const [wishError, setWishError] = useState('')
   const [wishSubmitting, setWishSubmitting] = useState(false)
+  const [seatRevealStudent, setSeatRevealStudent] = useState(null)
 
   const resetWish = () => {
     setWishForm({ isAnonymous: false, senderName: '', receiverName: '', content: '' })
@@ -30,6 +32,24 @@ function LandingPage() {
   }
 
   const accessCodeFromGiftPath = (giftPath) => giftPath.split('/').filter(Boolean).pop()
+
+  const openGiftWithSeatReveal = async (giftPath) => {
+    const accessCode = accessCodeFromGiftPath(giftPath)
+
+    try {
+      const studentData = accessCode ? await giftRepository.getGift(accessCode) : null
+      if (studentData?.seat_row || studentData?.seat_col || studentData?.seat) {
+        setSeatRevealStudent(studentData)
+        await new Promise((resolve) => {
+          setTimeout(resolve, 1700)
+        })
+      }
+    } catch {
+      setSeatRevealStudent(null)
+    }
+
+    navigate(giftPath)
+  }
 
   const sendWishToGiftPath = async (giftPath) => {
     const accessCode = accessCodeFromGiftPath(giftPath)
@@ -88,7 +108,7 @@ function LandingPage() {
     setLoading(true)
     try {
       const result = await giftRepository.resolveStudent(value)
-      if (result.giftPath) navigate(result.giftPath)
+      if (result.giftPath) await openGiftWithSeatReveal(result.giftPath)
       else { setMatches(result.matches || []); setMessage(result.message || '') }
     } catch (err) {
       if (err.status === 404) navigate(`/celebrate/${encodeURIComponent(value)}`)
@@ -99,6 +119,7 @@ function LandingPage() {
 
   return (
     <main className="landing-page">
+      <SeatLetterReveal student={seatRevealStudent} />
       <section className="landing-card">
         <p className="landing-date">20 · 10</p>
         <h1>Một món quà nhỏ<br />dành riêng cho bạn</h1>
@@ -112,7 +133,7 @@ function LandingPage() {
           <button type="button" onClick={() => { resetWish(); setWishOpen(true) }}>Gửi lời chúc</button>
         </div>
         {error && <p className="landing-alert" role="alert">{error}</p>}
-        {matches.length > 0 && <div className="landing-matches" aria-live="polite"><p>{message}</p>{matches.map((match) => <button key={match.giftPath} onClick={() => navigate(match.giftPath)}>
+        {matches.length > 0 && <div className="landing-matches" aria-live="polite"><p>{message}</p>{matches.map((match) => <button key={match.giftPath} onClick={() => openGiftWithSeatReveal(match.giftPath)}>
           {match.avatarUrl ? <img src={match.avatarUrl} alt="" /> : <span>{match.displayName.charAt(0)}</span>}
           <span><strong>{match.displayName}</strong>{match.nickname && <small>{match.nickname}</small>}</span>
         </button>)}</div>}
