@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const reactionService = require('./reactionService');
 
 const STATUSES = ['pending', 'approved', 'rejected'];
 
@@ -42,13 +43,22 @@ async function listLetters(query) {
   const offset = (page - 1) * pageSize;
   const [items] = await pool.execute(
     `SELECT l.id, l.student_id, s.full_name AS student_name, l.sender_name,
-      l.title, l.content, l.is_anonymous, l.status, l.created_at
+      l.title, l.content, l.is_anonymous, l.status, l.reveal_at, l.created_at
      FROM letters l JOIN students s ON s.id = l.student_id
      WHERE ${where} ORDER BY l.created_at DESC LIMIT ${pageSize} OFFSET ${offset}`,
     params,
   );
+
+  // Enrich với reaction counts
+  let enrichedItems = items;
+  if (items.length) {
+    const letterIds = items.map((item) => item.id);
+    const counts = await reactionService.getReactionCounts(letterIds);
+    enrichedItems = items.map((item) => ({ ...item, reactions: counts[item.id] || {} }));
+  }
+
   return {
-    items,
+    items: enrichedItems,
     pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
   };
 }
@@ -71,4 +81,4 @@ async function deleteLetter(id) {
   return {};
 }
 
-module.exports = { listLetters, updateStatus, deleteLetter, parseListQuery };
+module.exports = { listLetters, updateStatus, deleteLetter };

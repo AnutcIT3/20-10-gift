@@ -1,3 +1,3 @@
-const { uploadImage, uploadAudio, uploadVideo, uploadErrorHandler } = require('../config/cloudinary');
+const { uploadImage, uploadErrorHandler } = require('../config/cloudinary');
 
-module.exports = { uploadImage, uploadAudio, uploadVideo, uploadErrorHandler };
+module.exports = { uploadImage, uploadErrorHandler };

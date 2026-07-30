@@ -77,7 +77,4 @@ const mockLetters = [
   },
 ]
 
-const mockEmptyGallery = []
-const mockEmptyLetters = []
-
-export { mockStudent, mockGallery, mockLetters, mockEmptyGallery, mockEmptyLetters }
+export { mockStudent, mockGallery, mockLetters }

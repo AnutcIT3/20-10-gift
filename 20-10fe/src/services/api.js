@@ -1,9 +1,27 @@
 import axios from 'axios'
 
+// ── Session ID (stable per browser, shared với reaction + view tracking) ──────
+function getOrCreateSessionId() {
+  const KEY = 'gift_session_id'
+  let sid = localStorage.getItem(KEY)
+  if (!sid || sid.length < 16) {
+    sid = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+    try { localStorage.setItem(KEY, sid) } catch { /* ignore */ }
+  }
+  return sid
+}
+
+const SESSION_ID = getOrCreateSessionId()
+
 const api = axios.create({
   baseURL: (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, ''),
   timeout: 10000,
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    'x-session-id': SESSION_ID,
+  },
 })
 
 api.interceptors.response.use(

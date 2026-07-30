@@ -1,4 +1,4 @@
-import { mockStudent, mockGallery, mockLetters } from '../data/mock'
+import { mockStudent, mockGallery, mockLetters } from '../Data/mockData'
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))

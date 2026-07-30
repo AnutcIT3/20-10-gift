@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { adminApi } from '../../api/adminApi'
 
 const EMPTY_FORM = { full_name: '', nickname: '', avatar_url: '', intro_message: '', class_name: 'A1' }
@@ -19,6 +20,7 @@ function ConfirmModal({ title, message, confirmLabel = 'Xác nhận', onConfirm,
 }
 
 function StudentManager() {
+  const navigate = useNavigate()
   const [students, setStudents] = useState([])
   const [form, setForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState(null)
@@ -26,6 +28,7 @@ function StudentManager() {
   const [confirmAction, setConfirmAction] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -85,6 +88,10 @@ function StudentManager() {
     }
   }
 
+  const viewLetters = (student) => {
+    navigate(`/admin/letters?studentId=${student.id}&status=approved`)
+  }
+
   const deactivate = (student) => {
     setConfirmAction({
       title: 'Ngừng hoạt động trang quà',
@@ -120,7 +127,25 @@ function StudentManager() {
 
   return (
     <section>
-      <header className="admin-page-header"><div><p className="admin-kicker">Học sinh</p><h2>Quản lý học sinh</h2></div></header>
+      <header className="admin-page-header">
+        <div>
+          <p className="admin-kicker">Học sinh</p>
+          <h2>Quản lý học sinh</h2>
+        </div>
+        <button
+          type="button"
+          className="dash-export-btn"
+          disabled={exporting}
+          onClick={async () => {
+            setExporting(true)
+            try { await adminApi.exportStudents(); setMessage('Xuất CSV thành công!') }
+            catch (err) { setError(err.message) }
+            finally { setExporting(false) }
+          }}
+        >
+          {exporting ? 'Đang xuất...' : '⬇️ Xuất CSV'}
+        </button>
+      </header>
       <form className="admin-panel admin-form-grid" onSubmit={submit}>
         <h3>{editingId ? 'Chỉnh sửa học sinh' : 'Thêm học sinh'}</h3>
         <label>Họ và tên<input required maxLength={100} value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></label>
@@ -144,7 +169,7 @@ function StudentManager() {
             <td><div className="admin-student-cell">{student.avatar_url ? <img src={student.avatar_url} alt="" /> : <span>{student.full_name?.charAt(0)}</span>}<div><strong>{student.full_name}</strong><small>{student.nickname}</small></div></div></td><td>{student.class_name}</td>
             <td><span className={`admin-badge ${student.is_active ? 'active' : 'inactive'}`}>{student.is_active ? 'Hoạt động' : 'Đã tắt'}</span></td>
             <td><a href={student.giftPath} target="_blank" rel="noreferrer">{student.giftPath}</a></td>
-            <td className="admin-row-actions"><button onClick={() => copyLink(student)}>Copy link</button><button onClick={() => edit(student)}>Sửa</button><button onClick={() => rotate(student)}>Đổi link</button>{student.is_active && <button className="danger" onClick={() => deactivate(student)}>Tắt</button>}</td>
+            <td className="admin-row-actions"><button onClick={() => copyLink(student)}>Copy link</button><button onClick={() => viewLetters(student)}>Xem lời chúc</button><button onClick={() => edit(student)}>Sửa</button><button onClick={() => rotate(student)}>Đổi link</button>{student.is_active && <button className="danger" onClick={() => deactivate(student)}>Tắt</button>}</td>
           </tr>)}</tbody></table>}
       </div>
       {confirmAction && <ConfirmModal {...confirmAction} onConfirm={confirm} onCancel={() => setConfirmAction(null)} />}

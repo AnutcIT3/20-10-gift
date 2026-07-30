@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import giftRepository from '../api/giftRepository'
+import GiftReveal from '../components/GiftReveal'
 import '../styles/landing.css'
 
 function LandingPage() {
@@ -10,23 +11,41 @@ function LandingPage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // Gift reveal state
+  const [revealPath, setRevealPath] = useState(null)
+  const [revealName, setRevealName] = useState('')
+
   const [wishOpen, setWishOpen] = useState(false)
   const [wishForm, setWishForm] = useState({
     isAnonymous: false,
     senderName: '',
     receiverName: '',
+    title: '',
     content: '',
+    revealAt: '',
   })
   const [wishMatches, setWishMatches] = useState([])
   const [wishMessage, setWishMessage] = useState('')
   const [wishError, setWishError] = useState('')
   const [wishSubmitting, setWishSubmitting] = useState(false)
+  const [revealLimits, setRevealLimits] = useState({ min: '', max: '' })
 
   const resetWish = () => {
-    setWishForm({ isAnonymous: false, senderName: '', receiverName: '', content: '' })
+    setWishForm({ isAnonymous: false, senderName: '', receiverName: '', title: '', content: '', revealAt: '' })
     setWishMatches([])
     setWishMessage('')
     setWishError('')
+  }
+
+  const openWish = () => {
+    const now = Date.now()
+    setRevealLimits({
+      min: new Date(now + 5 * 60 * 1000).toISOString().slice(0, 16),
+      max: new Date(now + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    })
+    resetWish()
+    setWishOpen(true)
   }
 
   const accessCodeFromGiftPath = (giftPath) => giftPath.split('/').filter(Boolean).pop()
@@ -36,12 +55,18 @@ function LandingPage() {
     if (!accessCode) throw new Error('Không xác định được người nhận.')
     await giftRepository.createLetter(accessCode, {
       sender_name: wishForm.isAnonymous ? null : wishForm.senderName.trim(),
+      title: wishForm.title.trim() || null,
       content: wishForm.content.trim(),
       is_anonymous: wishForm.isAnonymous,
+      reveal_at: wishForm.revealAt || null,
     })
     setWishMatches([])
-    setWishMessage('Đã gửi lời chúc. Lời chúc sẽ xuất hiện sau khi admin duyệt.')
-    setWishForm({ isAnonymous: false, senderName: '', receiverName: '', content: '' })
+    setWishMessage(
+      wishForm.revealAt
+        ? `Đã gửi lời chúc bí mật — sẽ hiện đúng lúc ${new Date(wishForm.revealAt).toLocaleString('vi-VN')}.`
+        : 'Đã gửi lời chúc. Lời chúc sẽ xuất hiện sau khi admin duyệt.'
+    )
+    setWishForm({ isAnonymous: false, senderName: '', receiverName: '', title: '', content: '', revealAt: '' })
   }
 
   const submitWish = async (event) => {
@@ -80,6 +105,12 @@ function LandingPage() {
     }
   }
 
+  // Navigate via gift path — show reveal animation first
+  const navigateToGift = (giftPath, displayName = '') => {
+    setRevealName(displayName)
+    setRevealPath(giftPath)
+  }
+
   const submit = async (event) => {
     event.preventDefault()
     const value = name.trim()
@@ -88,13 +119,23 @@ function LandingPage() {
     setLoading(true)
     try {
       const result = await giftRepository.resolveStudent(value)
-      if (result.giftPath) navigate(result.giftPath)
+      if (result.giftPath) navigateToGift(result.giftPath, value)
       else { setMatches(result.matches || []); setMessage(result.message || '') }
     } catch (err) {
       if (err.status === 404) navigate(`/celebrate/${encodeURIComponent(value)}`)
       else if (!navigator.onLine || err.isNetworkError) setError('Bạn đang offline hoặc backend chưa được bật.')
       else setError(err.message)
     } finally { setLoading(false) }
+  }
+
+  // Show reveal animation
+  if (revealPath) {
+    return (
+      <GiftReveal
+        recipientName={revealName}
+        onComplete={() => navigate(revealPath)}
+      />
+    )
   }
 
   return (
@@ -109,10 +150,10 @@ function LandingPage() {
           <div><input id="student-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ví dụ: Nguyễn Thúy Vy" autoComplete="name" aria-describedby="student-name-help" /><button disabled={loading} aria-busy={loading}>{loading ? 'Đang tìm...' : 'Mở quà'}</button></div>
         </form>
         <div className="landing-secondary-actions">
-          <button type="button" onClick={() => { resetWish(); setWishOpen(true) }}>Gửi lời chúc</button>
+          <button type="button" onClick={openWish}>Gửi lời chúc</button>
         </div>
         {error && <p className="landing-alert" role="alert">{error}</p>}
-        {matches.length > 0 && <div className="landing-matches" aria-live="polite"><p>{message}</p>{matches.map((match) => <button key={match.giftPath} onClick={() => navigate(match.giftPath)}>
+        {matches.length > 0 && <div className="landing-matches" aria-live="polite"><p>{message}</p>{matches.map((match) => <button key={match.giftPath} onClick={() => navigateToGift(match.giftPath, match.displayName)}>
           {match.avatarUrl ? <img src={match.avatarUrl} alt="" /> : <span>{match.displayName.charAt(0)}</span>}
           <span><strong>{match.displayName}</strong>{match.nickname && <small>{match.nickname}</small>}</span>
         </button>)}</div>}
@@ -130,7 +171,26 @@ function LandingPage() {
               </fieldset>
               {!wishForm.isAnonymous && <label>Tên của bạn<input value={wishForm.senderName} maxLength={100} onChange={(event) => setWishForm({ ...wishForm, senderName: event.target.value })} placeholder="Ví dụ: Nguyễn Văn A" /></label>}
               <label>Tên người nhận<input value={wishForm.receiverName} maxLength={100} onChange={(event) => setWishForm({ ...wishForm, receiverName: event.target.value })} placeholder="Ví dụ: Phương Anh" /></label>
+              <label>
+                Tiêu đề <span className="wish-optional">(tuỳ chọn)</span>
+                <input
+                  value={wishForm.title}
+                  maxLength={200}
+                  onChange={(event) => setWishForm({ ...wishForm, title: event.target.value })}
+                  placeholder="Ví dụ: Gửi người bạn đặc biệt..."
+                />
+              </label>
               <label>Lời chúc<textarea value={wishForm.content} maxLength={5000} onChange={(event) => setWishForm({ ...wishForm, content: event.target.value })} placeholder="Bạn hãy nhập lời chúc của bạn vào đây..." rows={5} /></label>
+              <label>
+                ⏰ Hiện lúc <span className="wish-optional">(tùy chọn — để trống = hiện ngay khi duyệt)</span>
+                <input
+                  type="datetime-local"
+                  value={wishForm.revealAt}
+                  min={revealLimits.min}
+                  max={revealLimits.max}
+                  onChange={(e) => setWishForm({ ...wishForm, revealAt: e.target.value })}
+                />
+              </label>
               {wishError && <p className="landing-alert" role="alert">{wishError}</p>}
               {wishMessage && <p className="wish-success" role="status">{wishMessage}</p>}
               {wishMatches.length > 0 && <div className="landing-matches wish-matches">{wishMatches.map((match) => <button type="button" key={match.giftPath} onClick={async () => {

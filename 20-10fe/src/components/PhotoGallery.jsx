@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import EmptyState from './EmptyState'
 
 function LazyImage({ src, alt, onClick }) {
@@ -120,7 +121,7 @@ function PhotoGallery({ images = [] }) {
         ))}
       </div>
 
-      {lightboxIndex !== null && (
+      {lightboxIndex !== null && createPortal(
         <div
           ref={dialogRef}
           className="lightbox-overlay"
@@ -168,7 +169,8 @@ function PhotoGallery({ images = [] }) {
           <p className="lightbox-counter">
             {lightboxIndex + 1} / {images.length}
           </p>
-        </div>
+        </div>,
+        document.body,
       )}
     </section>
   )

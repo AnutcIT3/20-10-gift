@@ -58,4 +58,18 @@ export const adminApi = {
     method: 'PATCH', body: JSON.stringify({ status }),
   }),
   deleteLetter: (id) => request(`/api/letters/${id}`, { method: 'DELETE' }),
+  getStats: () => request('/api/admin/stats'),
+  exportStudents: async () => {
+    const token = adminAuth.getToken()
+    const response = await fetch(`${API_BASE_URL}/api/admin/export/students`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) throw new Error(`Export thất bại (${response.status})`)
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const filename = `hoc-sinh-${new Date().toISOString().slice(0, 10)}.csv`
+    a.href = url; a.download = filename; a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  },
 }

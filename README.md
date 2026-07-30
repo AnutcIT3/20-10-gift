@@ -42,6 +42,21 @@ npm run dev
 - Backend health: `http://localhost:5001/api/health`
 - Backend ready: `http://localhost:5001/api/ready`
 
+## Chia sẻ link tạm thời qua Cloudflare
+
+1. Đảm bảo MySQL đang chạy và `20-10be/.env` đã được cấu hình.
+2. Cài `cloudflared` trong `PATH`, hoặc đặt `cloudflared.exe` ở thư mục gốc dự án.
+3. Double-click `start-public.bat`.
+4. Chờ build, migration và readiness check hoàn tất; script sẽ in và mở link
+   `https://...trycloudflare.com`.
+5. Giữ cửa sổ script mở. Nhấn `Ctrl+C` để tắt tunnel và backend do script tạo.
+
+Production build dùng `20-10fe/.env.production` với API cùng origin. Không đặt
+`localhost` vào biến `VITE_API_BASE_URL` khi chia sẻ link cho máy khác.
+
+Quick Tunnel tạo URL mới sau mỗi lần chạy và chỉ phù hợp cho demo ngắn hạn.
+Link hiện tại được in trong cửa sổ script và tự động mở trên trình duyệt.
+
 ## Yêu cầu
 
 - Node.js >= 20

@@ -1,10 +1,6 @@
 const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
-const {
-  ALLOWED_IMAGE_TYPES, ALLOWED_AUDIO_TYPES, ALLOWED_VIDEO_TYPES,
-  MAX_IMAGE_SIZE, MAX_AUDIO_SIZE, MAX_VIDEO_SIZE,
-} = require('./constants');
+const { ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE } = require('./constants');
 require('dotenv').config();
 
 cloudinary.config({
@@ -13,26 +9,34 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const MIME_MAP = {
-  'image/jpeg': 'image', 'image/jpg': 'image', 'image/png': 'image',
-  'image/gif': 'image', 'image/webp': 'image',
-  'audio/mpeg': 'video', 'audio/wav': 'video', 'audio/wave': 'video',
-  'video/mp4': 'video', 'video/webm': 'video',
-};
+function createStorage(resourceType, allowedFormats) {
+  return {
+    _handleFile(req, file, callback) {
+      const upload = cloudinary.uploader.upload_stream({
+        folder: 'gift_20_10',
+        resource_type: resourceType,
+        allowed_formats: allowedFormats,
+      }, (error, result) => {
+        if (error) return callback(error);
+        return callback(null, {
+          path: result.secure_url,
+          filename: result.public_id,
+          size: result.bytes,
+          resourceType: result.resource_type,
+        });
+      });
 
-function mimeToResourceType(mime) {
-  return MIME_MAP[mime] || 'auto';
-}
-
-function createStorage(resourceType) {
-  return new CloudinaryStorage({
-    cloudinary,
-    params: {
-      folder: 'gift_20_10',
-      resource_type: resourceType,
-      allowed_formats: [...ALLOWED_IMAGE_TYPES, ...ALLOWED_AUDIO_TYPES, ...ALLOWED_VIDEO_TYPES],
+      file.stream.pipe(upload);
     },
-  });
+    _removeFile(req, file, callback) {
+      if (!file.filename) return callback(null);
+      return cloudinary.uploader.destroy(
+        file.filename,
+        { resource_type: resourceType },
+        callback,
+      );
+    },
+  };
 }
 
 function fileFilter(allowedExts, allowedMimes) {
@@ -62,23 +66,11 @@ function uploadErrorHandler(err, req, res, next) {
 }
 
 const uploadImage = multer({
-  storage: createStorage('image'),
+  storage: createStorage('image', ALLOWED_IMAGE_TYPES),
   limits: { fileSize: MAX_IMAGE_SIZE },
   fileFilter: fileFilter(ALLOWED_IMAGE_TYPES, ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']),
 });
 
-const uploadAudio = multer({
-  storage: createStorage('video'),
-  limits: { fileSize: MAX_AUDIO_SIZE },
-  fileFilter: fileFilter(ALLOWED_AUDIO_TYPES, ['audio/mpeg', 'audio/wav', 'audio/wave']),
-});
-
-const uploadVideo = multer({
-  storage: createStorage('video'),
-  limits: { fileSize: MAX_VIDEO_SIZE },
-  fileFilter: fileFilter(ALLOWED_VIDEO_TYPES, ['video/mp4', 'video/webm']),
-});
-
 module.exports = {
-  cloudinary, uploadImage, uploadAudio, uploadVideo, uploadErrorHandler,
+  cloudinary, uploadImage, uploadErrorHandler,
 };

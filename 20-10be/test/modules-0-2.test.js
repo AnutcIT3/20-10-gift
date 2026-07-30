@@ -22,6 +22,7 @@ const letterService = require('../services/letterService');
 const galleryController = require('../controllers/galleryController');
 const { cloudinary } = require('../config/cloudinary');
 const greetingService = require('../services/greetingService');
+const reactionService = require('../services/reactionService');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const app = require('../server');
@@ -104,7 +105,7 @@ test('module 2: createLetter validates content and forces trusted fields', async
       is_anonymous: true,
     });
     assert.deepEqual(result, { status: 'pending' });
-    assert.deepEqual(inserted.params, [7, null, null, 'Hello', true, 'pending']);
+    assert.deepEqual(inserted.params, [7, null, null, 'Hello', true, 'pending', null]);
   } finally {
     pool.execute = original;
   }
@@ -113,8 +114,9 @@ test('module 2: createLetter validates content and forces trusted fields', async
 test('module 2: public letters query only approved records', async () => {
   const original = pool.execute;
   pool.execute = async (sql, params) => {
-    assert.match(sql, /status = \?/);
-    assert.deepEqual(params, [3, 'approved']);
+    assert.match(sql, /status = 'approved'/);
+    assert.match(sql, /reveal_at <= NOW\(\)/);
+    assert.deepEqual(params, [3]);
     return [[{ id: 1, sender_name: null, content: 'Safe' }]];
   };
   try {
@@ -143,9 +145,63 @@ test('module 0: health and robots endpoints satisfy the contract', async (t) => 
   assert.equal(health.status, 200);
   assert.equal((await health.json()).status, 'ok');
   assert.equal(health.headers.get('x-robots-tag'), 'noindex, nofollow, noarchive');
+  assert.match(health.headers.get('content-security-policy'), /https:\/\/res\.cloudinary\.com/);
 
   const robots = await fetch(`http://127.0.0.1:${port}/robots.txt`);
   assert.equal(await robots.text(), 'User-agent: *\nDisallow: /\n');
+});
+
+test('module 0: CORS accepts dynamic same-origin tunnel hosts and rejects foreign origins', () => {
+  assert.equal(
+    app.isCorsOriginAllowed(
+      'https://gift-demo.trycloudflare.com',
+      'gift-demo.trycloudflare.com',
+      'https',
+    ),
+    true,
+  );
+  assert.equal(
+    app.isCorsOriginAllowed('http://localhost:5173', 'localhost:5001', 'http'),
+    true,
+  );
+  assert.equal(
+    app.isCorsOriginAllowed('https://evil.example', 'gift-demo.trycloudflare.com', 'https'),
+    false,
+  );
+});
+
+test('module 2: reactions only update approved letters owned by the requested student', async () => {
+  const original = pool.execute;
+  const calls = [];
+  pool.execute = async (sql, params) => {
+    calls.push({ sql, params });
+    if (sql.includes('FROM letters')) return [[{ id: 11 }]];
+    if (sql.includes('SELECT id, emoji_key')) return [[]];
+    if (sql.startsWith('INSERT INTO letter_reactions')) return [{ insertId: 1 }];
+    if (sql.includes('COUNT(*) AS cnt')) {
+      return [[{ letter_id: 11, emoji_key: 'love', cnt: 1 }]];
+    }
+    return [[]];
+  };
+  try {
+    const result = await reactionService.toggleReaction(3, 11, 'love', 'session_123456789');
+    assert.deepEqual(result, { active: 'love', counts: { love: 1 } });
+    assert.match(calls[0].sql, /student_id = \?/);
+    assert.match(calls[0].sql, /status = 'approved'/);
+    assert.deepEqual(calls[0].params, [11, 3]);
+  } finally {
+    pool.execute = original;
+  }
+
+  pool.execute = async () => [[]];
+  try {
+    await assert.rejects(
+      () => reactionService.toggleReaction(4, 11, 'love', 'session_123456789'),
+      { statusCode: 404 },
+    );
+  } finally {
+    pool.execute = original;
+  }
 });
 
 test('module 3: login returns a minimal JWT and rejects a wrong password', async () => {
