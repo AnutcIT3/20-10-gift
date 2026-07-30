@@ -290,13 +290,6 @@
   color: var(--color-subtle);
 }
 
-.landing-admin-link {
-  display: inline-block;
-  margin-top: 28px;
-  color: var(--color-subtle);
-  font-size: 13px;
-}
-
 .wish-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -407,6 +400,14 @@
 
 .wish-matches {
   margin-top: 0;
+}
+
+.wish-optional {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--color-subtle);
+  font-size: 13px;
+  margin-left: 4px;
 }
 
 @media (max-width: 520px) {

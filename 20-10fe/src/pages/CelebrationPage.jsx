@@ -5,7 +5,7 @@ import '../styles/celebration.css'
 
 function CelebrationPage() {
   const { name: routeName } = useParams()
-  const name = (routeName || '').slice(0, 100)
+  const name = (routeName || '').normalize('NFC').slice(0, 100)
   const [result, setResult] = useState(null)
 
   useEffect(() => {

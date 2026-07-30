@@ -157,5 +157,4 @@ async function rotateCode(id) {
 
 module.exports = {
   listStudents, getStudent, createStudent, updateStudent, deactivateStudent, rotateCode,
-  sanitizeInput, presentStudent, canonicalVisibleName, assertNoDuplicateVisibleName,
 };

@@ -73,7 +73,7 @@ async function requestGemini(name, model, audienceType) {
     });
     if (!response.ok) throw new Error(`Gemini HTTP ${response.status}`);
     const payload = await response.json();
-    const greeting = payload.candidates?.[0]?.content?.parts?.map((part) => part.text).join('').trim();
+    const greeting = payload.candidates?.[0]?.content?.parts?.map((part) => part.text).join(' ').replace(/\s+/g, ' ').trim().normalize('NFC');
     if (!greeting) throw new Error('Gemini returned empty content');
     return clampGreeting(greeting);
 }
@@ -98,4 +98,4 @@ async function generateGreeting(name, audienceType = 'student') {
   return { greeting: fallbackGreeting(name, type) };
 }
 
-module.exports = { generateGreeting, fallbackGreeting };
+module.exports = { generateGreeting };

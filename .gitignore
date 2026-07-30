@@ -8,6 +8,7 @@
 **/.env
 **/.env.*
 !**/.env.example
+!**/.env.production
 
 # Logs and runtime files
 **/logs/
@@ -28,3 +29,6 @@ Thumbs.db
 
 # Accidental npm metadata at repository root (no root package.json)
 /package-lock.json
+
+# Local Cloudflare binary (install separately or keep outside Git)
+/cloudflared.exe

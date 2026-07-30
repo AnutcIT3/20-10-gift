@@ -1,4 +1,4 @@
-import { mockStudents, mockGallery, mockLetters } from '../Data/mock'
+import { mockStudents, mockGallery, mockLetters } from '../Data/mockData'
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -38,7 +38,7 @@ async function resolveStudent(name) {
         avatarUrl: item.avatar_url,
         giftPath: `/gift/${item.access_code}`,
       })),
-      message: 'Co nhieu ban trung ten. Chon ban can tim?',
+      message: 'Có nhiều bạn trùng tên. Chọn bạn cần tìm?',
     }
   }
 
@@ -74,17 +74,17 @@ async function createLetter(accessCode, data) {
   }
 
   if (!data.content || !data.content.trim()) {
-    throw new Error('Noi dung khong duoc de trong')
+    throw new Error('Nội dung không được để trống')
   }
 
   if (data.content.trim().length > 5000) {
-    throw new Error('Noi dung qua dai (toi da 5000 ky tu)')
+    throw new Error('Nội dung quá dài (tối đa 5000 ký tự)')
   }
   if (data.title && data.title.trim().length > 200) {
-    throw new Error('Tieu de qua dai (toi da 200 ky tu)')
+    throw new Error('Tiêu đề quá dài (tối đa 200 ký tự)')
   }
   if (data.sender_name && data.sender_name.trim().length > 100) {
-    throw new Error('Ten nguoi gui qua dai (toi da 100 ky tu)')
+    throw new Error('Tên người gửi quá dài (tối đa 100 ký tự)')
   }
 
   return { status: 'pending' }
@@ -93,9 +93,9 @@ async function createLetter(accessCode, data) {
 async function generateGreeting(name, audienceType = 'student') {
   await delay(300)
   if (audienceType === 'visitor') {
-    return { greeting: `Chuc ${name} co mot ngay 20/10 that vui ve, luon rang ro va gap nhieu may man!` }
+    return { greeting: `Dù chúng mình có thể chưa từng học cùng nhau, ${name} vẫn là một bông hoa nhỏ xứng đáng nhận được những lời chúc tốt đẹp. Chúc bạn có một ngày 20/10 thật vui vẻ, luôn rạng rỡ và gặp nhiều may mắn! 🌷` }
   }
-  return { greeting: `Chuc ${name} mot ngay 20/10 that vui ve va rang ro!` }
+  return { greeting: `Chúc ${name} một ngày 20/10 thật vui vẻ và rạng rỡ! 🌷` }
 }
 
 const mockGiftRepository = {

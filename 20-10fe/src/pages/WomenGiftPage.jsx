@@ -4,32 +4,31 @@ import dataBanNu from '../Data/BanNu'; // Đường dẫn tới file data của 
 import logoclass from '../assets/logoclass.jpg';
 import './GiftPage.css';
 
-// Component con xử lý hiệu ứng gõ chữ và tự động sửa lỗi dấu tiếng Việt
-function TypingText({ text, speed = 40 }) {
+function TypingTextAnimation({ text, speed }) {
   const [displayedText, setDisplayedText] = useState('');
 
   useEffect(() => {
-    setDisplayedText('');
     let index = 0;
-    let timer;
+    if (!text) return undefined;
 
-    // Chuẩn hóa dữ liệu chữ về NFC để không bao giờ bị lỗi bay dấu huyền/sắc
-    const safeText = text ? text.normalize('NFC') : '';
-
-    if (safeText) {
-      timer = setInterval(() => {
-        setDisplayedText((prev) => prev + safeText.charAt(index));
+    const timer = setInterval(() => {
+        setDisplayedText((prev) => prev + text.charAt(index));
         index++;
-        if (index >= safeText.length) {
+        if (index >= text.length) {
           clearInterval(timer);
         }
-      }, speed);
-    }
+    }, speed);
 
     return () => clearInterval(timer);
   }, [text, speed]);
 
   return <span className="typing-cursor">{displayedText}</span>;
+}
+
+// Remount animation khi nội dung đổi để trạng thái bắt đầu lại từ đầu.
+function TypingText({ text, speed = 40 }) {
+  const safeText = text ? text.normalize('NFC') : '';
+  return <TypingTextAnimation key={safeText} text={safeText} speed={speed} />;
 }
 
 function GiftPage() {
