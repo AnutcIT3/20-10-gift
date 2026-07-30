@@ -1,70 +1,107 @@
 #!/usr/bin/env node
 /**
- * scripts/restore.js
- * Khôi phục database từ file backup SQL.
- * Chạy: npm run restore -- backups/backup-2024-10-20-00-00-00.sql
- *    hoặc (file mới nhất): npm run restore
+ * Restore shared application data from a SQL snapshot.
+ * Run: npm run restore
+ * Or:  npm run restore -- backups/snapshot.sql
  */
 
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const pool = require('../config/db');
+const mysql = require('mysql2/promise');
 
 const BACKUPS_DIR = path.join(__dirname, '..', 'backups');
+const TABLES = [
+  'students',
+  'gallery',
+  'letters',
+  'letter_reactions',
+  'student_views',
+];
 
-function getLatestBackup() {
-  if (!fs.existsSync(BACKUPS_DIR)) return null;
-  const files = fs.readdirSync(BACKUPS_DIR)
-    .filter((f) => f.endsWith('.sql'))
+function getDefaultBackup() {
+  const canonicalSnapshot = path.join(BACKUPS_DIR, 'current-data.sql');
+  if (fs.existsSync(canonicalSnapshot)) {
+    return canonicalSnapshot;
+  }
+
+  if (!fs.existsSync(BACKUPS_DIR)) {
+    return null;
+  }
+
+  const files = fs
+    .readdirSync(BACKUPS_DIR)
+    .filter((file) => /^backup-.*\.sql$/.test(file))
     .sort()
     .reverse();
-  return files[0] ? path.join(BACKUPS_DIR, files[0]) : null;
+
+  return files.length ? path.join(BACKUPS_DIR, files[0]) : null;
+}
+
+function getDatabaseConfig() {
+  const requiredVariables = ['DB_HOST', 'DB_USER', 'DB_NAME'];
+  const missingVariables = requiredVariables.filter(
+    (variable) => !process.env[variable]
+  );
+
+  if (missingVariables.length) {
+    throw new Error(
+      `Missing required environment variables: ${missingVariables.join(', ')}`
+    );
+  }
+
+  return {
+    host: process.env.DB_HOST,
+    port: Number(process.env.DB_PORT || 3306),
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME,
+    charset: 'utf8mb4',
+    multipleStatements: true,
+  };
 }
 
 async function main() {
-  // Lấy file từ argument hoặc file mới nhất
-  let file = process.argv[2];
-  if (!file) {
-    file = getLatestBackup();
-    if (!file) {
-      console.error('[LOI] Khong tim thay file backup trong thu muc backups/');
-      process.exit(1);
-    }
-    console.log(`  Su dung backup moi nhat: ${path.basename(file)}`);
-  } else if (!path.isAbsolute(file)) {
-    file = path.resolve(process.cwd(), file);
+  const fileArg = process.argv[2];
+  const filePath = fileArg
+    ? path.resolve(process.cwd(), fileArg)
+    : getDefaultBackup();
+
+  if (!filePath || !fs.existsSync(filePath)) {
+    throw new Error(
+      'No snapshot found. Run "npm run backup" or pass a .sql file path.'
+    );
   }
 
-  if (!fs.existsSync(file)) {
-    console.error(`[LOI] Khong tim thay file: ${file}`);
-    process.exit(1);
-  }
+  console.log(`Restoring shared data from: ${filePath}`);
+  const sql = fs.readFileSync(filePath, 'utf8');
+  const connection = await mysql.createConnection(getDatabaseConfig());
 
-  const sql = fs.readFileSync(file, 'utf8');
-
-  // Tach thanh cac lenh SQL rieng le (phan theo ";")
-  const statements = sql
-    .split('\n')
-    .filter((l) => !l.startsWith('--') && l.trim())
-    .join('\n')
-    .split(';')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
-  console.log(`\n  Restoring ${statements.length} statements from ${path.basename(file)}...`);
-
-  const conn = await pool.getConnection();
   try {
-    for (const stmt of statements) {
-      await conn.query(stmt);
+    await connection.beginTransaction();
+    await connection.query(sql);
+    await connection.commit();
+
+    console.log('Restore completed successfully:');
+    for (const table of TABLES) {
+      const [[result]] = await connection.query(
+        `SELECT COUNT(*) AS count FROM \`${table}\``
+      );
+      console.log(`- ${table}: ${result.count}`);
     }
-    console.log('\n✓ Restore hoan thanh!');
-    console.log('  Chay "npm run migrate" neu chua co schema.');
+  } catch (error) {
+    await connection.rollback();
+    throw error;
   } finally {
-    conn.release();
-    await pool.end();
+    try {
+      await connection.query('SET FOREIGN_KEY_CHECKS = 1');
+    } finally {
+      await connection.end();
+    }
   }
 }
 
-main().catch((err) => { console.error('[LOI]', err.message); process.exit(1); });
+main().catch((error) => {
+  console.error('Restore failed:', error.message);
+  process.exitCode = 1;
+});
