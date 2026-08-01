@@ -173,8 +173,18 @@ INSERT INTO students (
     TRUE
   ),
   (
+    'Hương',
+    'huong',
+    'Hương',
+    NULL,
+    '12a1-huong',
+    'Một món quà nhỏ dành riêng cho Dương trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.',
+    '12A1',
+    TRUE
+  )
+  (
     'Dương',
-    'Duong',
+    'duong',
     'Dương',
     NULL,
     '12a1-huong',

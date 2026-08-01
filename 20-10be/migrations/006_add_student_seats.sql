@@ -13,7 +13,7 @@ SET SQL_SAFE_UPDATES = 1;
 SET SQL_SAFE_UPDATES = 0;
 
 -- Cập nhật tọa độ hàng và cột cho từng bạn nữ theo sơ đồ lớp học
-UPDATE students SET seat_row = 1, seat_col = 4 WHERE full_name = 'Vũ Huyền';
+UPDATE students SET seat_row = 4, seat_col = 2 WHERE full_name = 'Vũ Huyền';
 UPDATE students SET seat_row = 1, seat_col = 8 WHERE full_name = 'Giang';
 
 UPDATE students SET seat_row = 2, seat_col = 3 WHERE full_name = 'Linh Tần';
@@ -25,7 +25,7 @@ UPDATE students SET seat_row = 3, seat_col = 6 WHERE full_name = 'Dương';
 UPDATE students SET seat_row = 3, seat_col = 8 WHERE full_name = 'Ngọc';
 
 UPDATE students SET seat_row = 4, seat_col = 1 WHERE full_name = 'Phương Anh';
-UPDATE students SET seat_row = 4, seat_col = 2 WHERE full_name = 'Thanh Huyền';
+UPDATE students SET seat_row = 1, seat_col = 4 WHERE full_name = 'Thanh Huyền';
 UPDATE students SET seat_row = 4, seat_col = 3 WHERE full_name = 'Phương Linh';
 
 UPDATE students SET seat_row = 5, seat_col = 2 WHERE full_name = 'My';
