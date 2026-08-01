@@ -32,3 +32,7 @@ Thumbs.db
 
 # Local Cloudflare binary (install separately or keep outside Git)
 /cloudflared.exe
+
+# Keep one canonical shared-data snapshot; ignore ad-hoc dated exports
+/20-10be/backups/backup-*.sql
+!/20-10be/backups/current-data.sql

@@ -20,10 +20,17 @@ Lần đầu trên một máy mới:
 
 1. Cài Node.js 20+ và MySQL 8.
 2. Double-click `setup-local.bat`.
-3. Điền mật khẩu MySQL và thông tin admin khi Notepad mở ra.
-4. Sau khi setup thành công, double-click `start-dev.bat`.
+3. Điền thông tin database, admin, Cloudinary và các biến môi trường cần dùng khi Notepad mở ra.
+4. Script sẽ tạo schema, khôi phục dữ liệu dùng chung từ Git và tạo tài khoản admin cục bộ.
+5. Sau khi setup thành công, double-click `start-dev.bat`.
 
 Các lần sau chỉ cần `start-dev.bat`. Script mở backend, frontend và trình duyệt.
+
+Để chủ động đồng bộ dữ liệu giữa các máy, double-click `sync-data.bat`:
+
+- Chọn `1` để backup database của máy hiện tại, commit snapshot và push lên Git.
+- Chọn `2` để pull snapshot mới nhất và cập nhật database của máy hiện tại.
+- Lựa chọn `2` sẽ yêu cầu xác nhận vì nó thay thế dữ liệu dùng chung trên máy.
 
 Chạy thủ công:
 
@@ -70,6 +77,7 @@ Link hiện tại được in trong cửa sổ script và tự động mở trê
 cd 20-10be
 npm install
 npm run migrate
+npm run restore
 npm run create-admin
 
 cd ../20-10fe
@@ -112,6 +120,48 @@ VITE_API_BASE_URL=http://localhost:5001
 
 Không commit `.env`, `.env.local`, API key hoặc secret lên Git.
 
+## Đồng bộ dữ liệu giữa các máy
+
+Repository lưu một snapshot dữ liệu dùng chung tại
+`20-10be/backups/current-data.sql`. Snapshot gồm học sinh, gallery, lời chúc,
+reaction và lượt xem; không gồm tài khoản admin, mật khẩu, secret hoặc lịch sử
+migration.
+
+Sau khi thay đổi dữ liệu trên máy chính:
+
+```powershell
+cd 20-10be
+npm run backup
+cd ..
+git add 20-10be/backups/current-data.sql
+git commit -m "data: update shared snapshot"
+git push
+```
+
+Hoặc double-click `sync-data.bat` và chọn `1`.
+
+Trên máy khác, pull code rồi chạy `setup-local.bat`. Nếu máy đó đã cài đặt dự
+án, có thể cập nhật thủ công:
+
+```powershell
+git pull
+cd 20-10be
+npm run migrate
+npm run restore
+npm run create-admin
+```
+
+Hoặc double-click `sync-data.bat` và chọn `2`.
+
+`npm run restore` thay thế dữ liệu hiện có trong năm bảng dùng chung bằng nội
+dung snapshot, vì vậy hãy chạy `npm run backup` trước nếu máy đích có dữ liệu
+riêng cần giữ lại.
+
+File SQL chỉ lưu URL và `public_id` của ảnh, không chứa file ảnh. Muốn tiếp tục
+quản lý hoặc xóa đúng các ảnh đã upload, các máy phải dùng cùng tài khoản
+Cloudinary trong `.env`. Dữ liệu mới chỉ xuất hiện trên máy khác sau khi tạo lại
+snapshot rồi commit và push.
+
 ## Routes frontend
 
 | Path | Chức năng |
@@ -152,6 +202,8 @@ Backend:
 - `npm run dev` — chạy bằng nodemon.
 - `npm start` — chạy production.
 - `npm run migrate` — chạy migrations idempotent.
+- `npm run backup` — cập nhật snapshot dữ liệu dùng chung để commit lên Git.
+- `npm run restore` — thay dữ liệu dùng chung bằng snapshot trong Git.
 - `npm run create-admin` — tạo/cập nhật admin từ env.
 - `npm test` — chạy test backend.
 
