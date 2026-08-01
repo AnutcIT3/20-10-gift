@@ -1,5 +1,5 @@
-const ROW_COUNT = 4
-const COL_COUNT = 6
+const ROW_COUNT = 6
+const COL_COUNT = 8
 
 function SeatLetterReveal({ student }) {
   if (!student) return null
@@ -27,7 +27,10 @@ function SeatLetterReveal({ student }) {
     <div className="seat-reveal-backdrop" role="status" aria-live="polite">
       <section className="seat-reveal">
         <div className="seat-board-label">Bang lop</div>
-        <div className="seat-map">{seats}</div>
+        <div className="seat-map" style={{ 
+          display: 'grid', 
+          gridTemplateColumns: `repeat(${COL_COUNT}, 1fr)` 
+        }}>{seats}</div>
         {/* <p>
           La thu cua <strong>{displayName}</strong> dang mo ra tu cho ngoi
         </p> */}
