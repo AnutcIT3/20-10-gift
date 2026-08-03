@@ -39,7 +39,11 @@ export const adminApi = {
   createStudent: (data) => request('/api/students', { method: 'POST', body: JSON.stringify(data) }),
   updateStudent: (id, data) => request(`/api/students/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deactivateStudent: (id) => request(`/api/students/${id}/deactivate`, { method: 'PATCH' }),
-  rotateCode: (id) => request(`/api/students/${id}/rotate-code`, { method: 'POST' }),
+  activateStudent: (id) => request(`/api/students/${id}/activate`, { method: 'PATCH' }),
+  deleteStudent: (id) => request(`/api/students/${id}`, { method: 'DELETE' }),
+  updateGiftLink: (id, accessCode) => request(`/api/students/${id}/access-code`, {
+    method: 'PATCH', body: JSON.stringify({ access_code: accessCode }),
+  }),
   listGallery: (studentId) => request(`/api/admin/students/${studentId}/gallery`),
   uploadImage: (formData) => request('/api/gallery/upload', { method: 'POST', body: formData }),
   updateImageCaption: (id, caption) => request(`/api/gallery/${id}/caption`, {
@@ -54,10 +58,22 @@ export const adminApi = {
     if (studentId) params.set('studentId', studentId)
     return request(`/api/admin/letters?${params}`)
   },
+  createLetters: (data) => request('/api/admin/letters', {
+    method: 'POST', body: JSON.stringify(data),
+  }),
+  updateLetter: (id, data) => request(`/api/letters/${id}`, {
+    method: 'PATCH', body: JSON.stringify(data),
+  }),
   updateLetterStatus: (id, status) => request(`/api/letters/${id}/status`, {
     method: 'PATCH', body: JSON.stringify({ status }),
   }),
+  bulkUpdateLetterStatus: (ids, status) => request('/api/admin/letters/bulk/status', {
+    method: 'PATCH', body: JSON.stringify({ ids, status }),
+  }),
   deleteLetter: (id) => request(`/api/letters/${id}`, { method: 'DELETE' }),
+  bulkDeleteLetters: (ids) => request('/api/admin/letters/bulk', {
+    method: 'DELETE', body: JSON.stringify({ ids }),
+  }),
   getStats: () => request('/api/admin/stats'),
   exportStudents: async () => {
     const token = adminAuth.getToken()

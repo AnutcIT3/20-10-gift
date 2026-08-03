@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const pool = require('../config/db');
+const { cloudinary } = require('../config/cloudinary');
 const normalizeName = require('../utils/normalizeName');
 
 const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'class_name', 'seat_row', 'seat_col'];
@@ -53,6 +54,18 @@ function presentStudent(row) {
 
 function generateAccessCode() {
   return crypto.randomBytes(9).toString('base64url');
+}
+
+function normalizeAccessCode(value) {
+  if (typeof value !== 'string') throw httpError('Mã link là bắt buộc', 400);
+  const accessCode = value.trim().toLowerCase();
+  if (accessCode.length < 3 || accessCode.length > 20) {
+    throw httpError('Mã link phải có từ 3 đến 20 ký tự', 400);
+  }
+  if (!/^[a-z0-9_-]+$/.test(accessCode)) {
+    throw httpError('Mã link chỉ được gồm chữ không dấu, số, dấu gạch ngang hoặc gạch dưới', 400);
+  }
+  return accessCode;
 }
 
 function canonicalVisibleName(name) {
@@ -138,23 +151,79 @@ async function deactivateStudent(id) {
   return { is_active: false };
 }
 
-async function rotateCode(id) {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const accessCode = generateAccessCode();
-    try {
-      const [result] = await pool.execute(
-        'UPDATE students SET access_code = ? WHERE id = ?',
-        [accessCode, id],
-      );
-      if (!result.affectedRows) throw httpError('Không tìm thấy học sinh', 404);
-      return { giftPath: `/gift/${accessCode}` };
-    } catch (error) {
-      if (error.code !== 'ER_DUP_ENTRY' || attempt === 2) throw error;
-    }
+async function activateStudent(id) {
+  const [rows] = await pool.execute(
+    'SELECT id, full_name FROM students WHERE id = ? LIMIT 1',
+    [id],
+  );
+  const student = rows[0];
+  if (!student) throw httpError('Không tìm thấy học sinh', 404);
+
+  await assertNoDuplicateVisibleName(student.full_name, id);
+  await pool.execute('UPDATE students SET is_active = TRUE WHERE id = ?', [id]);
+  return { is_active: true };
+}
+
+async function deleteStudent(id) {
+  const connection = await pool.getConnection();
+  let assets = [];
+  try {
+    await connection.beginTransaction();
+    const [assetRows] = await connection.execute(
+      `SELECT public_id, resource_type FROM gallery WHERE student_id = ? AND public_id IS NOT NULL
+       UNION ALL
+       SELECT public_id, resource_type FROM music WHERE student_id = ? AND public_id IS NOT NULL
+       UNION ALL
+       SELECT public_id, resource_type FROM videos WHERE student_id = ? AND public_id IS NOT NULL`,
+      [id, id, id],
+    );
+    assets = assetRows;
+
+    const [result] = await connection.execute('DELETE FROM students WHERE id = ?', [id]);
+    if (!result.affectedRows) throw httpError('Không tìm thấy học sinh', 404);
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
   }
-  throw httpError('Không thể tạo access code', 500);
+
+  const cleanupResults = await Promise.allSettled(assets.map((asset) => (
+    cloudinary.uploader.destroy(asset.public_id, {
+      resource_type: asset.resource_type || 'image',
+    })
+  )));
+  const cleanupFailed = cleanupResults.filter((result) => result.status === 'rejected').length;
+  if (cleanupFailed) {
+    console.error(`Cloudinary cleanup failed for ${cleanupFailed} asset(s) of student ${id}`);
+  }
+
+  return {
+    deleted: true,
+    assetsDeleted: assets.length - cleanupFailed,
+    assetCleanupFailed: cleanupFailed,
+  };
+}
+
+async function updateAccessCode(id, value) {
+  const accessCode = normalizeAccessCode(value);
+  try {
+    const [result] = await pool.execute(
+      'UPDATE students SET access_code = ? WHERE id = ?',
+      [accessCode, id],
+    );
+    if (!result.affectedRows) throw httpError('Không tìm thấy học sinh', 404);
+    return { giftPath: `/gift/${accessCode}` };
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      throw httpError('Mã link này đã được sử dụng', 409);
+    }
+    throw error;
+  }
 }
 
 module.exports = {
-  listStudents, getStudent, createStudent, updateStudent, deactivateStudent, rotateCode,
+  listStudents, getStudent, createStudent, updateStudent, deactivateStudent, activateStudent,
+  deleteStudent, updateAccessCode,
 };

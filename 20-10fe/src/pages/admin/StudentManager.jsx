@@ -4,16 +4,50 @@ import { adminApi } from '../../api/adminApi'
 
 const EMPTY_FORM = { full_name: '', nickname: '', avatar_url: '', intro_message: '', class_name: 'A1' }
 
-function ConfirmModal({ title, message, confirmLabel = 'Xác nhận', onConfirm, onCancel }) {
+function ConfirmModal({ title, message, confirmLabel = 'Xác nhận', danger = false, onConfirm, onCancel }) {
   return (
     <div className="admin-modal-backdrop" role="presentation" onClick={onCancel}>
       <section className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" onClick={(event) => event.stopPropagation()}>
         <h3 id="confirm-title">{title}</h3>
         <p>{message}</p>
         <div className="admin-form-actions">
-          <button type="button" className="admin-primary" onClick={onConfirm}>{confirmLabel}</button>
+          <button type="button" className={danger ? 'admin-danger-primary' : 'admin-primary'} onClick={onConfirm}>{confirmLabel}</button>
           <button type="button" onClick={onCancel}>Hủy</button>
         </div>
+      </section>
+    </div>
+  )
+}
+
+function LinkEditorModal({ student, saving, onSave, onCancel }) {
+  const currentCode = student.giftPath.split('/').filter(Boolean).pop() || ''
+  const [accessCode, setAccessCode] = useState(currentCode)
+  const previewCode = accessCode.trim().toLowerCase()
+
+  return (
+    <div className="admin-modal-backdrop" role="presentation" onClick={onCancel}>
+      <section className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="link-editor-title" onClick={(event) => event.stopPropagation()}>
+        <h3 id="link-editor-title">Sửa link của {student.full_name}</h3>
+        <form className="admin-link-form" onSubmit={(event) => { event.preventDefault(); onSave(previewCode) }}>
+          <label>
+            Mã link
+            <input
+              autoFocus
+              required
+              minLength={3}
+              maxLength={20}
+              pattern="[a-z0-9_-]+"
+              value={accessCode}
+              onChange={(event) => setAccessCode(event.target.value.toLowerCase())}
+              placeholder="mai-anh"
+            />
+          </label>
+          <p className="admin-link-preview">{window.location.origin}/gift/{previewCode}</p>
+          <div className="admin-form-actions">
+            <button className="admin-primary" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu link'}</button>
+            <button type="button" onClick={onCancel}>Hủy</button>
+          </div>
+        </form>
       </section>
     </div>
   )
@@ -26,8 +60,10 @@ function StudentManager() {
   const [editingId, setEditingId] = useState(null)
   const [query, setQuery] = useState('')
   const [confirmAction, setConfirmAction] = useState(null)
+  const [linkEditor, setLinkEditor] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingLink, setSavingLink] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -104,17 +140,56 @@ function StudentManager() {
     })
   }
 
-  const rotate = (student) => {
+  const activate = async (student) => {
+    setError('')
+    setMessage('')
+    try {
+      await adminApi.activateStudent(student.id)
+      await load()
+      setMessage(`Đã bật lại trang của ${student.full_name}.`)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const removeStudent = (student) => {
     setConfirmAction({
-      title: 'Đổi link quà',
-      message: `Link cũ của ${student.full_name} sẽ hết hiệu lực ngay lập tức.`,
-      confirmLabel: 'Đổi link',
+      title: 'Xóa học sinh',
+      message: `Xóa vĩnh viễn ${student.full_name} cùng toàn bộ ảnh, lời chúc, reaction và lượt xem? Thao tác này không thể hoàn tác.`,
+      confirmLabel: 'Xóa vĩnh viễn',
+      danger: true,
       run: async () => {
-        await adminApi.rotateCode(student.id)
+        await adminApi.deleteStudent(student.id)
+        if (editingId === student.id) {
+          setEditingId(null)
+          setForm(EMPTY_FORM)
+        }
         await load()
-        setMessage('Đã tạo link mới.')
+        setMessage(`Đã xóa ${student.full_name}.`)
       },
     })
+  }
+
+  const editLink = (student) => {
+    setError('')
+    setMessage('')
+    setLinkEditor(student)
+  }
+
+  const saveLink = async (accessCode) => {
+    if (!linkEditor) return
+    setSavingLink(true)
+    setError('')
+    try {
+      const result = await adminApi.updateGiftLink(linkEditor.id, accessCode)
+      setLinkEditor(null)
+      await load()
+      setMessage(`Đã đổi link thành ${result.giftPath}. Link cũ không còn hiệu lực.`)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSavingLink(false)
+    }
   }
 
   const confirm = async () => {
@@ -169,9 +244,10 @@ function StudentManager() {
             <td><div className="admin-student-cell">{student.avatar_url ? <img src={student.avatar_url} alt="" /> : <span>{student.full_name?.charAt(0)}</span>}<div><strong>{student.full_name}</strong><small>{student.nickname}</small></div></div></td><td>{student.class_name}</td>
             <td><span className={`admin-badge ${student.is_active ? 'active' : 'inactive'}`}>{student.is_active ? 'Hoạt động' : 'Đã tắt'}</span></td>
             <td><a href={student.giftPath} target="_blank" rel="noreferrer">{student.giftPath}</a></td>
-            <td className="admin-row-actions"><button onClick={() => copyLink(student)}>Copy link</button><button onClick={() => viewLetters(student)}>Xem lời chúc</button><button onClick={() => edit(student)}>Sửa</button><button onClick={() => rotate(student)}>Đổi link</button>{student.is_active && <button className="danger" onClick={() => deactivate(student)}>Tắt</button>}</td>
+            <td className="admin-row-actions"><button onClick={() => copyLink(student)}>Copy link</button><button onClick={() => viewLetters(student)}>Xem lời chúc</button><button onClick={() => edit(student)}>Sửa</button><button onClick={() => editLink(student)}>Sửa link</button>{student.is_active ? <button className="danger" onClick={() => deactivate(student)}>Tắt</button> : <button className="approve" onClick={() => activate(student)}>Bật</button>}<button className="danger" onClick={() => removeStudent(student)}>Xóa</button></td>
           </tr>)}</tbody></table>}
       </div>
+      {linkEditor && <LinkEditorModal key={linkEditor.id} student={linkEditor} saving={savingLink} onSave={saveLink} onCancel={() => setLinkEditor(null)} />}
       {confirmAction && <ConfirmModal {...confirmAction} onConfirm={confirm} onCancel={() => setConfirmAction(null)} />}
     </section>
   )

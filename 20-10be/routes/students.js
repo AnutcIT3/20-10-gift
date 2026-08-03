@@ -11,6 +11,8 @@ router.get('/:id', asyncHandler(studentController.getOne));
 router.post('/', asyncHandler(studentController.create));
 router.put('/:id', asyncHandler(studentController.update));
 router.patch('/:id/deactivate', asyncHandler(studentController.deactivate));
-router.post('/:id/rotate-code', asyncHandler(studentController.rotateCode));
+router.patch('/:id/activate', asyncHandler(studentController.activate));
+router.patch('/:id/access-code', asyncHandler(studentController.updateAccessCode));
+router.delete('/:id', asyncHandler(studentController.remove));
 
 module.exports = router;

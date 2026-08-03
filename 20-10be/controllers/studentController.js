@@ -38,10 +38,22 @@ async function deactivate(req, res) {
   return sendSuccess(res, await studentService.deactivateStudent(id));
 }
 
-async function rotateCode(req, res) {
+async function activate(req, res) {
   const id = parseId(req, res);
   if (id === null) return undefined;
-  return sendSuccess(res, await studentService.rotateCode(id));
+  return sendSuccess(res, await studentService.activateStudent(id));
 }
 
-module.exports = { list, getOne, create, update, deactivate, rotateCode };
+async function remove(req, res) {
+  const id = parseId(req, res);
+  if (id === null) return undefined;
+  return sendSuccess(res, await studentService.deleteStudent(id));
+}
+
+async function updateAccessCode(req, res) {
+  const id = parseId(req, res);
+  if (id === null) return undefined;
+  return sendSuccess(res, await studentService.updateAccessCode(id, req.body?.access_code));
+}
+
+module.exports = { list, getOne, create, update, deactivate, activate, remove, updateAccessCode };
