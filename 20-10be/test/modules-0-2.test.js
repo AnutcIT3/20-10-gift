@@ -331,15 +331,105 @@ test('module 3: updating a name also updates normalized_name', async () => {
   }
 });
 
-test('module 3: deactivate and rotate-code return the contracted shapes', async () => {
+test('module 3: deactivate and manual access-code update return the contracted shapes', async () => {
   const original = pool.execute;
-  pool.execute = async () => [{ affectedRows: 1 }];
+  const calls = [];
+  pool.execute = async (sql, params) => {
+    calls.push({ sql, params });
+    return [{ affectedRows: 1 }];
+  };
   try {
     assert.deepEqual(await studentService.deactivateStudent(2), { is_active: false });
-    const rotated = await studentService.rotateCode(2);
-    assert.match(rotated.giftPath, /^\/gift\/[A-Za-z0-9_-]{12}$/);
+    assert.deepEqual(await studentService.updateAccessCode(2, ' Mai-Anh_20 '), {
+      giftPath: '/gift/mai-anh_20',
+    });
+    assert.deepEqual(calls[1].params, ['mai-anh_20', 2]);
+    await assert.rejects(() => studentService.updateAccessCode(2, 'mã có dấu'), { statusCode: 400 });
+    await assert.rejects(() => studentService.updateAccessCode(2, 'ab'), { statusCode: 400 });
   } finally {
     pool.execute = original;
+  }
+});
+
+test('module 3: activating a student restores access and rejects an active duplicate name', async () => {
+  const original = pool.execute;
+  const calls = [];
+  pool.execute = async (sql, params) => {
+    calls.push({ sql, params });
+    if (sql.includes('WHERE id = ? LIMIT 1')) return [[{ id: 2, full_name: 'Mai Anh' }]];
+    if (sql.includes('normalized_name = ?')) return [[]];
+    return [{ affectedRows: 1 }];
+  };
+  try {
+    assert.deepEqual(await studentService.activateStudent(2), { is_active: true });
+    assert.ok(calls.some(({ sql }) => sql.includes('SET is_active = TRUE')));
+
+    pool.execute = async (sql) => {
+      if (sql.includes('WHERE id = ? LIMIT 1')) return [[{ id: 2, full_name: 'Mai Anh' }]];
+      if (sql.includes('normalized_name = ?')) return [[{ id: 3, full_name: 'Mai Anh' }]];
+      return [{ affectedRows: 1 }];
+    };
+    await assert.rejects(() => studentService.activateStudent(2), { statusCode: 409 });
+  } finally {
+    pool.execute = original;
+  }
+});
+
+test('module 3: manual access-code update reports duplicate links', async () => {
+  const original = pool.execute;
+  pool.execute = async () => {
+    throw Object.assign(new Error('duplicate'), { code: 'ER_DUP_ENTRY' });
+  };
+  try {
+    await assert.rejects(
+      () => studentService.updateAccessCode(2, 'mai-anh'),
+      { statusCode: 409, message: 'Mã link này đã được sử dụng' },
+    );
+  } finally {
+    pool.execute = original;
+  }
+});
+
+test('module 3: deleting a student cascades database data and cleans Cloudinary assets', async () => {
+  const originalGetConnection = pool.getConnection;
+  const originalDestroy = cloudinary.uploader.destroy;
+  const calls = [];
+  const destroyed = [];
+  pool.getConnection = async () => ({
+    beginTransaction: async () => calls.push('begin'),
+    execute: async (sql, params) => {
+      calls.push({ sql, params });
+      if (sql.includes('FROM gallery')) {
+        return [[
+          { public_id: 'gift/photo-1', resource_type: 'image' },
+          { public_id: 'gift/video-1', resource_type: 'video' },
+        ]];
+      }
+      if (sql.startsWith('DELETE FROM students')) return [{ affectedRows: 1 }];
+      return [[]];
+    },
+    commit: async () => calls.push('commit'),
+    rollback: async () => assert.fail('must not rollback'),
+    release: () => calls.push('release'),
+  });
+  cloudinary.uploader.destroy = async (publicId, options) => {
+    destroyed.push({ publicId, options });
+  };
+  try {
+    assert.deepEqual(await studentService.deleteStudent(7), {
+      deleted: true,
+      assetsDeleted: 2,
+      assetCleanupFailed: 0,
+    });
+    assert.deepEqual(destroyed, [
+      { publicId: 'gift/photo-1', options: { resource_type: 'image' } },
+      { publicId: 'gift/video-1', options: { resource_type: 'video' } },
+    ]);
+    assert.ok(calls.includes('commit'));
+    assert.ok(calls.includes('release'));
+  } finally {
+    pool.getConnection = originalGetConnection;
+    cloudinary.uploader.destroy = originalDestroy;
   }
 });
 
@@ -446,6 +536,95 @@ test('module 4: letter status only accepts approved or rejected', async () => {
   try {
     assert.deepEqual(await letterService.updateStatus(1, 'approved'), {});
     assert.deepEqual(await letterService.deleteLetter(1), {});
+  } finally {
+    pool.execute = original;
+  }
+});
+
+test('module 4: admin can create one letter for multiple students', async () => {
+  const original = pool.getConnection;
+  const inserts = [];
+  const calls = [];
+  pool.getConnection = async () => ({
+    beginTransaction: async () => calls.push('begin'),
+    execute: async (sql, params) => {
+      calls.push({ sql, params });
+      if (sql.includes('FROM students')) return [[{ id: 1 }, { id: 2 }]];
+      if (sql.includes('INSERT INTO letters')) {
+        inserts.push(params);
+        return [{ insertId: inserts.length }];
+      }
+      return [[]];
+    },
+    commit: async () => calls.push('commit'),
+    rollback: async () => calls.push('rollback'),
+    release: () => calls.push('release'),
+  });
+  try {
+    const result = await letterService.createLetters({
+      student_ids: [1, 2],
+      sender_name: 'Admin',
+      title: '20/10',
+      content: 'Chúc bạn thật vui.',
+      is_anonymous: false,
+      status: 'approved',
+    });
+    assert.deepEqual(result, { created: 2 });
+    assert.equal(inserts.length, 2);
+    assert.deepEqual(inserts[0], [1, 'Admin', '20/10', 'Chúc bạn thật vui.', false, 'approved', null]);
+    assert.ok(calls.includes('commit'));
+  } finally {
+    pool.getConnection = original;
+  }
+});
+
+test('module 4: admin update letter can change recipient and full content', async () => {
+  const original = pool.getConnection;
+  let updateParams;
+  pool.getConnection = async () => ({
+    beginTransaction: async () => {},
+    execute: async (sql, params) => {
+      if (sql.includes('FROM students')) return [[{ id: 4 }]];
+      if (sql.startsWith('UPDATE letters')) {
+        updateParams = params;
+        return [{ affectedRows: 1 }];
+      }
+      return [[]];
+    },
+    commit: async () => {},
+    rollback: async () => assert.fail('must not rollback'),
+    release: () => {},
+  });
+  try {
+    assert.deepEqual(await letterService.updateLetter(9, {
+      student_id: 4,
+      sender_name: 'Lớp A1',
+      title: 'Mới',
+      content: 'Nội dung đã sửa',
+      is_anonymous: false,
+      status: 'pending',
+    }), {});
+    assert.deepEqual(updateParams, [4, 'Lớp A1', 'Mới', 'Nội dung đã sửa', false, 'pending', null, 9]);
+  } finally {
+    pool.getConnection = original;
+  }
+});
+
+test('module 4: bulk letter actions validate ids and report affected rows', async () => {
+  await assert.rejects(() => letterService.bulkUpdateStatus([1, 1], 'approved'), { statusCode: 400 });
+  await assert.rejects(() => letterService.bulkDelete([]), { statusCode: 400 });
+
+  const original = pool.execute;
+  const calls = [];
+  pool.execute = async (sql, params) => {
+    calls.push({ sql, params });
+    return [{ affectedRows: params.length - (params[0] === 'approved' ? 1 : 0) }];
+  };
+  try {
+    assert.deepEqual(await letterService.bulkUpdateStatus([1, 2, 3], 'approved'), { updated: 3 });
+    assert.deepEqual(await letterService.bulkDelete([2, 3]), { deleted: 2 });
+    assert.deepEqual(calls[0].params, ['approved', 1, 2, 3]);
+    assert.deepEqual(calls[1].params, [2, 3]);
   } finally {
     pool.execute = original;
   }
