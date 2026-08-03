@@ -74,7 +74,10 @@ echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%open-tunnel.ps1" ^
     -CloudflaredPath "%CF_EXE%" ^
     -BackendDir "%BACKEND%" ^
-    -Port 5001
+    -Port 5001 ^
+    -CleanExistingTunnels ^
+    -RestartExistingBackend ^
+    -DnsSettingsScript "%ROOT%dns-settings.ps1"
 
 set "EXIT_CODE=%ERRORLEVEL%"
 if not "%EXIT_CODE%"=="0" (
