@@ -9,6 +9,7 @@
     "migrate": "node scripts/migrate.js",
     "create-admin": "node scripts/create-admin.js",
     "backup": "node scripts/backup.js",
+    "backup:shared": "node scripts/backup.js --shared",
     "restore": "node scripts/restore.js"
   },
   "dependencies": {

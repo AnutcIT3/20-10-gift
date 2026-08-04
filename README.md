@@ -124,14 +124,15 @@ Không commit `.env`, `.env.local`, API key hoặc secret lên Git.
 
 Repository lưu một snapshot dữ liệu dùng chung tại
 `20-10be/backups/current-data.sql`. Snapshot gồm học sinh, gallery, lời chúc,
-reaction và lượt xem; không gồm tài khoản admin, mật khẩu, secret hoặc lịch sử
-migration.
+reaction, lượt xem và các mã truy cập trang quà; không gồm tài khoản admin, mật
+khẩu, secret hoặc lịch sử migration. Chỉ commit snapshot này vào repository riêng
+tư và giới hạn người được cấp quyền đọc.
 
 Sau khi thay đổi dữ liệu trên máy chính:
 
 ```powershell
 cd 20-10be
-npm run backup
+npm run backup:shared
 cd ..
 git add 20-10be/backups/current-data.sql
 git commit -m "data: update shared snapshot"
@@ -154,8 +155,8 @@ npm run create-admin
 Hoặc double-click `sync-data.bat` và chọn `2`.
 
 `npm run restore` thay thế dữ liệu hiện có trong năm bảng dùng chung bằng nội
-dung snapshot, vì vậy hãy chạy `npm run backup` trước nếu máy đích có dữ liệu
-riêng cần giữ lại.
+dung snapshot. Hãy chạy `npm run backup` trước để tạo một bản phục hồi cục bộ
+nếu máy đích có dữ liệu riêng cần giữ lại. Các file backup cục bộ được Git bỏ qua.
 
 File SQL chỉ lưu URL và `public_id` của ảnh, không chứa file ảnh. Muốn tiếp tục
 quản lý hoặc xóa đúng các ảnh đã upload, các máy phải dùng cùng tài khoản
@@ -202,7 +203,8 @@ Backend:
 - `npm run dev` — chạy bằng nodemon.
 - `npm start` — chạy production.
 - `npm run migrate` — chạy migrations idempotent.
-- `npm run backup` — cập nhật snapshot dữ liệu dùng chung để commit lên Git.
+- `npm run backup` — tạo backup phục hồi cục bộ, không commit lên Git.
+- `npm run backup:shared` — cập nhật snapshot dùng chung; cần review trước khi commit.
 - `npm run restore` — thay dữ liệu dùng chung bằng snapshot trong Git.
 - `npm run create-admin` — tạo/cập nhật admin từ env.
 - `npm test` — chạy test backend.

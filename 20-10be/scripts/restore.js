@@ -61,34 +61,34 @@ function getDatabaseConfig() {
   };
 }
 
-async function main() {
-  const fileArg = process.argv[2];
-  const filePath = fileArg
-    ? path.resolve(process.cwd(), fileArg)
-    : getDefaultBackup();
-
+async function restoreData(options = {}) {
+  const filePath = options.filePath || getDefaultBackup();
+  const logger = options.logger === undefined ? console : options.logger;
   if (!filePath || !fs.existsSync(filePath)) {
     throw new Error(
       'No snapshot found. Run "npm run backup" or pass a .sql file path.'
     );
   }
 
-  console.log(`Restoring shared data from: ${filePath}`);
+  logger?.log(`Restoring shared data from: ${filePath}`);
   const sql = fs.readFileSync(filePath, 'utf8');
-  const connection = await mysql.createConnection(getDatabaseConfig());
+  const connection = await mysql.createConnection(options.connectionConfig || getDatabaseConfig());
 
   try {
     await connection.beginTransaction();
     await connection.query(sql);
     await connection.commit();
 
-    console.log('Restore completed successfully:');
+    const counts = {};
     for (const table of TABLES) {
       const [[result]] = await connection.query(
         `SELECT COUNT(*) AS count FROM \`${table}\``
       );
-      console.log(`- ${table}: ${result.count}`);
+      counts[table] = Number(result.count);
+      logger?.log(`- ${table}: ${result.count}`);
     }
+    logger?.log('Restore completed successfully.');
+    return counts;
   } catch (error) {
     await connection.rollback();
     throw error;
@@ -101,7 +101,17 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error('Restore failed:', error.message);
-  process.exitCode = 1;
-});
+async function main() {
+  const fileArg = process.argv[2];
+  const filePath = fileArg ? path.resolve(process.cwd(), fileArg) : getDefaultBackup();
+  await restoreData({ filePath });
+}
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error('Restore failed:', error.message);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { TABLES, getDatabaseConfig, getDefaultBackup, restoreData };

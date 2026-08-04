@@ -45,7 +45,7 @@ goto :failed
 echo.
 echo [1/3] Creating the shared-data snapshot...
 cd /d "%BACKEND%"
-call npm run backup
+call npm run backup:shared
 if errorlevel 1 goto :backend_failed
 
 echo.

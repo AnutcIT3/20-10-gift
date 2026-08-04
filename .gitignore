@@ -3,6 +3,8 @@
 **/dist/
 **/dist-ssr/
 **/coverage/
+/20-10fe/test-results/
+/20-10fe/playwright-report/
 
 # Environment files and secrets
 **/.env
@@ -33,6 +35,6 @@ Thumbs.db
 # Local Cloudflare binary (install separately or keep outside Git)
 /cloudflared.exe
 
-# Keep one canonical shared-data snapshot; ignore ad-hoc dated exports
-/20-10be/backups/backup-*.sql
+# Keep one canonical shared-data snapshot; ignore local recovery exports
+/20-10be/backups/*.sql
 !/20-10be/backups/current-data.sql

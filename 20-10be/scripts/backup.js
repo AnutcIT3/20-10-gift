@@ -8,10 +8,10 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2');
-const pool = require('../config/db');
+const defaultPool = require('../config/db');
 
 const OUTPUT_DIR = path.join(__dirname, '..', 'backups');
-const OUTPUT_FILE = path.join(OUTPUT_DIR, 'current-data.sql');
+const SHARED_OUTPUT_FILE = path.join(OUTPUT_DIR, 'current-data.sql');
 const TABLES = [
   'students',
   'gallery',
@@ -50,7 +50,15 @@ async function tableToSql(connection, table) {
   return `-- Table: ${table} (${rows.length} rows)\n${deleteSql}\nINSERT INTO \`${table}\` (${columns}) VALUES\n${values};\n`;
 }
 
-async function main() {
+function localOutputFile(now = new Date()) {
+  const stamp = now.toISOString().replace(/[:.]/g, '-');
+  return path.join(OUTPUT_DIR, `backup-${stamp}.sql`);
+}
+
+async function backupData(options = {}) {
+  const pool = options.pool || defaultPool;
+  const outputFile = options.outputFile || localOutputFile();
+  const logger = options.logger === undefined ? console : options.logger;
   if (!fs.existsSync(OUTPUT_DIR)) {
     fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   }
@@ -63,7 +71,7 @@ async function main() {
 
     const tableBlocks = [];
     for (const table of TABLES) {
-      console.log(`Backing up ${table}...`);
+      logger?.log(`Backing up ${table}...`);
       tableBlocks.push(await tableToSql(connection, table));
     }
 
@@ -73,6 +81,7 @@ async function main() {
       '-- 20-10 Gift - Shared Data Snapshot',
       '-- Restore: npm run migrate && npm run restore',
       '-- Excludes admins, secrets, and schema_migrations.',
+      '-- Contains private gift access codes. Commit only to a private repository.',
       '',
       'SET FOREIGN_KEY_CHECKS = 0;',
       '',
@@ -81,19 +90,38 @@ async function main() {
       '',
     ];
 
-    fs.writeFileSync(OUTPUT_FILE, lines.join('\n'), 'utf8');
-    const size = (fs.statSync(OUTPUT_FILE).size / 1024).toFixed(1);
-    console.log(`\nShared data snapshot updated: ${OUTPUT_FILE} (${size} KB)`);
+    fs.writeFileSync(outputFile, lines.join('\n'), 'utf8');
+    const size = (fs.statSync(outputFile).size / 1024).toFixed(1);
+    logger?.log(`\nData snapshot created: ${outputFile} (${size} KB)`);
+    return outputFile;
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally {
     connection.release();
-    await pool.end();
   }
 }
 
-main().catch((error) => {
-  console.error('Backup failed:', error.message);
-  process.exitCode = 1;
-});
+async function main() {
+  const shared = process.argv.includes('--shared');
+  const outputFile = shared ? SHARED_OUTPUT_FILE : localOutputFile();
+  try {
+    await backupData({ outputFile });
+    if (shared) {
+      console.log('Shared snapshot updated explicitly. Review it before committing.');
+    } else {
+      console.log('Local recovery backup created. Use "npm run backup:shared" to update the Git snapshot.');
+    }
+  } finally {
+    await defaultPool.end();
+  }
+}
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error('Backup failed:', error.message);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { TABLES, backupData, localOutputFile, tableToSql };
