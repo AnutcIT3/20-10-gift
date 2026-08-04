@@ -173,33 +173,23 @@ INSERT INTO students (
     TRUE
   ),
   (
-    'Hương',
-    'huong',
-    'Hương',
-    NULL,
-    '12a1-huong',
-    'Một món quà nhỏ dành riêng cho Dương trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.',
-    '12A1',
-    TRUE
-  )
-  (
     'Dương',
     'duong',
     'Dương',
     NULL,
-    '12a1-huong',
+    '12a1-duong',
     'Một món quà nhỏ dành riêng cho Dương trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.',
     '12A1',
     TRUE
-  )
+  ) AS seeded
 ON DUPLICATE KEY UPDATE
-  full_name = VALUES(full_name),
-  normalized_name = VALUES(normalized_name),
-  nickname = VALUES(nickname),
-  avatar_url = VALUES(avatar_url),
-  intro_message = VALUES(intro_message),
-  class_name = VALUES(class_name),
-  is_active = VALUES(is_active);
+  full_name = seeded.full_name,
+  normalized_name = seeded.normalized_name,
+  nickname = seeded.nickname,
+  avatar_url = seeded.avatar_url,
+  intro_message = seeded.intro_message,
+  class_name = seeded.class_name,
+  is_active = seeded.is_active;
 
 -- Hùng được seed riêng để tránh tạo thêm bản ghi nếu admin đã nhập bạn này trước đó.
 INSERT INTO students (
@@ -223,5 +213,5 @@ SELECT
   TRUE
 WHERE NOT EXISTS (
   SELECT 1 FROM students
-  WHERE BINARY LOWER(TRIM(full_name)) = BINARY LOWER('Hùng')
+  WHERE normalized_name = 'hung'
 );

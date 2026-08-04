@@ -18,8 +18,9 @@ const EnvelopeIcon = () => (
 function SeatLetterReveal({ student }) {
   if (!student) return null
 
-  const seatRow = Number(student.seat_row || student.seat?.row || 1)
-  const seatCol = Number(student.seat_col || student.seat?.col || 1)
+  const seatRow = Number(student.seat_row ?? student.seat?.row ?? 1)
+  const seatCol = Number(student.seat_col ?? student.seat?.col ?? 1)
+  const isSpecialSeat = seatRow === 0 && seatCol === 9
   const displayName = student.nickname || student.full_name || 'Ban'
 
   const renderDesk = (row, col) => {
@@ -52,8 +53,14 @@ function SeatLetterReveal({ student }) {
   return (
     <div className="seat-reveal-backdrop" role="status" aria-live="polite">
       <section className="seat-reveal">
-        <div style={{ textAlign: 'center' }}>
+        <div className="seat-board-row">
           <div className="seat-board-label">Bang lop</div>
+          <div
+            className={isSpecialSeat ? 'seat-map-desk seat-special-desk active' : 'seat-map-desk seat-special-desk'}
+            aria-label={isSpecialSeat ? `Cho ngoi cua ${displayName}` : 'Ban goc tren phai'}
+          >
+            {isSpecialSeat && <div className="seat-letter-wrapper"><EnvelopeIcon /></div>}
+          </div>
         </div>
         
         <div className="classroom-container">

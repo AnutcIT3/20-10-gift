@@ -56,4 +56,12 @@ async function updateAccessCode(req, res) {
   return sendSuccess(res, await studentService.updateAccessCode(id, req.body?.access_code));
 }
 
-module.exports = { list, getOne, create, update, deactivate, activate, remove, updateAccessCode };
+async function updateSeat(req, res) {
+  const id = parseId(req, res);
+  if (id === null) return undefined;
+  return sendSuccess(res, await studentService.updateSeat(id, req.body));
+}
+
+module.exports = {
+  list, getOne, create, update, deactivate, activate, remove, updateAccessCode, updateSeat,
+};

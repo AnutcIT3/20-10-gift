@@ -13,6 +13,7 @@ const LoginPage = lazy(() => import('./pages/admin/LoginPage'))
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'))
 const Dashboard = lazy(() => import('./pages/admin/Dashboard'))
 const StudentManager = lazy(() => import('./pages/admin/StudentManager'))
+const ClassroomSeating = lazy(() => import('./pages/admin/ClassroomSeating'))
 const GalleryManager = lazy(() => import('./pages/admin/GalleryManager'))
 const LetterManager = lazy(() => import('./pages/admin/LetterManager'))
 
@@ -33,6 +34,7 @@ function App() {
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Dashboard />} />
               <Route path="students" element={<StudentManager />} />
+              <Route path="seating" element={<ClassroomSeating />} />
               <Route path="gallery" element={<GalleryManager />} />
               <Route path="letters" element={<LetterManager />} />
             </Route>

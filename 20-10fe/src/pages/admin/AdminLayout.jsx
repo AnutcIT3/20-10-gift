@@ -15,6 +15,7 @@ function AdminLayout() {
         <nav aria-label="Điều hướng quản trị">
           <NavLink end to="/admin">Tổng quan</NavLink>
           <NavLink to="/admin/students">Học sinh</NavLink>
+          <NavLink to="/admin/seating">Sơ đồ lớp</NavLink>
           <NavLink to="/admin/gallery">Thư viện ảnh</NavLink>
           <NavLink to="/admin/letters">Lời chúc</NavLink>
         </nav>

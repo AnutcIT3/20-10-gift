@@ -4,6 +4,7 @@ const { cloudinary } = require('../config/cloudinary');
 const normalizeName = require('../utils/normalizeName');
 
 const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'class_name', 'seat_row', 'seat_col'];
+const SPECIAL_SEAT = { row: 0, column: 9 };
 
 function httpError(message, statusCode) {
   return Object.assign(new Error(message), { statusCode });
@@ -24,7 +25,7 @@ function validateSeat(value, field) {
   if (value === null || value === '') return null;
   const numberValue = Number(value);
   if (!Number.isInteger(numberValue) || numberValue < 1 || numberValue > 20) {
-    throw httpError(`${field} khÃ´ng há»£p lá»‡`, 400);
+    throw httpError(`${field} không hợp lệ`, 400);
   }
   return numberValue;
 }
@@ -54,6 +55,32 @@ function presentStudent(row) {
 
 function generateAccessCode() {
   return crypto.randomBytes(9).toString('base64url');
+}
+
+function parseSeatPosition(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw httpError('Dữ liệu vị trí không hợp lệ', 400);
+  }
+
+  const rowIsEmpty = data.seat_row === null || data.seat_row === '';
+  const columnIsEmpty = data.seat_col === null || data.seat_col === '';
+  if (rowIsEmpty && columnIsEmpty) return { seat_row: null, seat_col: null };
+  if (rowIsEmpty || columnIsEmpty) {
+    throw httpError('Hàng và cột phải được cập nhật cùng nhau', 400);
+  }
+
+  const seatRow = Number(data.seat_row);
+  const seatColumn = Number(data.seat_col);
+  if (seatRow === SPECIAL_SEAT.row && seatColumn === SPECIAL_SEAT.column) {
+    return { seat_row: seatRow, seat_col: seatColumn };
+  }
+  if (!Number.isInteger(seatRow) || seatRow < 1 || seatRow > 6) {
+    throw httpError('Vị trí hàng ghế không hợp lệ', 400);
+  }
+  if (!Number.isInteger(seatColumn) || seatColumn < 1 || seatColumn > 8) {
+    throw httpError('Vị trí cột ghế không hợp lệ', 400);
+  }
+  return { seat_row: seatRow, seat_col: seatColumn };
 }
 
 function normalizeAccessCode(value) {
@@ -223,7 +250,66 @@ async function updateAccessCode(id, value) {
   }
 }
 
+async function updateSeat(id, data) {
+  const target = parseSeatPosition(data);
+  const connection = await pool.getConnection();
+  let affectedStudentId = null;
+  let action = target.seat_row === null ? 'cleared' : 'moved';
+
+  try {
+    await connection.beginTransaction();
+    const params = [id];
+    let lockSql = `SELECT id, seat_row, seat_col FROM students WHERE id = ?`;
+    if (target.seat_row !== null) {
+      lockSql += ' OR (seat_row = ? AND seat_col = ?)';
+      params.push(target.seat_row, target.seat_col);
+    }
+    lockSql += ' ORDER BY id FOR UPDATE';
+
+    const [lockedStudents] = await connection.execute(lockSql, params);
+    const student = lockedStudents.find((row) => Number(row.id) === Number(id));
+    if (!student) throw httpError('Không tìm thấy học sinh', 404);
+
+    const targetStudent = target.seat_row === null
+      ? null
+      : lockedStudents.find((row) => Number(row.id) !== Number(id));
+
+    if (targetStudent) {
+      await connection.execute(
+        'UPDATE students SET seat_row = NULL, seat_col = NULL WHERE id = ?',
+        [student.id],
+      );
+      await connection.execute(
+        'UPDATE students SET seat_row = ?, seat_col = ? WHERE id = ?',
+        [student.seat_row, student.seat_col, targetStudent.id],
+      );
+      affectedStudentId = targetStudent.id;
+      action = student.seat_row === null || student.seat_col === null ? 'replaced' : 'swapped';
+    }
+
+    await connection.execute(
+      'UPDATE students SET seat_row = ?, seat_col = ? WHERE id = ?',
+      [target.seat_row, target.seat_col, student.id],
+    );
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    if (error.code === 'ER_DUP_ENTRY') {
+      throw httpError('Vị trí vừa được thay đổi bởi một thao tác khác', 409);
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
+
+  const [student, affectedStudent] = await Promise.all([
+    getStudent(id),
+    affectedStudentId ? getStudent(affectedStudentId) : Promise.resolve(null),
+  ]);
+  return { action, student, affectedStudent };
+}
+
 module.exports = {
   listStudents, getStudent, createStudent, updateStudent, deactivateStudent, activateStudent,
-  deleteStudent, updateAccessCode,
+  deleteStudent, updateAccessCode, updateSeat,
 };

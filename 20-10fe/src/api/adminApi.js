@@ -44,6 +44,9 @@ export const adminApi = {
   updateGiftLink: (id, accessCode) => request(`/api/students/${id}/access-code`, {
     method: 'PATCH', body: JSON.stringify({ access_code: accessCode }),
   }),
+  updateStudentSeat: (id, seatRow, seatCol) => request(`/api/students/${id}/seat`, {
+    method: 'PATCH', body: JSON.stringify({ seat_row: seatRow, seat_col: seatCol }),
+  }),
   listGallery: (studentId) => request(`/api/admin/students/${studentId}/gallery`),
   uploadImage: (formData) => request('/api/gallery/upload', { method: 'POST', body: formData }),
   updateImageCaption: (id, caption) => request(`/api/gallery/${id}/caption`, {

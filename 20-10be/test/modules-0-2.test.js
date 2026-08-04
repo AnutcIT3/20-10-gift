@@ -390,6 +390,93 @@ test('module 3: manual access-code update reports duplicate links', async () => 
   }
 });
 
+test('module 3: seating update swaps two occupied positions transactionally', async () => {
+  const originalGetConnection = pool.getConnection;
+  const originalExecute = pool.execute;
+  const calls = [];
+  pool.getConnection = async () => ({
+    beginTransaction: async () => calls.push('begin'),
+    execute: async (sql, params) => {
+      calls.push({ sql, params });
+      if (sql.includes('FOR UPDATE')) {
+        return [[
+          { id: 2, seat_row: 1, seat_col: 1 },
+          { id: 3, seat_row: 1, seat_col: 2 },
+        ]];
+      }
+      return [{ affectedRows: 1 }];
+    },
+    commit: async () => calls.push('commit'),
+    rollback: async () => assert.fail('must not rollback'),
+    release: () => calls.push('release'),
+  });
+  pool.execute = async (sql, params) => [[{
+    id: params[0],
+    full_name: params[0] === 2 ? 'Mai Anh' : 'Thanh Huyền',
+    access_code: `code-${params[0]}`,
+  }]];
+
+  try {
+    const result = await studentService.updateSeat(2, { seat_row: 1, seat_col: 2 });
+    assert.equal(result.action, 'swapped');
+    assert.equal(result.student.id, 2);
+    assert.equal(result.affectedStudent.id, 3);
+    assert.deepEqual(
+      calls.filter((call) => typeof call === 'object' && call.sql.startsWith('UPDATE')).map((call) => call.params),
+      [[2], [1, 1, 3], [1, 2, 2]],
+    );
+    assert.ok(calls.includes('commit'));
+    assert.ok(calls.includes('release'));
+  } finally {
+    pool.getConnection = originalGetConnection;
+    pool.execute = originalExecute;
+  }
+});
+
+test('module 3: seating update can clear a position and validates classroom bounds', async () => {
+  const originalGetConnection = pool.getConnection;
+  const originalExecute = pool.execute;
+  const calls = [];
+  pool.getConnection = async () => ({
+    beginTransaction: async () => calls.push('begin'),
+    execute: async (sql, params) => {
+      calls.push({ sql, params });
+      if (sql.includes('FOR UPDATE')) return [[{ id: 2, seat_row: 4, seat_col: 3 }]];
+      return [{ affectedRows: 1 }];
+    },
+    commit: async () => calls.push('commit'),
+    rollback: async () => assert.fail('must not rollback'),
+    release: () => calls.push('release'),
+  });
+  pool.execute = async (sql, params) => [[{
+    id: params[0], full_name: 'Mai Anh', access_code: 'mai-anh', seat_row: null, seat_col: null,
+  }]];
+
+  try {
+    const result = await studentService.updateSeat(2, { seat_row: null, seat_col: null });
+    assert.equal(result.action, 'cleared');
+    assert.equal(result.affectedStudent, null);
+    assert.ok(calls.some((call) => typeof call === 'object'
+      && call.sql.startsWith('UPDATE') && call.params[0] === null && call.params[1] === null));
+    await assert.rejects(
+      () => studentService.updateSeat(2, { seat_row: 7, seat_col: 1 }),
+      { statusCode: 400, message: 'Vị trí hàng ghế không hợp lệ' },
+    );
+    await assert.rejects(
+      () => studentService.updateSeat(2, { seat_row: 1, seat_col: null }),
+      { statusCode: 400, message: 'Hàng và cột phải được cập nhật cùng nhau' },
+    );
+
+    const specialSeat = await studentService.updateSeat(2, { seat_row: 0, seat_col: 9 });
+    assert.equal(specialSeat.action, 'moved');
+    assert.ok(calls.some((call) => typeof call === 'object'
+      && call.sql.startsWith('UPDATE') && call.params[0] === 0 && call.params[1] === 9));
+  } finally {
+    pool.getConnection = originalGetConnection;
+    pool.execute = originalExecute;
+  }
+});
+
 test('module 3: deleting a student cascades database data and cleans Cloudinary assets', async () => {
   const originalGetConnection = pool.getConnection;
   const originalDestroy = cloudinary.uploader.destroy;

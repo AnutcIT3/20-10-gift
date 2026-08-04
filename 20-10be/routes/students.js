@@ -13,6 +13,7 @@ router.put('/:id', asyncHandler(studentController.update));
 router.patch('/:id/deactivate', asyncHandler(studentController.deactivate));
 router.patch('/:id/activate', asyncHandler(studentController.activate));
 router.patch('/:id/access-code', asyncHandler(studentController.updateAccessCode));
+router.patch('/:id/seat', asyncHandler(studentController.updateSeat));
 router.delete('/:id', asyncHandler(studentController.remove));
 
 module.exports = router;
