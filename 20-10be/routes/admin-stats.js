@@ -7,6 +7,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get('/stats', asyncHandler(adminStatsController.getStats));
+router.get('/data-revision', asyncHandler(adminStatsController.getDataRevision));
 router.get('/export/students', asyncHandler(adminStatsController.exportStudents));
 
 module.exports = router;

@@ -7,6 +7,7 @@ require('dotenv').config();
 
 const pool = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
+const dataRevisionMiddleware = require('./middleware/dataRevision');
 const resolveRoutes = require('./routes/resolve');
 const giftRoutes = require('./routes/gifts');
 const authRoutes = require('./routes/auth');
@@ -63,6 +64,7 @@ app.use(cors((req, callback) => {
 app.use(compression());
 app.use('/api', generalLimiter);
 app.use(express.json({ limit: '100kb' }));
+app.use(dataRevisionMiddleware);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -126,21 +128,32 @@ async function shutdownServer(server, options = {}) {
   const dbPool = options.pool || pool;
   const timeoutMs = options.timeoutMs || 10000;
   const logger = options.logger === undefined ? console : options.logger;
-  const forceTimer = setTimeout(() => {
-    logger?.error('Graceful shutdown timed out. Closing active connections.');
-    server.closeAllConnections?.();
-  }, timeoutMs);
-  forceTimer.unref?.();
+  let forceTimer;
+  let closeError;
+
+  const closePromise = new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+    server.closeIdleConnections?.();
+  });
+  const timeoutPromise = new Promise((resolve) => {
+    forceTimer = setTimeout(() => {
+      logger?.error('Graceful shutdown timed out. Closing active connections.');
+      server.closeAllConnections?.();
+      resolve();
+    }, timeoutMs);
+    forceTimer.unref?.();
+  });
 
   try {
-    await new Promise((resolve, reject) => {
-      server.close((error) => (error ? reject(error) : resolve()));
-      server.closeIdleConnections?.();
-    });
-    await dbPool.end();
+    await Promise.race([closePromise, timeoutPromise]);
+  } catch (error) {
+    closeError = error;
   } finally {
     clearTimeout(forceTimer);
+    await dbPool.end();
   }
+
+  if (closeError) throw closeError;
 }
 
 if (require.main === module) {

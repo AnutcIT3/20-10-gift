@@ -78,6 +78,7 @@ export const adminApi = {
     method: 'DELETE', body: JSON.stringify({ ids }),
   }),
   getStats: () => request('/api/admin/stats'),
+  getDataRevision: () => request('/api/admin/data-revision'),
   exportStudents: async () => {
     const token = adminAuth.getToken()
     const response = await fetch(`${API_BASE_URL}/api/admin/export/students`, {

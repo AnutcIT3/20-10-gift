@@ -3,7 +3,7 @@ const pool = require('../config/db');
 const { cloudinary } = require('../config/cloudinary');
 const normalizeName = require('../utils/normalizeName');
 
-const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'class_name', 'seat_row', 'seat_col'];
+const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'class_name'];
 const SPECIAL_SEAT = { row: 0, column: 9 };
 
 function httpError(message, statusCode) {
@@ -20,16 +20,6 @@ function validateText(value, field, max, required = false) {
   return trimmed || null;
 }
 
-function validateSeat(value, field) {
-  if (value === undefined) return undefined;
-  if (value === null || value === '') return null;
-  const numberValue = Number(value);
-  if (!Number.isInteger(numberValue) || numberValue < 1 || numberValue > 20) {
-    throw httpError(`${field} không hợp lệ`, 400);
-  }
-  return numberValue;
-}
-
 function sanitizeInput(data, requireName = false) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw httpError('Dữ liệu không hợp lệ', 400);
@@ -43,8 +33,10 @@ function sanitizeInput(data, requireName = false) {
   clean.avatar_url = validateText(data.avatar_url, 'avatar_url', 500);
   clean.intro_message = validateText(data.intro_message, 'intro_message', 65535);
   clean.class_name = validateText(data.class_name, 'class_name', 20);
-  clean.seat_row = validateSeat(data.seat_row, 'seat_row');
-  clean.seat_col = validateSeat(data.seat_col, 'seat_col');
+  if (Object.prototype.hasOwnProperty.call(data, 'seat_row')
+    || Object.prototype.hasOwnProperty.call(data, 'seat_col')) {
+    Object.assign(clean, parseSeatPosition(data));
+  }
   return Object.fromEntries(Object.entries(clean).filter(([, value]) => value !== undefined));
 }
 
@@ -62,8 +54,8 @@ function parseSeatPosition(data) {
     throw httpError('Dữ liệu vị trí không hợp lệ', 400);
   }
 
-  const rowIsEmpty = data.seat_row === null || data.seat_row === '';
-  const columnIsEmpty = data.seat_col === null || data.seat_col === '';
+  const rowIsEmpty = data.seat_row == null || data.seat_row === '';
+  const columnIsEmpty = data.seat_col == null || data.seat_col === '';
   if (rowIsEmpty && columnIsEmpty) return { seat_row: null, seat_col: null };
   if (rowIsEmpty || columnIsEmpty) {
     throw httpError('Hàng và cột phải được cập nhật cùng nhau', 400);
@@ -146,7 +138,7 @@ async function createStudent(data) {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [clean.full_name, clean.normalized_name, clean.nickname || null,
           clean.avatar_url || null, clean.intro_message || null, clean.class_name || 'A1', accessCode,
-          clean.seat_row || null, clean.seat_col || null],
+          clean.seat_row ?? null, clean.seat_col ?? null],
       );
       return getStudent(result.insertId);
     } catch (error) {
@@ -159,7 +151,7 @@ async function createStudent(data) {
 async function updateStudent(id, data) {
   const clean = sanitizeInput(data);
   if (clean.full_name) await assertNoDuplicateVisibleName(clean.full_name, id);
-  const allowed = ['full_name', 'normalized_name', ...EDITABLE_FIELDS];
+  const allowed = ['full_name', 'normalized_name', ...EDITABLE_FIELDS, 'seat_row', 'seat_col'];
   const entries = Object.entries(clean).filter(([key]) => allowed.includes(key));
   if (!entries.length) throw httpError('Không có dữ liệu để cập nhật', 400);
 

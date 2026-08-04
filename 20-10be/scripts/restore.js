@@ -77,6 +77,9 @@ async function restoreData(options = {}) {
   try {
     await connection.beginTransaction();
     await connection.query(sql);
+    await connection.query(
+      'UPDATE app_data_revision SET revision = revision + 1 WHERE id = 1'
+    );
     await connection.commit();
 
     const counts = {};

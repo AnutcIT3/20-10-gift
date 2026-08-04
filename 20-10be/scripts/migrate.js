@@ -5,6 +5,11 @@ const path = require('path');
 const mysql = require('mysql2/promise');
 
 function checksum(sql) {
+  const normalizedSql = sql.replace(/\r\n?/g, '\n');
+  return crypto.createHash('sha256').update(normalizedSql, 'utf8').digest('hex');
+}
+
+function rawChecksum(sql) {
   return crypto.createHash('sha256').update(sql, 'utf8').digest('hex');
 }
 
@@ -69,11 +74,19 @@ async function run(options = {}) {
       const filePath = path.join(migrationsDir, file);
       const sql = fs.readFileSync(filePath, 'utf8');
       const fileChecksum = checksum(sql);
+      const legacyFileChecksum = rawChecksum(sql);
 
       if (applied.has(file)) {
         const storedChecksum = applied.get(file);
         if (storedChecksum && storedChecksum !== fileChecksum) {
-          throw new Error(`Migration checksum mismatch: ${file}`);
+          if (storedChecksum === legacyFileChecksum) {
+            await connection.execute(
+              'UPDATE schema_migrations SET checksum = ? WHERE filename = ?',
+              [fileChecksum, file],
+            );
+          } else {
+            throw new Error(`Migration checksum mismatch: ${file}`);
+          }
         }
         if (!storedChecksum) {
           await connection.execute(

@@ -122,6 +122,16 @@ Không commit `.env`, `.env.local`, API key hoặc secret lên Git.
 
 ## Đồng bộ dữ liệu giữa các máy
 
+Khi `start-public.bat` đang chạy, máy đó là máy chủ dữ liệu trung tâm. Tất cả
+admin đăng nhập bằng cùng URL `trycloudflare.com` đều đọc và ghi vào cùng MySQL.
+Trang admin kiểm tra phiên bản dữ liệu mỗi 5 giây và tự tải lại màn hình hiện tại
+khi một thiết bị khác thay đổi học sinh, chỗ ngồi, ảnh hoặc lời chúc.
+
+Không chạy `start-public.bat` độc lập trên nhiều máy nếu muốn dữ liệu cập nhật
+trực tiếp, vì mỗi backend dùng database trong `.env` của chính máy đó. Khi cần
+chuyển máy chủ, hãy dừng máy cũ, đưa snapshot mới nhất lên Git, khôi phục snapshot
+trên máy mới rồi chỉ mở một tunnel từ máy mới.
+
 Repository lưu một snapshot dữ liệu dùng chung tại
 `20-10be/backups/current-data.sql`. Snapshot gồm học sinh, gallery, lời chúc,
 reaction, lượt xem và các mã truy cập trang quà; không gồm tài khoản admin, mật
@@ -160,8 +170,8 @@ nếu máy đích có dữ liệu riêng cần giữ lại. Các file backup c�
 
 File SQL chỉ lưu URL và `public_id` của ảnh, không chứa file ảnh. Muốn tiếp tục
 quản lý hoặc xóa đúng các ảnh đã upload, các máy phải dùng cùng tài khoản
-Cloudinary trong `.env`. Dữ liệu mới chỉ xuất hiện trên máy khác sau khi tạo lại
-snapshot rồi commit và push.
+Cloudinary trong `.env`. Git chỉ chuyển một bản chụp dữ liệu sang máy chủ khác;
+các admin dùng cùng URL public không cần pull Git để thấy thay đổi trực tiếp.
 
 ## Routes frontend
 

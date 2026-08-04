@@ -1,9 +1,14 @@
 const statsService = require('../services/statsService');
 const exportService = require('../services/exportService');
+const dataRevisionService = require('../services/dataRevisionService');
 const { sendSuccess } = require('../utils/response');
 
 async function getStats(req, res) {
   return sendSuccess(res, await statsService.getDashboardStats());
+}
+
+async function getDataRevision(req, res) {
+  return sendSuccess(res, await dataRevisionService.getRevision());
 }
 
 async function exportStudents(req, res) {
@@ -14,4 +19,4 @@ async function exportStudents(req, res) {
   res.send(csv);
 }
 
-module.exports = { getStats, exportStudents };
+module.exports = { getStats, getDataRevision, exportStudents };

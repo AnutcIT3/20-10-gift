@@ -24,3 +24,19 @@ test('shutdown closes HTTP traffic before ending the database pool', async () =>
   assert.ok(calls.includes('server.closeIdleConnections'));
   assert.equal(calls.at(-1), 'pool.end');
 });
+
+test('shutdown timeout forces active connections and still ends the database pool', async () => {
+  const calls = [];
+  const server = {
+    close() { calls.push('server.close'); },
+    closeIdleConnections() { calls.push('server.closeIdleConnections'); },
+    closeAllConnections() { calls.push('server.closeAllConnections'); },
+  };
+  const pool = {
+    async end() { calls.push('pool.end'); },
+  };
+
+  await shutdownServer(server, { pool, timeoutMs: 10, logger: null });
+  assert.ok(calls.includes('server.closeAllConnections'));
+  assert.equal(calls.at(-1), 'pool.end');
+});

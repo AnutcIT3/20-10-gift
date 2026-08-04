@@ -291,6 +291,8 @@ test('module 3: create student normalizes name and retries duplicate access code
       inserts += 1;
       assert.equal(params[1], 'nguyen thi an');
       assert.equal(params[6].length, 12);
+      assert.equal(params[7], 0);
+      assert.equal(params[8], 9);
       if (inserts < 3) throw Object.assign(new Error('duplicate'), { code: 'ER_DUP_ENTRY' });
       return [{ insertId: 8 }];
     }
@@ -300,7 +302,9 @@ test('module 3: create student normalizes name and retries duplicate access code
     }]];
   };
   try {
-    const student = await studentService.createStudent({ full_name: ' Nguyễn Thị An ' });
+    const student = await studentService.createStudent({
+      full_name: ' Nguyễn Thị An ', seat_row: 0, seat_col: 9,
+    });
     assert.equal(inserts, 3);
     assert.equal(student.giftPath, '/gift/new-code-123');
     assert.equal(Object.hasOwn(student, 'normalized_name'), false);
@@ -349,6 +353,17 @@ test('module 3: deactivate and manual access-code update return the contracted s
   } finally {
     pool.execute = original;
   }
+});
+
+test('module 3: create and update validate seat coordinates as a pair', async () => {
+  await assert.rejects(
+    () => studentService.createStudent({ full_name: 'Mai Anh', seat_row: 7, seat_col: 1 }),
+    { statusCode: 400, message: 'Vị trí hàng ghế không hợp lệ' },
+  );
+  await assert.rejects(
+    () => studentService.updateStudent(3, { seat_row: 1 }),
+    { statusCode: 400, message: 'Hàng và cột phải được cập nhật cùng nhau' },
+  );
 });
 
 test('module 3: activating a student restores access and rejects an active duplicate name', async () => {
