@@ -10,6 +10,11 @@ async function getGift(accessCode) {
   return response.data.data
 }
 
+async function getGiftContent(accessCode) {
+  const response = await api.get(`/api/gifts/${encodeURIComponent(accessCode)}/content`)
+  return response.data.data
+}
+
 async function getGallery(accessCode) {
   const response = await api.get(`/api/gifts/${encodeURIComponent(accessCode)}/gallery`)
   return response.data.data
@@ -30,4 +35,4 @@ async function generateGreeting(name, audienceType = 'student') {
   return response.data.data
 }
 
-export default { resolveStudent, getGift, getGallery, getLetters, createLetter, generateGreeting }
+export default { resolveStudent, getGift, getGiftContent, getGallery, getLetters, createLetter, generateGreeting }

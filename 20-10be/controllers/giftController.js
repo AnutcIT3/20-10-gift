@@ -20,6 +20,35 @@ async function getStudent(req, res) {
   return sendSuccess(res, student);
 }
 
+async function enrichLetters(letters, sessionId) {
+  if (!letters.length) return letters;
+  const letterIds = letters.map((letter) => letter.id);
+  const [counts, sessionReactions] = await Promise.all([
+    reactionService.getReactionCounts(letterIds),
+    reactionService.getSessionReactions(letterIds, sessionId),
+  ]);
+  return letters.map((letter) => ({
+    ...letter,
+    reactions: counts[letter.id] || {},
+    myReaction: sessionReactions[letter.id] || null,
+  }));
+}
+
+async function getContent(req, res) {
+  const student = await giftService.getStudentByCode(req.params.accessCode);
+  if (!student) return sendError(res, 'Not found', 404);
+
+  const sessionId = extractSessionId(req);
+  const [gallery, letters] = await Promise.all([
+    giftService.getGallery(student.id),
+    giftService.getApprovedLetters(student.id),
+  ]);
+  const enrichedLetters = await enrichLetters(letters, sessionId);
+  statsService.recordView(student.id, sessionId);
+
+  return sendSuccess(res, { student, gallery, letters: enrichedLetters });
+}
+
 async function getGallery(req, res) {
   const student = await giftService.getStudentByCode(req.params.accessCode);
   if (!student) return sendError(res, 'Not found', 404);
@@ -33,24 +62,7 @@ async function getLetters(req, res) {
 
   const letters = await giftService.getApprovedLetters(student.id);
 
-  // Embed reaction counts + session's active reaction
-  if (letters.length) {
-    const letterIds = letters.map((l) => l.id);
-    const sessionId = extractSessionId(req);
-    const [counts, sessionReactions] = await Promise.all([
-      reactionService.getReactionCounts(letterIds),
-      reactionService.getSessionReactions(letterIds, sessionId),
-    ]);
-
-    const enriched = letters.map((letter) => ({
-      ...letter,
-      reactions: counts[letter.id] || {},
-      myReaction: sessionReactions[letter.id] || null,
-    }));
-    return sendSuccess(res, enriched);
-  }
-
-  return sendSuccess(res, letters);
+  return sendSuccess(res, await enrichLetters(letters, extractSessionId(req)));
 }
 
 async function createLetter(req, res) {
@@ -60,4 +72,4 @@ async function createLetter(req, res) {
   return sendSuccess(res, result, 201);
 }
 
-module.exports = { getStudent, getGallery, getLetters, createLetter };
+module.exports = { getStudent, getContent, getGallery, getLetters, createLetter };

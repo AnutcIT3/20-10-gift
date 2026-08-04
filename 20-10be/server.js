@@ -116,11 +116,53 @@ if (serveStatic) {
 
 app.use(errorHandler);
 
-if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+function startServer(port = PORT) {
+  return app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
   });
+}
+
+async function shutdownServer(server, options = {}) {
+  const dbPool = options.pool || pool;
+  const timeoutMs = options.timeoutMs || 10000;
+  const logger = options.logger === undefined ? console : options.logger;
+  const forceTimer = setTimeout(() => {
+    logger?.error('Graceful shutdown timed out. Closing active connections.');
+    server.closeAllConnections?.();
+  }, timeoutMs);
+  forceTimer.unref?.();
+
+  try {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+      server.closeIdleConnections?.();
+    });
+    await dbPool.end();
+  } finally {
+    clearTimeout(forceTimer);
+  }
+}
+
+if (require.main === module) {
+  const server = startServer();
+  let shutdownStarted = false;
+  const handleShutdown = async (signal) => {
+    if (shutdownStarted) return;
+    shutdownStarted = true;
+    console.log(`${signal} received. Shutting down...`);
+    try {
+      await shutdownServer(server);
+      console.log('Server stopped cleanly.');
+    } catch (error) {
+      console.error('Graceful shutdown failed:', error.message);
+      process.exitCode = 1;
+    }
+  };
+  process.once('SIGINT', () => handleShutdown('SIGINT'));
+  process.once('SIGTERM', () => handleShutdown('SIGTERM'));
 }
 
 module.exports = app;
 module.exports.isCorsOriginAllowed = isCorsOriginAllowed;
+module.exports.startServer = startServer;
+module.exports.shutdownServer = shutdownServer;

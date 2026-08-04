@@ -50,6 +50,15 @@ async function getGift(accessCode) {
   return mockStudents.find((student) => student.access_code === accessCode) || null
 }
 
+async function getGiftContent(accessCode) {
+  const [student, gallery, letters] = await Promise.all([
+    getGift(accessCode),
+    getGallery(accessCode),
+    getLetters(accessCode),
+  ])
+  return { student, gallery, letters }
+}
+
 async function getGallery(accessCode) {
   await delay(500)
   if (accessCode === 'vy1020' || accessCode === 'anh2010') {
@@ -101,6 +110,7 @@ async function generateGreeting(name, audienceType = 'student') {
 const mockGiftRepository = {
   resolveStudent,
   getGift,
+  getGiftContent,
   getGallery,
   getLetters,
   createLetter,

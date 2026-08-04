@@ -9,6 +9,7 @@ const { reactionLimiter } = require('../middleware/rateLimit');
 const router = Router();
 
 router.get('/:accessCode', asyncHandler(giftController.getStudent));
+router.get('/:accessCode/content', asyncHandler(giftController.getContent));
 router.get('/:accessCode/gallery', asyncHandler(giftController.getGallery));
 router.get('/:accessCode/letters', asyncHandler(giftController.getLetters));
 router.post('/:accessCode/letters', honeypot, perGiftLimiter, asyncHandler(giftController.createLetter));

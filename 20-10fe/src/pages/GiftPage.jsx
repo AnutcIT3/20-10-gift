@@ -87,11 +87,11 @@ function GiftPage() {
       setAiGreeting('')
 
       try {
-        const [studentData, galleryData, lettersData] = await Promise.all([
-          giftRepository.getGift(accessCode),
-          giftRepository.getGallery(accessCode),
-          giftRepository.getLetters(accessCode),
-        ])
+        const {
+          student: studentData,
+          gallery: galleryData,
+          letters: lettersData,
+        } = await giftRepository.getGiftContent(accessCode)
 
         if (cancelled) return
 
