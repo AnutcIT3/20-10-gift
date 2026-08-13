@@ -7,11 +7,18 @@ async function resolve(name) {
   if (trimmed.length < 2) return { error: 'Tên tìm kiếm phải có ít nhất 2 ký tự', status: 400 };
 
   const normalized = normalizeName(trimmed);
-  const likeTerm = `%${normalized}%`;
+  // Chặn input chỉ gồm dấu kết hợp (normalize xong thành rỗng/1 ký tự):
+  // nếu không, mẫu LIKE trở thành '%' và khớp toàn bộ danh sách
+  if (normalized.length < 2) return { error: 'Tên tìm kiếm phải có ít nhất 2 ký tự', status: 400 };
+  // Escape wildcard để input chứa % hoặc _ không thể khớp tràn lan
+  const escaped = normalized.replace(/[\\%_]/g, '\\$&');
 
+  // Chỉ khớp từ đầu của một từ trong tên (không khớp giữa từ): vừa đúng cách
+  // người dùng tìm ("vy", "thuy vy"), vừa chặn dò quét access code bằng cặp
+  // ký tự bất kỳ qua LIKE '%..%'.
   const [rows] = await pool.execute(
-    'SELECT full_name, nickname, avatar_url, access_code FROM students WHERE normalized_name LIKE ? AND is_active = TRUE ORDER BY full_name ASC LIMIT 10',
-    [likeTerm],
+    'SELECT full_name, nickname, avatar_url, access_code FROM students WHERE (normalized_name LIKE ? OR normalized_name LIKE ?) AND is_active = TRUE ORDER BY full_name ASC LIMIT 10',
+    [`${escaped}%`, `% ${escaped}%`],
   );
 
   if (rows.length === 0) {

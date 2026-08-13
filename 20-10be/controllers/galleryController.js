@@ -25,19 +25,15 @@ async function upload(req, res) {
     return sendError(res, 'student_id không hợp lệ', 400);
   }
   const caption = typeof req.body.caption === 'string' ? req.body.caption.trim() : null;
-  const uploadedImages = [];
   try {
-    for (const file of files) {
-      const image = await galleryService.createImage({
-        studentId,
-        imageUrl: file.path,
-        publicId: file.filename,
-        caption,
-      });
-      uploadedImages.push(image);
-    }
+    const uploadedImages = await galleryService.createImages({
+      studentId,
+      files: files.map((file) => ({ imageUrl: file.path, publicId: file.filename })),
+      caption,
+    });
     return sendSuccess(res, files.length === 1 ? uploadedImages[0] : uploadedImages, 201);
   } catch (error) {
+    // Transaction đã rollback toàn bộ row nên dọn mọi file Cloudinary là đúng
     await Promise.all(files.map((file) => cloudinary.uploader.destroy(file.filename).catch(() => {})));
     throw error;
   }

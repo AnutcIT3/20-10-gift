@@ -22,12 +22,13 @@ async function getGallery(studentId) {
 }
 
 async function getApprovedLetters(studentId) {
-  // Chỉ trả letter đã approved VÀ (reveal_at IS NULL hoặc reveal_at <= NOW())
+  // Chỉ trả letter đã approved VÀ đã tới giờ hiện. reveal_at lưu theo UTC nên
+  // phải so với UTC_TIMESTAMP(), không dùng NOW() (phụ thuộc múi giờ MySQL)
   const [rows] = await pool.execute(
     `SELECT id, sender_name, is_anonymous, title, content, reveal_at, created_at
      FROM letters
      WHERE student_id = ? AND status = 'approved'
-       AND (reveal_at IS NULL OR reveal_at <= NOW())
+       AND (reveal_at IS NULL OR reveal_at <= UTC_TIMESTAMP())
      ORDER BY created_at DESC`,
     [studentId],
   );

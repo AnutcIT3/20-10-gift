@@ -17,6 +17,15 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+  // DATETIME (reveal_at) được ghi dạng chuỗi UTC; parse lại cũng phải theo UTC
+  // để giá trị không lệch theo múi giờ của máy chạy Node
+  timezone: 'Z',
+});
+
+// Đưa múi giờ phiên MySQL về UTC để TIMESTAMP (created_at...) trả về khớp với
+// cách parse UTC ở trên, bất kể múi giờ server MySQL (thường +07:00 ở VN)
+pool.on('connection', (connection) => {
+  connection.query("SET time_zone = '+00:00'");
 });
 
 module.exports = pool;

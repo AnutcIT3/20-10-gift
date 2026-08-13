@@ -103,6 +103,8 @@ function GalleryManager() {
 
   const upload = async (event) => {
     event.preventDefault()
+    // React trả currentTarget về null sau khi handler đồng bộ kết thúc — phải giữ lại trước await
+    const form = event.currentTarget
     if (!files.length || !studentId) return
     const data = new FormData()
     data.append('student_id', studentId); data.append('caption', caption)
@@ -111,7 +113,7 @@ function GalleryManager() {
     try {
       const uploaded = await adminApi.uploadImage(data)
       const uploadedImages = Array.isArray(uploaded) ? uploaded : [uploaded]
-      setFiles([]); setCaption(''); event.currentTarget.reset(); setMessage(`Đã tải lên ${uploadedImages.length} ảnh.`)
+      setFiles([]); setCaption(''); form.reset(); setMessage(`Đã tải lên ${uploadedImages.length} ảnh.`)
       if (uploadedImages.length) {
         setImages((current) => [
           ...current,

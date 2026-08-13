@@ -14,20 +14,41 @@ async function listGallery(studentId) {
   return rows;
 }
 
-async function createImage({ studentId, imageUrl, publicId, caption }) {
-  const [students] = await pool.execute('SELECT id FROM students WHERE id = ? LIMIT 1', [studentId]);
-  if (!students.length) throw httpError('Không tìm thấy học sinh', 404);
-  const [orderRows] = await pool.execute(
-    'SELECT COALESCE(MAX(display_order), -1) + 1 AS next_order FROM gallery WHERE student_id = ?',
-    [studentId],
-  );
-  const displayOrder = Number(orderRows[0].next_order);
-  const [result] = await pool.execute(
-    `INSERT INTO gallery (student_id, image_url, public_id, resource_type, caption, display_order)
-     VALUES (?, ?, ?, 'image', ?, ?)`,
-    [studentId, imageUrl, publicId, caption || null, displayOrder],
-  );
-  return { id: result.insertId, image_url: imageUrl, public_id: publicId };
+// Chèn cả lô ảnh trong một transaction: lỗi giữa chừng thì rollback toàn bộ,
+// không để lại row trỏ tới ảnh Cloudinary đã bị dọn. Khóa row học sinh để hai
+// lượt upload song song không tranh nhau display_order.
+async function createImages({ studentId, files, caption }) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [students] = await connection.execute(
+      'SELECT id FROM students WHERE id = ? LIMIT 1 FOR UPDATE',
+      [studentId],
+    );
+    if (!students.length) throw httpError('Không tìm thấy học sinh', 404);
+    const [orderRows] = await connection.execute(
+      'SELECT COALESCE(MAX(display_order), -1) + 1 AS next_order FROM gallery WHERE student_id = ?',
+      [studentId],
+    );
+    let displayOrder = Number(orderRows[0].next_order);
+    const images = [];
+    for (const file of files) {
+      const [result] = await connection.execute(
+        `INSERT INTO gallery (student_id, image_url, public_id, resource_type, caption, display_order)
+         VALUES (?, ?, ?, 'image', ?, ?)`,
+        [studentId, file.imageUrl, file.publicId, caption || null, displayOrder],
+      );
+      images.push({ id: result.insertId, image_url: file.imageUrl, public_id: file.publicId });
+      displayOrder += 1;
+    }
+    await connection.commit();
+    return images;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 function validateReorderItems(items) {
@@ -107,4 +128,4 @@ async function updateCaption(id, caption) {
   return {};
 }
 
-module.exports = { listGallery, createImage, reorder, deleteImage, updateCaption, validateReorderItems };
+module.exports = { listGallery, createImages, reorder, deleteImage, updateCaption, validateReorderItems };

@@ -13,7 +13,9 @@ function AdminLayout() {
     let polling = false
 
     const pollRevision = async () => {
-      if (polling) return
+      // Tab ẩn thì không poll để tiết kiệm request — trừ lượt seed đầu tiên:
+      // thiếu seed thì lần poll khi focus lại sẽ nuốt thay đổi thay vì remount
+      if (polling || (document.hidden && observedRevision.current !== null)) return
       polling = true
       try {
         const data = await adminApi.getDataRevision()
@@ -34,9 +36,15 @@ function AdminLayout() {
 
     pollRevision()
     const interval = setInterval(pollRevision, 5000)
+    const handleVisibility = () => {
+      // Quay lại tab thì poll ngay để bắt kịp thay đổi trong lúc vắng mặt
+      if (!document.hidden) pollRevision()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
     return () => {
       stopped = true
       clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [])
 

@@ -16,7 +16,7 @@ const { adminStudentGalleryRouter, galleryRouter } = require('./routes/gallery-a
 const { adminLettersRouter, lettersRouter } = require('./routes/letters-admin');
 const greetingRoutes = require('./routes/greetings');
 const adminStatsRoutes = require('./routes/admin-stats');
-const { generalLimiter } = require('./middleware/rateLimit');
+const { generalLimiter, revisionLimiter } = require('./middleware/rateLimit');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -92,6 +92,9 @@ app.use('/api/gallery', galleryRouter);
 app.use('/api/admin/letters', adminLettersRouter);
 app.use('/api/letters', lettersRouter);
 app.use('/api/greetings', greetingRoutes);
+// generalLimiter bỏ qua data-revision (admin poll 5s/lượt); limiter riêng này
+// đứng trước auth để cả request chưa xác thực cũng bị giới hạn
+app.use('/api/admin/data-revision', revisionLimiter);
 app.use('/api/admin', adminStatsRoutes);
 
 // ── Serve frontend build (kích hoạt khi SERVE_STATIC=true hoặc NODE_ENV=production) ──

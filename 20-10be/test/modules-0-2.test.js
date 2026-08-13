@@ -65,7 +65,7 @@ test('module 2: resolve normalizes input, returns at most 10 active matches', as
   pool.execute = async (sql, params) => {
     assert.match(sql, /is_active = TRUE/);
     assert.match(sql, /LIMIT 10/);
-    assert.deepEqual(params, ['%nguyen%']);
+    assert.deepEqual(params, ['nguyen%', '% nguyen%']);
     return [[
       { full_name: 'Nguyễn A', nickname: 'A', avatar_url: null, access_code: 'code-a' },
       { full_name: 'Nguyễn B', nickname: 'B', avatar_url: null, access_code: 'code-b' },
@@ -83,6 +83,23 @@ test('module 2: resolve normalizes input, returns at most 10 active matches', as
 test('module 2: resolve rejects empty and one-character input', async () => {
   assert.equal((await resolveService.resolve(' ')).status, 400);
   assert.equal((await resolveService.resolve('a')).status, 400);
+  // Hai dấu kết hợp qua được cổng độ dài nhưng normalize thành chuỗi rỗng
+  assert.equal((await resolveService.resolve('́́')).status, 400);
+});
+
+test('module 2: resolve escapes LIKE wildcards so input cannot match everything', async () => {
+  const original = pool.execute;
+  let captured;
+  pool.execute = async (sql, params) => {
+    captured = params;
+    return [[{ full_name: 'Nguyễn A', nickname: 'A', avatar_url: null, access_code: 'code-a' }]];
+  };
+  try {
+    await resolveService.resolve('%_');
+    assert.deepEqual(captured, ['\\%\\_%', '% \\%\\_%']);
+  } finally {
+    pool.execute = original;
+  }
 });
 
 test('module 2: createLetter validates content and forces trusted fields', async () => {
@@ -115,7 +132,7 @@ test('module 2: public letters query only approved records', async () => {
   const original = pool.execute;
   pool.execute = async (sql, params) => {
     assert.match(sql, /status = 'approved'/);
-    assert.match(sql, /reveal_at <= NOW\(\)/);
+    assert.match(sql, /reveal_at <= UTC_TIMESTAMP\(\)/);
     assert.deepEqual(params, [3]);
     return [[{ id: 1, sender_name: null, content: 'Safe' }]];
   };
@@ -199,6 +216,28 @@ test('module 2: reactions only update approved letters owned by the requested st
       () => reactionService.toggleReaction(4, 11, 'love', 'session_123456789'),
       { statusCode: 404 },
     );
+  } finally {
+    pool.execute = original;
+  }
+});
+
+test('module 2: concurrent duplicate reactions upsert instead of raising 500', async () => {
+  const original = pool.execute;
+  let insertSql;
+  pool.execute = async (sql) => {
+    if (sql.includes('FROM letters')) return [[{ id: 11 }]];
+    if (sql.includes('SELECT id, emoji_key')) return [[]];
+    if (sql.startsWith('INSERT INTO letter_reactions')) {
+      insertSql = sql;
+      return [{ affectedRows: 2 }];
+    }
+    if (sql.includes('COUNT(*) AS cnt')) return [[{ letter_id: 11, emoji_key: 'love', cnt: 1 }]];
+    return [[]];
+  };
+  try {
+    const result = await reactionService.toggleReaction(3, 11, 'love', 'session_123456789');
+    assert.equal(result.active, 'love');
+    assert.match(insertSql, /ON DUPLICATE KEY UPDATE/);
   } finally {
     pool.execute = original;
   }
@@ -595,10 +634,10 @@ test('module 4: gallery reorder rolls back mixed-student items and rejects dupli
 });
 
 test('module 4: failed DB insert cleans up the uploaded Cloudinary image', async () => {
-  const originalCreate = galleryService.createImage;
+  const originalCreate = galleryService.createImages;
   const originalDestroy = cloudinary.uploader.destroy;
   let destroyed;
-  galleryService.createImage = async () => { throw new Error('db failed'); };
+  galleryService.createImages = async () => { throw new Error('db failed'); };
   cloudinary.uploader.destroy = async (publicId) => { destroyed = publicId; };
   try {
     await assert.rejects(() => galleryController.upload({
@@ -607,8 +646,76 @@ test('module 4: failed DB insert cleans up the uploaded Cloudinary image', async
     }, mockResponse()), /db failed/);
     assert.equal(destroyed, 'gift/a');
   } finally {
-    galleryService.createImage = originalCreate;
+    galleryService.createImages = originalCreate;
     cloudinary.uploader.destroy = originalDestroy;
+  }
+});
+
+test('module 4: gallery upload inserts every image in one transaction', async () => {
+  const original = pool.getConnection;
+  const calls = [];
+  const connection = {
+    beginTransaction: async () => calls.push('begin'),
+    execute: async (sql, params) => {
+      calls.push({ sql, params });
+      if (sql.includes('FROM students')) return [[{ id: 9 }]];
+      if (sql.includes('MAX(display_order)')) return [[{ next_order: 4 }]];
+      return [{ insertId: calls.length }];
+    },
+    commit: async () => calls.push('commit'),
+    rollback: async () => calls.push('rollback'),
+    release: () => calls.push('release'),
+  };
+  pool.getConnection = async () => connection;
+  try {
+    const images = await galleryService.createImages({
+      studentId: 9,
+      files: [
+        { imageUrl: 'https://image.test/a.jpg', publicId: 'gift/a' },
+        { imageUrl: 'https://image.test/b.jpg', publicId: 'gift/b' },
+      ],
+      caption: 'hi',
+    });
+    assert.equal(images.length, 2);
+    assert.deepEqual(images.map((image) => image.public_id), ['gift/a', 'gift/b']);
+    const inserts = calls.filter((call) => call.sql?.startsWith('INSERT INTO gallery'));
+    assert.deepEqual(inserts.map((call) => call.params[4]), [4, 5]);
+    assert.ok(calls.includes('commit'));
+    assert.equal(calls.includes('rollback'), false);
+  } finally {
+    pool.getConnection = original;
+  }
+});
+
+test('module 4: gallery upload rolls back every insert when one fails', async () => {
+  const original = pool.getConnection;
+  let rolledBack = false;
+  let inserts = 0;
+  pool.getConnection = async () => ({
+    beginTransaction: async () => {},
+    execute: async (sql) => {
+      if (sql.includes('FROM students')) return [[{ id: 9 }]];
+      if (sql.includes('MAX(display_order)')) return [[{ next_order: 0 }]];
+      inserts += 1;
+      if (inserts === 2) throw new Error('db failed');
+      return [{ insertId: inserts }];
+    },
+    commit: async () => assert.fail('must not commit'),
+    rollback: async () => { rolledBack = true; },
+    release: () => {},
+  });
+  try {
+    await assert.rejects(() => galleryService.createImages({
+      studentId: 9,
+      files: [
+        { imageUrl: 'https://image.test/a.jpg', publicId: 'gift/a' },
+        { imageUrl: 'https://image.test/b.jpg', publicId: 'gift/b' },
+      ],
+      caption: null,
+    }), /db failed/);
+    assert.equal(rolledBack, true);
+  } finally {
+    pool.getConnection = original;
   }
 });
 

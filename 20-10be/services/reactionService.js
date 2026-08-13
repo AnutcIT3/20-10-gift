@@ -20,7 +20,7 @@ async function toggleReaction(studentId, letterId, emojiKey, sessionId) {
     `SELECT id
      FROM letters
      WHERE id = ? AND student_id = ? AND status = 'approved'
-       AND (reveal_at IS NULL OR reveal_at <= NOW())
+       AND (reveal_at IS NULL OR reveal_at <= UTC_TIMESTAMP())
      LIMIT 1`,
     [letterId, studentId],
   );
@@ -34,8 +34,12 @@ async function toggleReaction(studentId, letterId, emojiKey, sessionId) {
 
   if (existing) {
     if (existing.emoji_key === emojiKey) {
-      // Cùng emoji → un-react
-      await pool.execute('DELETE FROM letter_reactions WHERE id = ?', [existing.id]);
+      // Cùng emoji → un-react; điều kiện emoji_key tránh xóa nhầm khi một
+      // request song song vừa đổi reaction sang emoji khác
+      await pool.execute(
+        'DELETE FROM letter_reactions WHERE id = ? AND emoji_key = ?',
+        [existing.id, emojiKey],
+      );
     } else {
       // Khác emoji → đổi
       await pool.execute(
@@ -44,10 +48,13 @@ async function toggleReaction(studentId, letterId, emojiKey, sessionId) {
       );
     }
   } else {
-    // Chưa có → insert
+    // Chưa có → insert; ON DUPLICATE KEY để hai request song song cùng chèn
+    // (đụng UNIQUE uq_reaction) trở thành cập nhật thay vì lỗi 500
     await pool.execute(
-      'INSERT INTO letter_reactions (letter_id, emoji_key, session_id) VALUES (?, ?, ?)',
-      [letterId, emojiKey, sessionId],
+      `INSERT INTO letter_reactions (letter_id, emoji_key, session_id)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE emoji_key = ?`,
+      [letterId, emojiKey, sessionId, emojiKey],
     );
   }
 

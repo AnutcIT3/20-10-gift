@@ -20,7 +20,7 @@ async function exportStudentsCsv() {
                                                      AS pending_letters,
        COUNT(DISTINCT g.id)                         AS total_images,
        COUNT(DISTINCT r.id)                         AS total_reactions,
-       DATE_FORMAT(s.created_at, '%d/%m/%Y %H:%i') AS created_at
+       DATE_FORMAT(CONVERT_TZ(s.created_at, '+00:00', '+07:00'), '%d/%m/%Y %H:%i') AS created_at
      FROM students s
      LEFT JOIN letters l ON l.student_id = s.id
      LEFT JOIN gallery g ON g.student_id = s.id
