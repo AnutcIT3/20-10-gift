@@ -38,3 +38,6 @@ Thumbs.db
 # Keep one canonical shared-data snapshot; ignore local recovery exports
 /20-10be/backups/*.sql
 !/20-10be/backups/current-data.sql
+
+# Ảnh chụp màn hình debug cục bộ
+/20-10fe/login-alert.png
