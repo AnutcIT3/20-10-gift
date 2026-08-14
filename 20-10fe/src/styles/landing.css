@@ -475,3 +475,36 @@
   font-size: 13px;
   font-weight: 650;
 }
+
+/* Gợi ý + ảnh kèm trong form gửi lời chúc */
+.wish-hint {
+  margin: -6px 0 0;
+  color: var(--color-subtle);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.wish-image-preview {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.wish-image-preview img {
+  width: 120px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+}
+
+.wish-image-preview button {
+  padding: 6px 12px;
+  border: 1px dashed var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-subtle);
+  font-size: 13px;
+  font-weight: 650;
+}

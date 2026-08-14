@@ -12,7 +12,17 @@ const normalizeName = (name) =>
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd')
 
-async function resolveStudent(name) {
+async function resolveStudent(name, scope = 'class') {
+  // Mock không có hồ sơ bạn bè: luồng khách (scope friend) không được phép
+  // khớp vào thành viên lớp — trả null để FE chuyển sang trang celebrate
+  if (scope === 'friend') {
+    await delay(200)
+    return null
+  }
+  return resolveClassStudent(name)
+}
+
+async function resolveClassStudent(name) {
   await delay(600)
   const normalized = normalizeName(name)
 
@@ -99,6 +109,14 @@ async function createLetter(accessCode, data) {
   return { status: 'pending' }
 }
 
+async function createFriendLetter(data) {
+  await delay(400)
+  if (data._website) return { status: 'pending' }
+  const receiverName = (data.receiver_name || '').trim()
+  if (receiverName.length < 2) throw Object.assign(new Error('Tên người nhận phải có ít nhất 2 ký tự'), { status: 400 })
+  return { status: 'pending', friend_created: true }
+}
+
 async function generateGreeting(name, audienceType = 'student') {
   await delay(300)
   if (audienceType === 'visitor') {
@@ -117,6 +135,7 @@ const mockGiftRepository = {
   getGallery,
   getLetters,
   createLetter,
+  createFriendLetter,
   generateGreeting,
 }
 

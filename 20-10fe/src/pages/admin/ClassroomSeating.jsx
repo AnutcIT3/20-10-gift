@@ -75,7 +75,8 @@ function ClassroomSeating() {
     adminApi.listStudents()
       .then((data) => {
         if (!cancelled) {
-          setStudents(data)
+          // Hồ sơ "bạn bè" ngoài lớp không có chỗ ngồi — loại khỏi sơ đồ
+          setStudents(data.filter((student) => student.member_type !== 'friend'))
           setError('')
         }
       })

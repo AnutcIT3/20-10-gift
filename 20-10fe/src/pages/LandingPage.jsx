@@ -27,10 +27,13 @@ function LandingPage() {
     isAnonymous: false,
     senderName: '',
     receiverName: '',
+    receiverType: 'class',
     title: '',
     content: '',
     revealAt: '',
   })
+  const [wishImage, setWishImage] = useState(null)
+  const [wishImagePreview, setWishImagePreview] = useState('')
   const [wishMatches, setWishMatches] = useState([])
   const [wishMessage, setWishMessage] = useState('')
   const [wishError, setWishError] = useState('')
@@ -39,8 +42,35 @@ function LandingPage() {
   const [revealLimits, setRevealLimits] = useState({ min: '', max: '' })
   const wishDialogRef = useDialogA11y(wishOpen, () => setWishOpen(false))
 
+  const clearWishImage = () => {
+    setWishImage(null)
+    setWishImagePreview((current) => {
+      if (current) URL.revokeObjectURL(current)
+      return ''
+    })
+  }
+
+  const chooseWishImage = (file) => {
+    if (!file) { clearWishImage(); return }
+    if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+      setWishError('Ảnh phải là JPG, PNG, GIF hoặc WebP.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setWishError('Ảnh tối đa 5 MB.')
+      return
+    }
+    setWishError('')
+    setWishImage(file)
+    setWishImagePreview((current) => {
+      if (current) URL.revokeObjectURL(current)
+      return URL.createObjectURL(file)
+    })
+  }
+
   const resetWish = () => {
-    setWishForm({ isAnonymous: false, senderName: '', receiverName: '', title: '', content: '', revealAt: '' })
+    setWishForm({ isAnonymous: false, senderName: '', receiverName: '', receiverType: 'class', title: '', content: '', revealAt: '' })
+    clearWishImage()
     setWishMatches([])
     setWishMessage('')
     setWishError('')
@@ -89,23 +119,30 @@ function LandingPage() {
     setRevealPath(giftPath)
   }
 
+  const wishLetterData = () => ({
+    sender_name: wishForm.isAnonymous ? null : wishForm.senderName.trim(),
+    title: wishForm.title.trim() || null,
+    content: wishForm.content.trim(),
+    is_anonymous: wishForm.isAnonymous,
+    reveal_at: wishForm.revealAt || null,
+  })
+
+  const finishWish = (extraNote = '') => {
+    setWishMatches([])
+    setWishMessage(
+      (wishForm.revealAt
+        ? `Đã gửi lời chúc bí mật — sẽ hiện đúng lúc ${new Date(wishForm.revealAt).toLocaleString('vi-VN')}.`
+        : 'Đã gửi lời chúc. Lời chúc sẽ xuất hiện sau khi admin duyệt.') + extraNote,
+    )
+    setWishForm({ isAnonymous: false, senderName: '', receiverName: '', receiverType: 'class', title: '', content: '', revealAt: '' })
+    clearWishImage()
+  }
+
   const sendWishToGiftPath = async (giftPath) => {
     const accessCode = accessCodeFromGiftPath(giftPath)
     if (!accessCode) throw new Error('Không xác định được người nhận.')
-    await giftRepository.createLetter(accessCode, {
-      sender_name: wishForm.isAnonymous ? null : wishForm.senderName.trim(),
-      title: wishForm.title.trim() || null,
-      content: wishForm.content.trim(),
-      is_anonymous: wishForm.isAnonymous,
-      reveal_at: wishForm.revealAt || null,
-    })
-    setWishMatches([])
-    setWishMessage(
-      wishForm.revealAt
-        ? `Đã gửi lời chúc bí mật — sẽ hiện đúng lúc ${new Date(wishForm.revealAt).toLocaleString('vi-VN')}.`
-        : 'Đã gửi lời chúc. Lời chúc sẽ xuất hiện sau khi admin duyệt.'
-    )
-    setWishForm({ isAnonymous: false, senderName: '', receiverName: '', title: '', content: '', revealAt: '' })
+    await giftRepository.createLetter(accessCode, wishLetterData(), wishImage)
+    finishWish()
   }
 
   const submitWish = async (event) => {
@@ -130,6 +167,17 @@ function LandingPage() {
     }
     setWishSubmitting(true)
     try {
+      // Người nhận NGOÀI lớp: không tra danh sách — backend tự tạo hồ sơ
+      // "bạn bè" và lưu lời chúc cho họ
+      if (wishForm.receiverType === 'friend') {
+        await giftRepository.createFriendLetter(
+          { ...wishLetterData(), receiver_name: receiverName },
+          wishImage,
+        )
+        finishWish(' Người nhận có thể tìm tên mình ở trang chủ (mục "khách ghé thăm") để xem.')
+        return
+      }
+
       const result = await giftRepository.resolveStudent(receiverName)
       if (result?.giftPath) await sendWishToGiftPath(result.giftPath)
       else if (result?.matches?.length) {
@@ -137,10 +185,10 @@ function LandingPage() {
         setWishMessage('Có nhiều bạn trùng tên. Hãy chọn đúng người nhận lời chúc.')
       } else {
         // Response không có giftPath lẫn matches (mock trả null, backend đổi shape)
-        setWishError('Không tìm thấy người nhận trong danh sách.')
+        setWishError('Không tìm thấy người nhận trong danh sách. Nếu người nhận không thuộc lớp, hãy chọn "Bạn ngoài lớp".')
       }
     } catch (err) {
-      if (err.status === 404) setWishError('Không tìm thấy người nhận trong danh sách.')
+      if (err.status === 404) setWishError('Không tìm thấy người nhận trong danh sách. Nếu người nhận không thuộc lớp, hãy chọn "Bạn ngoài lớp".')
       else setWishError(err.message || 'Không gửi được lời chúc.')
     } finally {
       setWishSubmitting(false)
@@ -160,9 +208,27 @@ function LandingPage() {
     setError(''); setMatches([]); setMessage('')
     if (value.length < 2) { setError('Vui lòng nhập ít nhất 2 ký tự.'); return }
 
-    // Khách KHÔNG tra danh sách lớp — đi thẳng tới trang lời chúc dành cho khách
+    // Khách KHÔNG tra danh sách lớp — chỉ tra các hồ sơ "bạn bè" (người ngoài
+    // lớp từng được ai đó gửi lời chúc); không có thì sang trang chúc chung
     if (visitorRole === 'guest') {
-      navigate(`/celebrate/${encodeURIComponent(value)}?audience=visitor`)
+      setLoading(true)
+      try {
+        const result = await giftRepository.resolveStudent(value, 'friend')
+        if (result?.giftPath) {
+          await openGiftWithReveal(result.giftPath, value)
+          return
+        }
+        if (result?.matches?.length) {
+          setMatches(result.matches)
+          setMessage(result.message || '')
+          return
+        }
+        navigate(`/celebrate/${encodeURIComponent(value)}?audience=visitor`)
+      } catch (err) {
+        if (err.status === 404) navigate(`/celebrate/${encodeURIComponent(value)}?audience=visitor`)
+        else if (!navigator.onLine || err.isNetworkError) setError('Bạn đang offline hoặc backend chưa được bật.')
+        else setError(err.message)
+      } finally { setLoading(false) }
       return
     }
 
@@ -238,7 +304,15 @@ function LandingPage() {
                 <label><input type="radio" name="wish-visibility" checked={wishForm.isAnonymous} onChange={() => setWishForm({ ...wishForm, isAnonymous: true, senderName: '' })} /> Ẩn danh</label>
               </fieldset>
               {!wishForm.isAnonymous && <label>Tên của bạn<input value={wishForm.senderName} maxLength={100} onChange={(event) => setWishForm({ ...wishForm, senderName: event.target.value })} placeholder="Ví dụ: Nguyễn Văn A" /></label>}
-              <label>Tên người nhận<input value={wishForm.receiverName} maxLength={100} onChange={(event) => setWishForm({ ...wishForm, receiverName: event.target.value })} placeholder="Ví dụ: Phương Anh" /></label>
+              <fieldset>
+                <legend>Người nhận là</legend>
+                <label><input type="radio" name="wish-receiver-type" checked={wishForm.receiverType === 'class'} onChange={() => setWishForm({ ...wishForm, receiverType: 'class' })} /> 🧑‍🎓 Thành viên trong lớp</label>
+                <label><input type="radio" name="wish-receiver-type" checked={wishForm.receiverType === 'friend'} onChange={() => setWishForm({ ...wishForm, receiverType: 'friend' })} /> 🌸 Bạn ngoài lớp</label>
+              </fieldset>
+              <label>Tên người nhận<input value={wishForm.receiverName} maxLength={100} onChange={(event) => setWishForm({ ...wishForm, receiverName: event.target.value })} placeholder={wishForm.receiverType === 'friend' ? 'Ví dụ: Minh Thư (bạn khác lớp)' : 'Ví dụ: Phương Anh'} /></label>
+              {wishForm.receiverType === 'friend' && (
+                <p className="wish-hint">Hệ thống sẽ tạo trang lời chúc riêng cho người này — họ tìm tên mình ở trang chủ (mục "khách ghé thăm") là thấy.</p>
+              )}
               <label>
                 Tiêu đề <span className="wish-optional">(tuỳ chọn)</span>
                 <input
@@ -259,6 +333,20 @@ function LandingPage() {
                   onChange={(e) => setWishForm({ ...wishForm, revealAt: e.target.value })}
                 />
               </label>
+              <label>
+                📷 Ảnh kèm lời chúc <span className="wish-optional">(tùy chọn, tối đa 5 MB)</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  onChange={(e) => chooseWishImage(e.target.files?.[0] || null)}
+                />
+              </label>
+              {wishImagePreview && (
+                <div className="wish-image-preview">
+                  <img src={wishImagePreview} alt="Ảnh sẽ gửi kèm" />
+                  <button type="button" onClick={clearWishImage}>Bỏ ảnh</button>
+                </div>
+              )}
               {wishError && <p className="landing-alert" role="alert">{wishError}</p>}
               {wishMessage && <p className="wish-success" role="status">{wishMessage}</p>}
               {wishMatches.length > 0 && <div className="landing-matches wish-matches">{wishMatches.map((match) => <button type="button" key={match.giftPath} onClick={async () => {

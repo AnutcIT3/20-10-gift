@@ -31,8 +31,12 @@ function CelebrationPage() {
     let cancelled = false
     giftRepository.generateGreeting(name, audience)
       .then((data) => { if (!cancelled) setResult({ ...data, requestName: name, audience }) })
-      .catch(() => {
-        if (!cancelled) {
+      .catch((err) => {
+        if (cancelled) return
+        // Đang khóa chờ 20/10: KHÔNG dùng fallback tĩnh — khóa là khóa hết
+        if (err?.status === 423) {
+          setResult({ locked: true, requestName: name, audience })
+        } else {
           setResult({ greeting: FALLBACKS[audience](name), requestName: name, audience })
         }
       })
@@ -58,8 +62,13 @@ function CelebrationPage() {
     ) : (
       <div aria-live="polite">
         {!currentResult && <p className="celebration-loading">Đang chuẩn bị một lời chúc cho bạn...</p>}
-        {currentResult && <p className="celebration-message">{currentResult.greeting}</p>}
-        {currentResult && (
+        {currentResult?.locked && (
+          <p className="celebration-message">
+            🎁 Chưa đến ngày 20/10 — lời chúc đang được gói lại chờ đúng ngày. Vui lòng quay lại sau nhé! 💝
+          </p>
+        )}
+        {currentResult && !currentResult.locked && <p className="celebration-message">{currentResult.greeting}</p>}
+        {currentResult && !currentResult.locked && (
           <button type="button" className="celebration-switch" onClick={() => setAudience(null)}>
             Chọn lại
           </button>

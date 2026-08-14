@@ -24,6 +24,15 @@ const api = axios.create({
   },
 })
 
+// Header mặc định là JSON — với FormData (gửi kèm ảnh) phải xóa đi để trình
+// duyệt tự đặt multipart/form-data kèm boundary, nếu không body bị hỏng
+api.interceptors.request.use((config) => {
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type']
+  }
+  return config
+})
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {

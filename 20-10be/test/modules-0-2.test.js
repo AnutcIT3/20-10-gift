@@ -65,7 +65,7 @@ test('module 2: resolve normalizes input, returns at most 10 active matches', as
   pool.execute = async (sql, params) => {
     assert.match(sql, /is_active = TRUE/);
     assert.match(sql, /LIMIT 10/);
-    assert.deepEqual(params, ['nguyen%', '% nguyen%']);
+    assert.deepEqual(params, ['nguyen%', '% nguyen%', 'class']);
     return [[
       { full_name: 'Nguyễn A', nickname: 'A', avatar_url: null, access_code: 'code-a' },
       { full_name: 'Nguyễn B', nickname: 'B', avatar_url: null, access_code: 'code-b' },
@@ -133,7 +133,10 @@ test('module 2: resolve escapes LIKE wildcards so input cannot match everything'
   };
   try {
     await resolveService.resolve('%_');
-    assert.deepEqual(captured, ['\\%\\_%', '% \\%\\_%']);
+    assert.deepEqual(captured, ['\\%\\_%', '% \\%\\_%', 'class']);
+
+    await resolveService.resolve('minh thư', 'friend');
+    assert.deepEqual(captured, ['minh thu%', '% minh thu%', 'friend']);
   } finally {
     pool.execute = original;
   }
@@ -159,7 +162,7 @@ test('module 2: createLetter validates content and forces trusted fields', async
       is_anonymous: true,
     });
     assert.deepEqual(result, { status: 'pending' });
-    assert.deepEqual(inserted.params, [7, null, null, 'Hello', true, 'pending', null]);
+    assert.deepEqual(inserted.params, [7, null, null, 'Hello', true, 'pending', null, null, null]);
   } finally {
     pool.execute = original;
   }
@@ -778,7 +781,10 @@ test('module 4: letter list is filtered and paginated', async () => {
 test('module 4: letter status only accepts approved or rejected', async () => {
   await assert.rejects(() => letterService.updateStatus(1, 'pending'), { statusCode: 400 });
   const original = pool.execute;
-  pool.execute = async () => [{ affectedRows: 1 }];
+  pool.execute = async (sql) => {
+    if (sql.includes('SELECT image_public_id')) return [[{ image_public_id: null }]];
+    return [{ affectedRows: 1 }];
+  };
   try {
     assert.deepEqual(await letterService.updateStatus(1, 'approved'), {});
     assert.deepEqual(await letterService.deleteLetter(1), {});
@@ -864,13 +870,16 @@ test('module 4: bulk letter actions validate ids and report affected rows', asyn
   const calls = [];
   pool.execute = async (sql, params) => {
     calls.push({ sql, params });
+    if (sql.includes('SELECT image_public_id')) return [[]];
     return [{ affectedRows: params.length - (params[0] === 'approved' ? 1 : 0) }];
   };
   try {
     assert.deepEqual(await letterService.bulkUpdateStatus([1, 2, 3], 'approved'), { updated: 3 });
     assert.deepEqual(await letterService.bulkDelete([2, 3]), { deleted: 2 });
     assert.deepEqual(calls[0].params, ['approved', 1, 2, 3]);
-    assert.deepEqual(calls[1].params, [2, 3]);
+    // bulkDelete: SELECT ảnh trước rồi mới DELETE
+    assert.match(calls[1].sql, /SELECT image_public_id/);
+    assert.deepEqual(calls[2].params, [2, 3]);
   } finally {
     pool.execute = original;
   }
@@ -1049,4 +1058,70 @@ test('gift lock: admin settings endpoint requires auth, toggles and validates in
     method: 'PATCH', headers, body: JSON.stringify({ gift_pages_locked: 'yes' }),
   });
   assert.equal(invalid.status, 400);
+});
+
+test('gift lock: locked also blocks the celebrate greeting endpoint', async (t) => {
+  const original = pool.execute;
+  pool.execute = async (sql) => {
+    if (sql.includes('FROM app_settings')) return [[{ setting_value: '1' }]];
+    return [[]];
+  };
+  const server = app.listen(0);
+  t.after(() => {
+    server.close();
+    pool.execute = original;
+  });
+  await new Promise((resolve) => server.once('listening', resolve));
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/greetings/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Thư', audienceType: 'visitor' }),
+  });
+  assert.equal(response.status, 423);
+});
+
+test('friend letters: creates a friend profile once and reuses it for later letters', async () => {
+  const friendService = require('../services/friendService');
+  const original = pool.getConnection;
+  const calls = [];
+  let friendExists = false;
+  pool.getConnection = async () => ({
+    beginTransaction: async () => calls.push('begin'),
+    execute: async (sql, params) => {
+      calls.push({ sql, params });
+      if (sql.startsWith('SELECT') && sql.includes("member_type = 'friend'")) {
+        return friendExists ? [[{ id: 77 }]] : [[]];
+      }
+      if (sql.includes('INSERT INTO students')) {
+        friendExists = true;
+        return [{ insertId: 77 }];
+      }
+      if (sql.includes('INSERT INTO letters')) return [{ insertId: 500 }];
+      return [[]];
+    },
+    commit: async () => calls.push('commit'),
+    rollback: async () => calls.push('rollback'),
+    release: () => calls.push('release'),
+  });
+  try {
+    const first = await friendService.createFriendLetter({
+      receiver_name: ' Minh Thư ', content: 'Chúc mừng 20/10!', is_anonymous: true,
+    });
+    assert.deepEqual(first, { status: 'pending', friend_created: true });
+    const studentInsert = calls.find((call) => call.sql?.includes('INSERT INTO students'));
+    assert.deepEqual(studentInsert.params.slice(0, 2), ['Minh Thư', 'minh thu']);
+    assert.match(studentInsert.sql, /'friend'/);
+    const letterInsert = calls.find((call) => call.sql?.includes('INSERT INTO letters'));
+    assert.equal(letterInsert.params[0], 77);
+    assert.equal(letterInsert.params[5], 'pending');
+
+    // Cùng tên (chuẩn hóa) → dùng lại hồ sơ, không tạo bản ghi mới
+    const second = await friendService.createFriendLetter({
+      receiver_name: 'minh thư', content: 'Lời chúc thứ hai', is_anonymous: true,
+    });
+    assert.deepEqual(second, { status: 'pending', friend_created: false });
+    assert.equal(calls.includes('rollback'), false);
+  } finally {
+    pool.getConnection = original;
+  }
 });

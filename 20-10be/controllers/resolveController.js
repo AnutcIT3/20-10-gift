@@ -8,7 +8,7 @@ async function resolve(req, res) {
     return sendError(res, 'Vui lòng nhập tên cần tìm', 400);
   }
 
-  const result = await resolveService.resolve(name);
+  const result = await resolveService.resolve(name, req.body.scope);
 
   if (result.error) {
     return sendError(res, result.error, result.status);

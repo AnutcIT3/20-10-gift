@@ -111,7 +111,11 @@ function GiftPage() {
         setStudent(studentData)
         setGallery(galleryData || [])
         setLetters(lettersData || [])
-        giftRepository.generateGreeting(studentData.full_name, 'student')
+        giftRepository.generateGreeting(
+          studentData.full_name,
+          // Hồ sơ "bạn bè" ngoài lớp nhận lời chúc kiểu thông thường
+          studentData.member_type === 'friend' ? 'visitor' : 'student',
+        )
           .then((result) => { if (!cancelled) setAiGreeting(result.greeting) })
           .catch(() => {})
       } catch (err) {

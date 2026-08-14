@@ -1,10 +1,15 @@
 const pool = require('../config/db');
 const normalizeName = require('../utils/normalizeName');
 
-async function resolve(name) {
+async function resolve(name, scope = 'class') {
   const trimmed = name.trim();
   if (!trimmed) return { error: 'Vui lòng nhập tên cần tìm', status: 400 };
   if (trimmed.length < 2) return { error: 'Tên tìm kiếm phải có ít nhất 2 ký tự', status: 400 };
+
+  // scope tách hẳn hai không gian tên: 'class' cho thành viên lớp, 'friend'
+  // cho hồ sơ bạn bè ngoài lớp — khách trùng tên với thành viên không bao giờ
+  // mở nhầm trang của bạn ấy
+  const memberType = scope === 'friend' ? 'friend' : 'class';
 
   const normalized = normalizeName(trimmed);
   // Chặn input chỉ gồm dấu kết hợp (normalize xong thành rỗng/1 ký tự):
@@ -17,8 +22,8 @@ async function resolve(name) {
   // người dùng tìm ("vy", "thuy vy"), vừa chặn dò quét access code bằng cặp
   // ký tự bất kỳ qua LIKE '%..%'.
   const [rows] = await pool.execute(
-    'SELECT full_name, nickname, avatar_url, access_code FROM students WHERE (normalized_name LIKE ? OR normalized_name LIKE ?) AND is_active = TRUE ORDER BY full_name ASC LIMIT 10',
-    [`${escaped}%`, `% ${escaped}%`],
+    'SELECT full_name, nickname, avatar_url, access_code FROM students WHERE (normalized_name LIKE ? OR normalized_name LIKE ?) AND is_active = TRUE AND member_type = ? ORDER BY full_name ASC LIMIT 10',
+    [`${escaped}%`, `% ${escaped}%`, memberType],
   );
 
   if (rows.length === 0) {

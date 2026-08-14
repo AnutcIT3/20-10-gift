@@ -98,6 +98,9 @@ function LetterCard({ letter, accessCode }) {
         {letter.title && <span className="letter-title">{letter.title}</span>}
       </div>
       <p className="letter-content">{letter.content}</p>
+      {letter.image_url && (
+        <img className="letter-image" src={letter.image_url} alt="Ảnh kèm lời chúc" loading="lazy" />
+      )}
       <div className="letter-footer">
         <time className="letter-date">
           {new Date(letter.created_at).toLocaleDateString('vi-VN', {

@@ -94,7 +94,9 @@ function canonicalVisibleName(name) {
 async function assertNoDuplicateVisibleName(fullName, excludeId = null) {
   const normalized = normalizeName(fullName);
   const params = [normalized];
-  let sql = 'SELECT id, full_name FROM students WHERE normalized_name = ? AND is_active = TRUE';
+  // Chỉ so với thành viên LỚP: hồ sơ "bạn bè" (do người ngoài tạo khi gửi lời
+  // chúc) không được phép chặn admin thêm/kích hoạt học sinh trùng tên
+  let sql = "SELECT id, full_name FROM students WHERE normalized_name = ? AND is_active = TRUE AND member_type = 'class'";
   if (excludeId) {
     sql += ' AND id <> ?';
     params.push(excludeId);
@@ -110,7 +112,7 @@ async function assertNoDuplicateVisibleName(fullName, excludeId = null) {
 async function listStudents() {
   const [rows] = await pool.execute(
     `SELECT id, full_name, nickname, avatar_url, intro_message, class_name,
-      seat_row, seat_col, is_active, access_code, created_at, updated_at
+      seat_row, seat_col, is_active, access_code, member_type, created_at, updated_at
      FROM students ORDER BY full_name ASC`,
   );
   return rows.map(presentStudent);
@@ -119,7 +121,7 @@ async function listStudents() {
 async function getStudent(id) {
   const [rows] = await pool.execute(
     `SELECT id, full_name, nickname, avatar_url, intro_message, class_name,
-      seat_row, seat_col, is_active, access_code, created_at, updated_at
+      seat_row, seat_col, is_active, access_code, member_type, created_at, updated_at
      FROM students WHERE id = ? LIMIT 1`,
     [id],
   );
@@ -206,8 +208,10 @@ async function deleteStudent(id) {
        UNION ALL
        SELECT public_id, resource_type FROM music WHERE student_id = ? AND public_id IS NOT NULL
        UNION ALL
-       SELECT public_id, resource_type FROM videos WHERE student_id = ? AND public_id IS NOT NULL`,
-      [id, id, id],
+       SELECT public_id, resource_type FROM videos WHERE student_id = ? AND public_id IS NOT NULL
+       UNION ALL
+       SELECT image_public_id AS public_id, 'image' AS resource_type FROM letters WHERE student_id = ? AND image_public_id IS NOT NULL`,
+      [id, id, id, id],
     );
     assets = assetRows;
 

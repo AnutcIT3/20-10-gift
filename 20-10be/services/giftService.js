@@ -7,7 +7,7 @@ function httpError(message, statusCode) {
 
 async function getStudentByCode(accessCode) {
   const [rows] = await pool.execute(
-    `SELECT id, full_name, nickname, avatar_url, intro_message, seat_row, seat_col
+    `SELECT id, full_name, nickname, avatar_url, intro_message, seat_row, seat_col, member_type
      FROM students WHERE access_code = ? AND is_active = TRUE LIMIT 1`,
     [accessCode],
   );
@@ -26,7 +26,7 @@ async function getApprovedLetters(studentId) {
   // Chỉ trả letter đã approved VÀ đã tới giờ hiện. reveal_at lưu theo UTC nên
   // phải so với UTC_TIMESTAMP(), không dùng NOW() (phụ thuộc múi giờ MySQL)
   const [rows] = await pool.execute(
-    `SELECT id, sender_name, is_anonymous, title, content, reveal_at, created_at
+    `SELECT id, sender_name, is_anonymous, title, content, reveal_at, created_at, image_url
      FROM letters
      WHERE student_id = ? AND status = 'approved'
        AND (reveal_at IS NULL OR reveal_at <= UTC_TIMESTAMP())
@@ -40,7 +40,7 @@ async function getApprovedLetters(studentId) {
   }));
 }
 
-async function createLetter(studentId, data) {
+async function createLetter(studentId, data, image = null) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw httpError('Dữ liệu không hợp lệ', 400);
   }
@@ -54,8 +54,10 @@ async function createLetter(studentId, data) {
   );
 
   await pool.execute(
-    'INSERT INTO letters (student_id, sender_name, title, content, is_anonymous, status, reveal_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [studentId, clean.senderName, clean.title, clean.content, clean.isAnonymous, clean.status, clean.revealAt],
+    `INSERT INTO letters (student_id, sender_name, title, content, is_anonymous, status, reveal_at, image_url, image_public_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [studentId, clean.senderName, clean.title, clean.content, clean.isAnonymous, clean.status, clean.revealAt,
+      image?.url || null, image?.publicId || null],
   );
 
   return { status: 'pending' };

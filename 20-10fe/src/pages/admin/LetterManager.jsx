@@ -412,7 +412,7 @@ function LetterManager() {
                 <label className="admin-letter-select">
                   <input type="checkbox" checked={selectedIds.includes(letter.id)} onChange={() => toggleSelected(letter.id)} />
                   <span>
-                    <strong>{letter.student_name}</strong>
+                    <strong>{letter.student_name}{letter.member_type === 'friend' && <span className="admin-badge friend"> 🌸 Bạn bè</span>}</strong>
                     <small>Từ: {letter.is_anonymous || !letter.sender_name ? 'Ẩn danh' : letter.sender_name}</small>
                   </span>
                 </label>
@@ -422,6 +422,7 @@ function LetterManager() {
               </header>
               {letter.title && <h3>{letter.title}</h3>}
               <p>{letter.content}</p>
+              {letter.image_url && <img className="admin-letter-image" src={letter.image_url} alt="Ảnh kèm lời chúc" loading="lazy" />}
               {letter.reveal_at && (
                 <div className="admin-reveal-chip">
                   Hiện lúc {new Date(letter.reveal_at).toLocaleString('vi-VN')}
@@ -496,6 +497,7 @@ function LetterManager() {
               {selectedLetter.confirmDelete ? 'Xóa lời chúc' : (selectedLetter.title || 'Nội dung lời chúc')}
             </h3>
             <p className="admin-letter-full">{selectedLetter.content}</p>
+            {selectedLetter.image_url && <img className="admin-letter-image" src={selectedLetter.image_url} alt="Ảnh kèm lời chúc" />}
             <small>
               Người nhận: {selectedLetter.student_name} · Người gửi: {selectedLetter.is_anonymous || !selectedLetter.sender_name ? 'Ẩn danh' : selectedLetter.sender_name}
             </small>

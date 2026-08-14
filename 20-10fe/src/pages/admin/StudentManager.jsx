@@ -335,7 +335,7 @@ function StudentManager() {
       <div className="admin-panel admin-table-wrap">
         {loading ? <p>Đang tải...</p> : <table><thead><tr><th>Học sinh</th><th>Lớp</th><th>Trạng thái</th><th>Gift link</th><th>Thao tác</th></tr></thead>
           <tbody>{filteredStudents.map((student) => <tr key={student.id}>
-            <td><div className="admin-student-cell">{student.avatar_url ? <img src={student.avatar_url} alt="" /> : <span>{student.full_name?.charAt(0)}</span>}<div><strong>{student.full_name}</strong><small>{student.nickname}</small></div></div></td><td>{student.class_name}</td>
+            <td><div className="admin-student-cell">{student.avatar_url ? <img src={student.avatar_url} alt="" /> : <span>{student.full_name?.charAt(0)}</span>}<div><strong>{student.full_name}</strong><small>{student.nickname}</small></div></div></td><td>{student.member_type === 'friend' ? <span className="admin-badge friend">🌸 Bạn bè</span> : student.class_name}</td>
             <td><span className={`admin-badge ${student.is_active ? 'active' : 'inactive'}`}>{student.is_active ? 'Hoạt động' : 'Đã tắt'}</span></td>
             <td className="admin-link-cell"><a href={student.giftPath} target="_blank" rel="noreferrer">{student.giftPath}</a></td>
             <td className="admin-row-actions">

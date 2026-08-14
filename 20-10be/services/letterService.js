@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const reactionService = require('./reactionService');
+const { cloudinary } = require('../config/cloudinary');
 
 const STATUSES = ['pending', 'approved', 'rejected'];
 const MAX_BULK_ITEMS = 100;
@@ -148,8 +149,8 @@ async function listLetters(query) {
   // LIMIT/OFFSET nội suy trực tiếp là ngoại lệ có chủ đích: cả hai đã được ép
   // về integer trong khoảng an toàn ở parsePagination phía trên, không phải input thô
   const [items] = await pool.execute(
-    `SELECT l.id, l.student_id, s.full_name AS student_name, l.sender_name,
-      l.title, l.content, l.is_anonymous, l.status, l.reveal_at, l.created_at
+    `SELECT l.id, l.student_id, s.full_name AS student_name, s.member_type, l.sender_name,
+      l.title, l.content, l.is_anonymous, l.status, l.reveal_at, l.created_at, l.image_url
      FROM letters l JOIN students s ON s.id = l.student_id
      WHERE ${where} ORDER BY l.created_at DESC LIMIT ${pageSize} OFFSET ${offset}`,
     params,
@@ -260,19 +261,40 @@ async function bulkUpdateStatus(ids, status) {
   return { updated: result.affectedRows };
 }
 
+// Xóa DB trước, dọn ảnh Cloudinary sau (best-effort) — lỗi dọn chỉ để lại
+// file mồ côi vô hại, giống quy ước của galleryService.deleteImage
+async function cleanupLetterImages(publicIds) {
+  const results = await Promise.allSettled(
+    publicIds.filter(Boolean).map((publicId) => cloudinary.uploader.destroy(publicId)),
+  );
+  const failed = results.filter((result) => result.status === 'rejected').length;
+  if (failed) console.error(`Cloudinary cleanup failed for ${failed} letter image(s)`);
+}
+
 async function deleteLetter(id) {
+  const [rows] = await pool.execute(
+    'SELECT image_public_id FROM letters WHERE id = ? LIMIT 1',
+    [id],
+  );
+  if (!rows.length) throw httpError('Không tìm thấy lời chúc', 404);
   const [result] = await pool.execute('DELETE FROM letters WHERE id = ?', [id]);
   if (!result.affectedRows) throw httpError('Không tìm thấy lời chúc', 404);
+  await cleanupLetterImages([rows[0].image_public_id]);
   return {};
 }
 
 async function bulkDelete(ids) {
   const cleanIds = parseIdList(ids);
   const placeholders = cleanIds.map(() => '?').join(',');
+  const [rows] = await pool.execute(
+    `SELECT image_public_id FROM letters WHERE id IN (${placeholders}) AND image_public_id IS NOT NULL`,
+    cleanIds,
+  );
   const [result] = await pool.execute(
     `DELETE FROM letters WHERE id IN (${placeholders})`,
     cleanIds,
   );
+  await cleanupLetterImages(rows.map((row) => row.image_public_id));
   return { deleted: result.affectedRows };
 }
 
