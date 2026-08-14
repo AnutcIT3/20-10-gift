@@ -79,6 +79,7 @@ function GiftPage() {
   const [aiGreeting, setAiGreeting] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [locked, setLocked] = useState(false)
   const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
@@ -87,6 +88,7 @@ function GiftPage() {
     async function load() {
       setLoading(true)
       setError('')
+      setLocked(false)
       setAiGreeting('')
       // Đồng bộ hero với student truyền qua router state; navigate sang access
       // code khác mà không có state thì xóa hero cũ để không hiện nhầm người
@@ -114,7 +116,8 @@ function GiftPage() {
           .catch(() => {})
       } catch (err) {
         if (!cancelled) {
-          if (err.status === 404) setError('Không tìm thấy trang này. Link có thể đã hết hiệu lực.')
+          if (err.status === 423) setLocked(true)
+          else if (err.status === 404) setError('Không tìm thấy trang này. Link có thể đã hết hiệu lực.')
           else if (!navigator.onLine || err.isNetworkError) setError('Không thể kết nối backend. Hãy kiểm tra mạng và chắc chắn server đang chạy.')
           else setError(err.message || 'Có lỗi xảy ra, vui lòng thử lại sau.')
         }
@@ -126,6 +129,23 @@ function GiftPage() {
     load()
     return () => { cancelled = true }
   }, [accessCode, retryKey, location.state])
+
+  // Admin đang khóa trang quà chờ ngày 20/10
+  if (locked) {
+    return (
+      <div className="gift-locked">
+        <div className="gift-locked-card">
+          <span className="gift-locked-emoji" aria-hidden="true">🎁</span>
+          <h1>Chưa đến ngày 20/10</h1>
+          <p>
+            Món quà của bạn đang được gói lại thật kỹ để chờ đúng ngày.
+            Hãy quay lại vào dịp 20/10 nhé — hộp quà sẽ tự mở! 💝
+          </p>
+          <Link to="/" className="gift-error-back secondary">Về trang chủ</Link>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) {
     // Có sẵn student từ router state → hero thật hiện ngay, chỉ skeleton phần thân

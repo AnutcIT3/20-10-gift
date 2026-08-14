@@ -104,6 +104,9 @@ async function generateGreeting(name, audienceType = 'student') {
   if (audienceType === 'visitor') {
     return { greeting: `Dù chúng mình có thể chưa từng học cùng nhau, ${name} vẫn là một bông hoa nhỏ xứng đáng nhận được những lời chúc tốt đẹp. Chúc bạn có một ngày 20/10 thật vui vẻ, luôn rạng rỡ và gặp nhiều may mắn! 🌷` }
   }
+  if (audienceType === 'classmate') {
+    return { greeting: `Cảm ơn ${name} đã là một phần của tập thể lớp mình! Chúc cậu một ngày 20/10 thật vui bên cả lớp nhé! 🌷` }
+  }
   return { greeting: `Chúc ${name} một ngày 20/10 thật vui vẻ và rạng rỡ! 🌷` }
 }
 

@@ -722,3 +722,41 @@
     column-count: 3;
   }
 }
+
+/* Màn chờ khi admin khóa trang quà trước ngày 20/10 */
+.gift-locked {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 28px 18px;
+  background: var(--gradient-page);
+}
+
+.gift-locked-card {
+  width: min(560px, 100%);
+  padding: clamp(34px, 7vw, 60px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+
+.gift-locked-emoji {
+  display: block;
+  font-size: 56px;
+  margin-bottom: 12px;
+}
+
+.gift-locked-card h1 {
+  margin: 0 0 10px;
+  color: var(--color-text);
+  font-family: Georgia, serif;
+  font-size: clamp(26px, 5vw, 38px);
+}
+
+.gift-locked-card p {
+  margin: 0 0 22px;
+  color: var(--color-subtle);
+  line-height: 1.65;
+}

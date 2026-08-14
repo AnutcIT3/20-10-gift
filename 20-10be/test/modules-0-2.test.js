@@ -962,10 +962,13 @@ test('Gemini greeting uses safe static fallbacks by audience type when API key i
   try {
     const student = await greetingService.generateGreeting('Lan', 'student');
     const visitor = await greetingService.generateGreeting('Minh Anh', 'visitor');
+    const classmate = await greetingService.generateGreeting('Tuấn', 'classmate');
     assert.equal(Object.hasOwn(student, 'source'), false);
     assert.match(student.greeting, /Lan/);
     assert.match(visitor.greeting, /Minh Anh/);
     assert.match(visitor.greeting, /chưa từng học cùng nhau/);
+    assert.match(classmate.greeting, /Tuấn/);
+    assert.match(classmate.greeting, /tập thể lớp/);
   } finally {
     if (original !== undefined) process.env.GEMINI_API_KEY = original;
   }
@@ -973,4 +976,77 @@ test('Gemini greeting uses safe static fallbacks by audience type when API key i
 
 test('Gemini greeting rejects invalid audienceType', async () => {
   await assert.rejects(() => greetingService.generateGreeting('Lan', 'unknown'), { statusCode: 400 });
+});
+
+test('gift lock: locked blocks viewing with 423 but letter submission still works', async (t) => {
+  const original = pool.execute;
+  pool.execute = async (sql, params) => {
+    if (sql.includes('FROM app_settings')) return [[{ setting_value: '1' }]];
+    if (sql.includes('FROM students') && sql.includes('access_code')) {
+      return [[{ id: 3, full_name: 'Nguyễn A', is_active: 1 }]];
+    }
+    if (sql.startsWith('INSERT INTO letters')) return [{ insertId: 50 }];
+    if (sql.includes('revision = revision + 1')) return [{ affectedRows: 1 }];
+    return [[]];
+  };
+  const server = app.listen(0);
+  t.after(() => {
+    server.close();
+    pool.execute = original;
+  });
+  await new Promise((resolve) => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+
+  // Route XEM bị khóa
+  const viewResponse = await fetch(`${base}/api/gifts/some-code`);
+  assert.equal(viewResponse.status, 423);
+  const viewBody = await viewResponse.json();
+  assert.match(viewBody.message, /20\/10/);
+
+  // Gửi lời chúc vẫn hoạt động — mục đích của tính năng
+  const letterResponse = await fetch(`${base}/api/gifts/some-code/letters`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: 'Chúc mừng 20/10!', is_anonymous: true }),
+  });
+  assert.equal(letterResponse.status, 201);
+});
+
+test('gift lock: admin settings endpoint requires auth, toggles and validates input', async (t) => {
+  const original = pool.execute;
+  let storedValue = '0';
+  pool.execute = async (sql, params) => {
+    if (sql.includes('FROM admins')) return [[{ id: 1 }]];
+    if (sql.includes('FROM app_settings')) return [[{ setting_value: storedValue }]];
+    if (sql.startsWith('INSERT INTO app_settings')) {
+      storedValue = params[1];
+      return [{ affectedRows: 1 }];
+    }
+    if (sql.includes('revision = revision + 1')) return [{ affectedRows: 1 }];
+    return [[]];
+  };
+  const server = app.listen(0);
+  t.after(() => {
+    server.close();
+    pool.execute = original;
+  });
+  await new Promise((resolve) => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+
+  assert.equal((await fetch(`${base}/api/admin/settings`)).status, 401);
+
+  const token = signToken({ sub: 1 });
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  const toggled = await fetch(`${base}/api/admin/settings`, {
+    method: 'PATCH', headers, body: JSON.stringify({ gift_pages_locked: true }),
+  });
+  assert.equal(toggled.status, 200);
+  assert.equal(storedValue, '1');
+  assert.deepEqual((await toggled.json()).data, { gift_pages_locked: true });
+
+  const invalid = await fetch(`${base}/api/admin/settings`, {
+    method: 'PATCH', headers, body: JSON.stringify({ gift_pages_locked: 'yes' }),
+  });
+  assert.equal(invalid.status, 400);
 });

@@ -8,6 +8,7 @@ const SHARED_DATA_PREFIXES = [
   '/api/admin/letters',
   '/api/letters',
   '/api/gifts',
+  '/api/admin/settings',
 ];
 
 function isSharedDataMutation(req) {

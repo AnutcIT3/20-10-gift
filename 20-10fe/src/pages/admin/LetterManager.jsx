@@ -83,6 +83,7 @@ function LetterManager() {
   const [editForm, setEditForm] = useState(null)
   const [selectedIds, setSelectedIds] = useState([])
   const [composeForm, setComposeForm] = useState(EMPTY_COMPOSE_FORM)
+  const [composeOpen, setComposeOpen] = useState(false)
   const [revealLimits] = useState(computeRevealLimits)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -112,6 +113,13 @@ function LetterManager() {
     try {
       const result = await adminApi.listLetters({ status, studentId, page })
       if (seq !== loadSeq.current) return
+      // Duyệt/xóa hết mục của trang cuối làm tổng số trang co lại — clamp về
+      // trang hợp lệ, nếu không admin kẹt ở trang rỗng (pagination đã bị ẩn)
+      const totalPages = Math.max(Number(result.pagination?.totalPages) || 1, 1)
+      if (page > totalPages) {
+        setPage(totalPages)
+        return
+      }
       setData(result)
       setSelectedIds((current) => current.filter((id) => result.items.some((letter) => letter.id === id)))
       setError('')
@@ -174,6 +182,7 @@ function LetterManager() {
       if (!payload.student_ids.length) throw new Error('Chọn ít nhất một người nhận.')
       await adminApi.createLetters(payload)
       setComposeForm(EMPTY_COMPOSE_FORM)
+      setComposeOpen(false)
       setMessage(`Đã gửi lời chúc cho ${payload.student_ids.length} người nhận.`)
       await load()
     } catch (err) {
@@ -183,7 +192,12 @@ function LetterManager() {
     }
   }
 
+  // Các handler đều clear message/error TRƯỚC khi set lại: phần tử toast
+  // unmount rồi mount lại nên animation fade chạy lại cho từng thông báo
+  // (CSS animation không tự restart khi chỉ đổi text trên cùng một phần tử)
   const changeStatus = async (id, nextStatus) => {
+    setMessage('')
+    setError('')
     try {
       await adminApi.updateLetterStatus(id, nextStatus)
       setMessage('Đã cập nhật trạng thái.')
@@ -195,6 +209,8 @@ function LetterManager() {
 
   const bulkChangeStatus = async (nextStatus) => {
     if (!selectedIds.length) return
+    setMessage('')
+    setError('')
     try {
       await adminApi.bulkUpdateLetterStatus(selectedIds, nextStatus)
       setMessage(`Đã cập nhật ${selectedIds.length} lời chúc.`)
@@ -206,6 +222,8 @@ function LetterManager() {
   }
 
   const remove = async (id) => {
+    setMessage('')
+    setError('')
     try {
       await adminApi.deleteLetter(id)
       setMessage('Đã xóa lời chúc.')
@@ -220,6 +238,8 @@ function LetterManager() {
     if (!selectedIds.length) return
     const ok = window.confirm(`Xóa vĩnh viễn ${selectedIds.length} lời chúc đã chọn?`)
     if (!ok) return
+    setMessage('')
+    setError('')
     try {
       await adminApi.bulkDeleteLetters(selectedIds)
       setMessage(`Đã xóa ${selectedIds.length} lời chúc.`)
@@ -288,9 +308,16 @@ function LetterManager() {
           <p className="admin-kicker">Lời chúc</p>
           <h2>Quản lý lời chúc{selectedStudentName ? ` - ${selectedStudentName}` : ''}</h2>
         </div>
-        <span>{data.pagination.total} kết quả</span>
+        <div className="dash-header-actions">
+          <span>{data.pagination.total} kết quả</span>
+          <button type="button" className="dash-refresh-btn" onClick={() => setComposeOpen((open) => !open)}>
+            {composeOpen ? 'Đóng khung soạn' : '✍️ Soạn lời chúc'}
+          </button>
+        </div>
       </header>
 
+      {/* Form soạn mặc định đóng: việc hằng ngày là DUYỆT, danh sách phải ở màn hình đầu */}
+      {composeOpen && (
       <form className="admin-panel admin-form-grid" onSubmit={submitCompose}>
         <h3>Gửi lời chúc từ admin</h3>
         <label className="admin-span-2">
@@ -338,6 +365,7 @@ function LetterManager() {
           <button className="admin-primary" disabled={saving}>{saving ? 'Đang gửi...' : 'Gửi lời chúc'}</button>
         </div>
       </form>
+      )}
 
       <div className="admin-panel admin-filters">
         <div className="admin-tabs" role="group" aria-label="Lọc trạng thái lời chúc">
@@ -361,18 +389,19 @@ function LetterManager() {
       {selectedIds.length > 0 && (
         <div className="admin-panel admin-bulk-bar">
           <strong>{selectedIds.length} lời chúc đã chọn</strong>
-          <button type="button" className="approve" onClick={() => bulkChangeStatus('approved')}>Duyệt hàng loạt</button>
+          <button type="button" className="admin-approve-primary" onClick={() => bulkChangeStatus('approved')}>Duyệt hàng loạt</button>
           <button type="button" onClick={() => bulkChangeStatus('rejected')}>Từ chối hàng loạt</button>
-          <button type="button" className="danger" onClick={bulkRemove}>Xóa hàng loạt</button>
           <button type="button" onClick={() => setSelectedIds([])}>Bỏ chọn</button>
+          <button type="button" className="danger push-end" onClick={bulkRemove}>Xóa hàng loạt</button>
         </div>
       )}
 
-      {message && <p className="admin-alert success" role="status">{message}</p>}
-      {error && <p className="admin-alert error" role="alert">{error}</p>}
+      {message && <p key={message} className="admin-alert success" role="status">{message}</p>}
+      {error && <p key={error} className="admin-alert error" role="alert">{error}</p>}
 
-      {loading ? <p>Đang tải...</p> : data.items.length ? (
-        <div className="admin-letter-list">
+      {loading && !data.items.length ? <p>Đang tải...</p> : data.items.length ? (
+        // Giữ nguyên danh sách khi refetch sau duyệt/từ chối — không mất vị trí cuộn
+        <div className={`admin-letter-list${loading ? ' refreshing' : ''}`}>
           <label className="admin-select-all">
             <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} />
             Chọn tất cả trên trang này
@@ -399,13 +428,14 @@ function LetterManager() {
                 </div>
               )}
               <ReactionSummary reactions={letter.reactions} />
-              <small>{new Date(letter.created_at).toLocaleString('vi-VN')}</small>
+              <small>{new Date(letter.created_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}</small>
+              {/* Hành động chính (Duyệt nhanh) đứng đầu và nổi bật; Xóa tách ra mép phải */}
               <div className="admin-row-actions">
+                {letter.status !== 'approved' && <button type="button" className="admin-approve-primary" onClick={() => changeStatus(letter.id, 'approved')}>Duyệt nhanh</button>}
+                {letter.status !== 'rejected' && <button type="button" onClick={() => changeStatus(letter.id, 'rejected')}>Từ chối</button>}
                 <button type="button" onClick={() => setSelectedLetter(letter)}>Xem đầy đủ</button>
                 <button type="button" onClick={() => startEdit(letter)}>Sửa</button>
-                {letter.status !== 'approved' && <button type="button" className="approve" onClick={() => changeStatus(letter.id, 'approved')}>Duyệt nhanh</button>}
-                {letter.status !== 'rejected' && <button type="button" onClick={() => changeStatus(letter.id, 'rejected')}>Từ chối</button>}
-                <button type="button" className="danger" onClick={() => setSelectedLetter({ ...letter, confirmDelete: true })}>Xóa</button>
+                <button type="button" className="danger push-end" onClick={() => setSelectedLetter({ ...letter, confirmDelete: true })}>Xóa</button>
               </div>
             </article>
           ))}
@@ -414,11 +444,13 @@ function LetterManager() {
         <div className="admin-empty">Không có lời chúc phù hợp.</div>
       )}
 
-      <div className="admin-pagination">
-        <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Trang trước</button>
-        <span>Trang {page}/{Math.max(data.pagination.totalPages, 1)}</span>
-        <button type="button" disabled={page >= data.pagination.totalPages} onClick={() => setPage(page + 1)}>Trang sau</button>
-      </div>
+      {data.pagination.totalPages > 1 && (
+        <div className="admin-pagination">
+          <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Trang trước</button>
+          <span>Trang {page}/{data.pagination.totalPages}</span>
+          <button type="button" disabled={page >= data.pagination.totalPages} onClick={() => setPage(page + 1)}>Trang sau</button>
+        </div>
+      )}
 
       {editingLetter && editForm && (
         <div className="admin-modal-backdrop" role="presentation" onClick={closeEdit}>

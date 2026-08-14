@@ -58,7 +58,7 @@ test('admin can sign in, open the seating map, and assign an empty seat', async 
   await page.getByRole('link', { name: 'Sơ đồ lớp' }).click()
   await expect(page).toHaveURL(/\/admin\/seating$/)
   await expect(page.getByRole('heading', { name: 'Sơ đồ lớp' })).toBeVisible()
-  await page.getByLabel('Thành viên').selectOption('22')
+  await page.getByLabel('Học sinh').selectOption('22')
   await page.getByRole('button', { name: 'Ghế hàng 1, cột 1' }).click()
   await expect(page.getByRole('status')).toContainText('Đã xếp Hương vào hàng 1, cột 1.')
 

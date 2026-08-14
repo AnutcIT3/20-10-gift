@@ -205,6 +205,7 @@ Admin — yêu cầu `Authorization: Bearer <token>`:
 - `/api/gallery/*`
 - `/api/admin/letters`
 - `/api/letters/*`
+- `GET/PATCH /api/admin/settings` — khóa/mở trang quà chờ ngày 20/10
 
 ## Scripts
 
@@ -231,4 +232,6 @@ Frontend:
 - GiftPage không có form gửi lời chúc để tránh sai ngữ cảnh người nhận.
 - Lời chúc mới qua public API có trạng thái `pending` và chỉ xuất hiện sau khi admin duyệt.
 - Mọi tên được nhập đều nhận một lời chúc Gemini: người trong lớp xem trên GiftPage cá nhân, người ngoài danh sách xem trang chúc chung. Gemini key chỉ nằm ở backend để không lộ trên trình duyệt.
+- Tên ngoài danh sách được hỏi "thành viên trong lớp hay khách ghé thăm" trước khi hiện lời chúc — hai kiểu lời chúc khác nhau (`classmate` / `visitor`).
+- Admin có thể **khóa trang quà chờ ngày 20/10** từ Dashboard: người mở trang quà thấy "Chưa đến ngày 20/10, vui lòng chờ thêm", nhưng gửi lời chúc vẫn hoạt động — gửi link cho các bạn nam chúc trước, đến ngày admin bấm "Mở trang quà".
 - Xem `PLAN.md` và `IMPLEMENTATION.md` để biết thiết kế và API contract ban đầu.

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { adminApi } from '../../api/adminApi'
 import useDialogA11y from '../../hooks/useDialogA11y'
 
@@ -13,8 +14,14 @@ function formatBytes(bytes) {
 }
 
 function GalleryManager() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [students, setStudents] = useState([])
-  const [studentId, setStudentId] = useState('')
+  // Nhận studentId từ query (?studentId=X, nút "Ảnh" bên trang Học sinh);
+  // không tự chọn mặc định học sinh đầu tiên để tránh upload nhầm người
+  const [studentId, setStudentId] = useState(
+    () => new URLSearchParams(location.search).get('studentId') || '',
+  )
   const [images, setImages] = useState([])
   const [captions, setCaptions] = useState({})
   const [files, setFiles] = useState([])
@@ -32,16 +39,28 @@ function GalleryManager() {
     url: URL.createObjectURL(file),
   })), [files])
 
+  const selectedStudentName = useMemo(
+    () => students.find((student) => String(student.id) === String(studentId))?.full_name || '',
+    [students, studentId],
+  )
+
   useEffect(() => () => {
     previewItems.forEach((item) => URL.revokeObjectURL(item.url))
   }, [previewItems])
 
   useEffect(() => {
-    adminApi.listStudents().then((data) => {
-      setStudents(data)
-      if (data[0]) setStudentId(String(data[0].id))
-    }).catch((err) => setError(err.message))
+    adminApi.listStudents().then(setStudents).catch((err) => setError(err.message))
   }, [])
+
+  // URL là nguồn sự thật cho học sinh đang chọn (như LetterManager): dropdown
+  // chỉ navigate, effect này đọc lại — không còn hai nguồn ghi đè lẫn nhau
+  useEffect(() => {
+    const sync = setTimeout(() => {
+      const fromUrl = new URLSearchParams(location.search).get('studentId') || ''
+      if (fromUrl !== studentId) setStudentId(fromUrl)
+    }, 0)
+    return () => clearTimeout(sync)
+  }, [location.search, studentId])
 
   // Đánh số mỗi lượt load: response về muộn của lượt cũ (đổi học sinh nhanh)
   // bị bỏ, không ghi đè gallery của học sinh đang chọn
@@ -145,7 +164,10 @@ function GalleryManager() {
     } catch (err) { setError(err.message); await loadGallery() }
   }
 
+  // Clear trước khi set để toast remount và chạy lại animation cho mỗi thông báo
   const saveCaption = async (image) => {
+    setMessage('')
+    setError('')
     try {
       await adminApi.updateImageCaption(image.id, captions[image.id] || '')
       setMessage('Đã cập nhật chú thích.')
@@ -157,6 +179,8 @@ function GalleryManager() {
     const image = confirmImage
     setConfirmImage(null)
     if (!image) return
+    setMessage('')
+    setError('')
     try { await adminApi.deleteImage(image.id); await loadGallery(); setMessage('Đã xóa ảnh.') }
     catch (err) { setError(err.message) }
   }
@@ -165,7 +189,14 @@ function GalleryManager() {
     <section>
       <header className="admin-page-header"><div><p className="admin-kicker">Thư viện ảnh</p><h2>Quản lý thư viện ảnh</h2></div></header>
       <div className="admin-panel">
-        <label>Chọn học sinh<select value={studentId} onChange={(e) => { setLoading(true); setStudentId(e.target.value) }}>
+        <label>Chọn học sinh<select
+          value={studentId}
+          onChange={(e) => {
+            const value = e.target.value
+            navigate(value ? `/admin/gallery?studentId=${value}` : '/admin/gallery', { replace: true })
+          }}
+        >
+          <option value="">— Chọn học sinh —</option>
           {students.map((student) => <option key={student.id} value={student.id}>{student.full_name}</option>)}
         </select></label>
       </div>
@@ -186,10 +217,15 @@ function GalleryManager() {
         </label>
         <label>Chú thích<input value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={500} /></label>
         {previewItems.length > 0 && <div className="admin-upload-preview multi">{previewItems.slice(0, 4).map((item) => <div key={`${item.file.name}-${item.file.size}`}><img src={item.url} alt="Preview ảnh upload" /><p>{item.file.name} · {formatBytes(item.file.size)}</p></div>)}{previewItems.length > 4 && <p>+{previewItems.length - 4} ảnh khác</p>}</div>}
-        <button type="submit" className="admin-primary" disabled={uploading || !files.length}>{uploading ? 'Đang tải lên...' : `Tải ${files.length || ''} ảnh lên`}</button>
+        <button type="submit" className="admin-primary" disabled={uploading || !files.length || !studentId}>
+          {uploading
+            ? 'Đang tải lên...'
+            : `Tải ${files.length || ''} ảnh lên${selectedStudentName ? ` cho ${selectedStudentName}` : ''}`}
+        </button>
       </form>
-      {message && <p className="admin-alert success" role="status">{message}</p>}{error && <p className="admin-alert error" role="alert">{error}</p>}
-      {loading && !images.length ? <p>Đang tải...</p> : images.length ? <div className="admin-gallery-grid">
+      {message && <p key={message} className="admin-alert success" role="status">{message}</p>}{error && <p key={error} className="admin-alert error" role="alert">{error}</p>}
+      {!studentId ? <div className="admin-empty">Chọn một học sinh để xem và tải ảnh.</div>
+        : loading && !images.length ? <p>Đang tải...</p> : images.length ? <div className="admin-gallery-grid">
         {images.map((image, index) => <article
           key={image.id}
           className="admin-gallery-card"

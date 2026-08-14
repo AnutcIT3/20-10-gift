@@ -108,6 +108,10 @@ export const adminApi = {
   }),
   getStats: () => request('/api/admin/stats'),
   getDataRevision: () => request('/api/admin/data-revision'),
+  getSettings: () => request('/api/admin/settings'),
+  updateSettings: (data) => request('/api/admin/settings', {
+    method: 'PATCH', body: JSON.stringify(data),
+  }),
   exportStudents: async () => {
     const token = adminAuth.getToken()
     const response = await fetch(`${API_BASE_URL}/api/admin/export/students`, {

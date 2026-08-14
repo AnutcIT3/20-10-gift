@@ -8,6 +8,9 @@ import '../styles/landing.css'
 
 function LandingPage() {
   const navigate = useNavigate()
+  // Hỏi "là ai" TRƯỚC khi nhập tên: khách trùng tên với thành viên lớp sẽ
+  // không bao giờ bị tra danh sách rồi mở nhầm trang cá nhân của bạn ấy
+  const [visitorRole, setVisitorRole] = useState(null) // 'classmate' | 'guest' | null
   const [name, setName] = useState('')
   const [matches, setMatches] = useState([])
   const [message, setMessage] = useState('')
@@ -67,7 +70,13 @@ function LandingPage() {
           setTimeout(resolve, 1700)
         })
       }
-    } catch {
+    } catch (err) {
+      if (err?.status === 423) {
+        // Trang quà đang khóa chờ 20/10 — bỏ hiệu ứng mở quà, đưa thẳng tới
+        // màn "Chưa đến ngày" của GiftPage
+        navigate(giftPath)
+        return
+      }
       // Vẫn mở quà nếu không tải được thông tin chỗ ngồi.
     } finally {
       setSeatRevealStudent(null)
@@ -138,11 +147,25 @@ function LandingPage() {
     }
   }
 
+  const chooseRole = (role) => {
+    setVisitorRole(role)
+    setError('')
+    setMatches([])
+    setMessage('')
+  }
+
   const submit = async (event) => {
     event.preventDefault()
     const value = name.trim()
     setError(''); setMatches([]); setMessage('')
     if (value.length < 2) { setError('Vui lòng nhập ít nhất 2 ký tự.'); return }
+
+    // Khách KHÔNG tra danh sách lớp — đi thẳng tới trang lời chúc dành cho khách
+    if (visitorRole === 'guest') {
+      navigate(`/celebrate/${encodeURIComponent(value)}?audience=visitor`)
+      return
+    }
+
     setLoading(true)
     try {
       const result = await giftRepository.resolveStudent(value)
@@ -150,7 +173,8 @@ function LandingPage() {
       else if (result?.matches?.length) { setMatches(result.matches); setMessage(result.message || '') }
       else setError('Không tìm thấy tên này trong danh sách.')
     } catch (err) {
-      if (err.status === 404) navigate(`/celebrate/${encodeURIComponent(value)}`)
+      // Thành viên lớp nhưng không có trang quà riêng (ví dụ các bạn nam)
+      if (err.status === 404) navigate(`/celebrate/${encodeURIComponent(value)}?audience=classmate`)
       else if (!navigator.onLine || err.isNetworkError) setError('Bạn đang offline hoặc backend chưa được bật.')
       else setError(err.message)
     } finally { setLoading(false) }
@@ -173,11 +197,26 @@ function LandingPage() {
         <p className="landing-date">20 · 10</p>
         <h1>Một món quà nhỏ<br />dành riêng cho bạn</h1>
         <p className="landing-intro">Nhập tên để mở không gian lưu bút và những lời chúc từ lớp mình.</p>
-        <form className="landing-search" onSubmit={submit}>
-          <label htmlFor="student-name">Tên của bạn</label>
-          <p id="student-name-help" className="landing-help">Nhập họ tên hoặc tên thường gọi của bạn.</p>
-          <div><input id="student-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ví dụ: Nguyễn Thúy Vy" autoComplete="name" aria-describedby="student-name-help" /><button disabled={loading} aria-busy={loading}>{loading ? 'Đang tìm...' : 'Mở quà'}</button></div>
-        </form>
+        {!visitorRole ? (
+          <div className="landing-role-choice">
+            <p>Trước tiên, cho tụi mình biết bạn là ai nhé:</p>
+            <button type="button" onClick={() => chooseRole('classmate')}>🧑‍🎓 Mình là thành viên trong lớp</button>
+            <button type="button" onClick={() => chooseRole('guest')}>🌸 Mình là khách ghé thăm</button>
+          </div>
+        ) : (
+          <>
+            <form className="landing-search" onSubmit={submit}>
+              <label htmlFor="student-name">Tên của bạn</label>
+              <p id="student-name-help" className="landing-help">
+                {visitorRole === 'guest'
+                  ? 'Nhập tên của bạn để nhận một lời chúc 20/10 dành riêng cho bạn.'
+                  : 'Nhập họ tên hoặc tên thường gọi của bạn trong lớp.'}
+              </p>
+              <div><input id="student-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={visitorRole === 'guest' ? 'Ví dụ: Minh Thư' : 'Ví dụ: Nguyễn Thúy Vy'} autoComplete="name" aria-describedby="student-name-help" /><button disabled={loading} aria-busy={loading}>{loading ? 'Đang tìm...' : visitorRole === 'guest' ? 'Nhận lời chúc' : 'Mở quà'}</button></div>
+            </form>
+            <button type="button" className="landing-role-back" onClick={() => chooseRole(null)}>← Chọn lại</button>
+          </>
+        )}
         <div className="landing-secondary-actions">
           <button type="button" onClick={openWish}>Gửi lời chúc</button>
         </div>

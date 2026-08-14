@@ -71,12 +71,14 @@ function AdminLayout() {
     <div className="admin-shell">
       <aside className="admin-sidebar">
         <div><p className="admin-kicker">20/10 Gift</p><h1>Quản trị</h1></div>
+        {/* Thứ tự theo tần suất dùng: 2 trang dùng nhiều nhất (Lời chúc, Thư viện
+            ảnh) phải nằm trong số tab hiện sẵn trên màn hình hẹp */}
         <nav aria-label="Điều hướng quản trị">
           <NavLink end to="/admin">Tổng quan</NavLink>
+          <NavLink to="/admin/letters">Lời chúc</NavLink>
+          <NavLink to="/admin/gallery">Thư viện ảnh</NavLink>
           <NavLink to="/admin/students">Học sinh</NavLink>
           <NavLink to="/admin/seating">Sơ đồ lớp</NavLink>
-          <NavLink to="/admin/gallery">Thư viện ảnh</NavLink>
-          <NavLink to="/admin/letters">Lời chúc</NavLink>
         </nav>
         <button type="button" className="admin-logout" onClick={logout}>Đăng xuất</button>
       </aside>

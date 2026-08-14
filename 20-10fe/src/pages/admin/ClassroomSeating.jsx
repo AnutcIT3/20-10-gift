@@ -209,7 +209,7 @@ function ClassroomSeating() {
                   : studentInitial(primaryStudent)}
               </span>
               <strong>{primaryStudent.full_name}</strong>
-              {isConflict && <small>{occupants.length} thành viên</small>}
+              {isConflict && <small>{occupants.length} học sinh</small>}
             </>
           ) : <span className="admin-seat-empty-label">Trống</span>}
         </button>
@@ -230,7 +230,7 @@ function ClassroomSeating() {
     <section>
       <header className="admin-page-header">
         <div>
-          <p className="admin-kicker">Vị trí</p>
+          <p className="admin-kicker">Sơ đồ lớp</p>
           <h2>Sơ đồ lớp</h2>
         </div>
         <div className="admin-seat-summary" aria-label="Thống kê sơ đồ lớp">
@@ -243,9 +243,9 @@ function ClassroomSeating() {
       {!loading && (
         <div className="admin-seat-controls">
           <label>
-            Thành viên
+            Học sinh
             <select disabled={saving} value={selectedStudentId} onChange={(event) => setSelectedStudentId(event.target.value)}>
-              <option value="">Chọn thành viên</option>
+              <option value="">Chọn học sinh</option>
               {sortedStudents.map((student) => (
                 <option key={student.id} value={student.id}>
                   {student.full_name} - {seatLabel(student)}
@@ -273,50 +273,14 @@ function ClassroomSeating() {
         </div>
       )}
 
-      {message && <p className="admin-alert success" role="status">{message}</p>}
-      {error && <p className="admin-alert error" role="alert">{error}</p>}
+      {message && <p key={message} className="admin-alert success" role="status">{message}</p>}
+      {error && <p key={error} className="admin-alert error" role="alert">{error}</p>}
       {loading ? <p className="admin-seat-loading">Đang tải sơ đồ...</p> : (
         <>
-          <div className="admin-seat-map-wrap">
-            <div className="admin-classroom-front">
-              <span className="admin-classroom-board">Bảng lớp</span>
-              <button
-                type="button"
-                className={`admin-seat admin-special-seat ${specialStudent ? 'occupied' : 'empty'}${specialStudent && !specialStudent.is_active ? ' inactive' : ''}${specialIsConflict ? ' conflict' : ''}${specialIsSelected ? ' selected' : ''}`}
-                title={specialTitle}
-                aria-label={specialTitle}
-                disabled={saving}
-                onClick={() => chooseSeat(SPECIAL_SEAT.row, SPECIAL_SEAT.column, specialOccupants)}
-              >
-                <span className="admin-seat-number">Góc phải</span>
-                {specialStudent ? (
-                  <>
-                    <span className="admin-seat-avatar" aria-hidden="true">
-                      {specialStudent.avatar_url
-                        ? <img src={specialStudent.avatar_url} alt="" />
-                        : studentInitial(specialStudent)}
-                    </span>
-                    <strong>{specialStudent.full_name}</strong>
-                    {specialIsConflict && <small>{specialOccupants.length} thành viên</small>}
-                  </>
-                ) : <span className="admin-seat-empty-label">Trống</span>}
-              </button>
-            </div>
-            <div className="admin-seat-map" aria-label="Sơ đồ lớp gồm 6 hàng và 8 cột">
-              <div className="admin-classroom-aisle" aria-hidden="true"><span>Lối đi</span></div>
-              {seats}
-            </div>
-            <div className="admin-seat-legend" aria-label="Chú thích">
-              <span><i className="occupied" />Đang hoạt động</span>
-              <span><i className="inactive" />Đã tắt</span>
-              <span><i className="empty" />Ghế trống</span>
-              <span><i className="selected" />Đang chọn</span>
-              {seating.conflicts > 0 && <span><i className="conflict" />Trùng vị trí</span>}
-            </div>
-          </div>
-
+          {/* Danh sách chưa xếp đặt TRÊN sơ đồ: click chip chọn người rồi ghế
+              trống nằm ngay bên dưới — hết vòng scroll khứ hồi */}
           {seating.unseated.length > 0 && (
-            <section className="admin-unseated" aria-labelledby="unseated-title">
+            <section className="admin-unseated" style={{ marginBottom: 20 }} aria-labelledby="unseated-title">
               <h3 id="unseated-title">Chưa có vị trí</h3>
               <div className="admin-unseated-list">
                 {seating.unseated.map((student) => (
@@ -341,6 +305,44 @@ function ClassroomSeating() {
               </div>
             </section>
           )}
+          <div className="admin-seat-map-wrap">
+            <div className="admin-classroom-front">
+              <span className="admin-classroom-board">Bảng lớp</span>
+              <button
+                type="button"
+                className={`admin-seat admin-special-seat ${specialStudent ? 'occupied' : 'empty'}${specialStudent && !specialStudent.is_active ? ' inactive' : ''}${specialIsConflict ? ' conflict' : ''}${specialIsSelected ? ' selected' : ''}`}
+                title={specialTitle}
+                aria-label={specialTitle}
+                disabled={saving}
+                onClick={() => chooseSeat(SPECIAL_SEAT.row, SPECIAL_SEAT.column, specialOccupants)}
+              >
+                <span className="admin-seat-number">Góc phải</span>
+                {specialStudent ? (
+                  <>
+                    <span className="admin-seat-avatar" aria-hidden="true">
+                      {specialStudent.avatar_url
+                        ? <img src={specialStudent.avatar_url} alt="" />
+                        : studentInitial(specialStudent)}
+                    </span>
+                    <strong>{specialStudent.full_name}</strong>
+                    {specialIsConflict && <small>{specialOccupants.length} học sinh</small>}
+                  </>
+                ) : <span className="admin-seat-empty-label">Trống</span>}
+              </button>
+            </div>
+            <div className="admin-seat-map" aria-label="Sơ đồ lớp gồm 6 hàng và 8 cột">
+              <div className="admin-classroom-aisle" aria-hidden="true"><span>Lối đi</span></div>
+              {seats}
+            </div>
+            <div className="admin-seat-legend" aria-label="Chú thích">
+              <span><i className="occupied" />Đang hoạt động</span>
+              <span><i className="inactive" />Đã tắt</span>
+              <span><i className="empty" />Ghế trống</span>
+              <span><i className="selected" />Đang chọn</span>
+              {seating.conflicts > 0 && <span><i className="conflict" />Trùng vị trí</span>}
+            </div>
+          </div>
+
         </>
       )}
       <SeatChangeModal action={pendingAction} saving={saving} onConfirm={confirmSeatChange} onCancel={() => setPendingAction(null)} />
