@@ -99,10 +99,10 @@ function Dashboard() {
       <section className="dash-section">
         <h3 className="dash-section-title">👩‍🎓 Học sinh</h3>
         <div className="dash-stat-grid">
-          <StatCard to="/admin/students" value={stats?.students.total} label="Tổng học sinh" />
-          <StatCard to="/admin/students" value={stats?.students.active} label="Đang hoạt động" accent="#8e5ea2" />
-          <StatCard value={stats?.students.totalViews} label="Tổng lượt xem" accent="#e05e99" />
-          <StatCard to="/admin/gallery" value={stats?.gallery.studentsWithoutImages} label="Chưa có ảnh" accent="#d97706" />
+          <StatCard to="/admin/students" value={stats?.students?.total} label="Tổng học sinh" />
+          <StatCard to="/admin/students" value={stats?.students?.active} label="Đang hoạt động" accent="#8e5ea2" />
+          <StatCard value={stats?.students?.totalViews} label="Tổng lượt xem" accent="#e05e99" />
+          <StatCard to="/admin/gallery" value={stats?.gallery?.studentsWithoutImages} label="Chưa có ảnh" accent="#d97706" />
         </div>
       </section>
 
@@ -112,23 +112,23 @@ function Dashboard() {
         <div className="dash-stat-grid">
           <StatCard
             to="/admin/letters?status=pending"
-            value={stats?.letters.pending}
+            value={stats?.letters?.pending}
             label="Chờ duyệt"
             accent="#d97706"
           />
           <StatCard
             to="/admin/letters?status=approved"
-            value={stats?.letters.approved}
+            value={stats?.letters?.approved}
             label="Đã duyệt"
             accent="#16a34a"
           />
           <StatCard
             to="/admin/letters?status=rejected"
-            value={stats?.letters.rejected}
+            value={stats?.letters?.rejected}
             label="Đã từ chối"
             accent="#dc2626"
           />
-          <StatCard value={stats?.gallery.total} label="Tổng ảnh" to="/admin/gallery" />
+          <StatCard value={stats?.gallery?.total} label="Tổng ảnh" to="/admin/gallery" />
         </div>
       </section>
 
@@ -157,13 +157,13 @@ function Dashboard() {
 
         {/* ── Reactions ── */}
         <section className="dash-panel">
-          <h3 className="dash-panel-title">❤️ Tổng reactions — {stats?.reactions.total ?? 0}</h3>
+          <h3 className="dash-panel-title">❤️ Tổng reactions — {stats?.reactions?.total ?? 0}</h3>
           {loading && !stats ? <p className="dash-loading">Đang tải...</p> : (
             <div className="dash-reaction-grid">
               {REACTION_ORDER.map((key) => {
                 const count = reactions[key] || 0
                 const emoji = EMOJI_MAP[key]
-                const total = stats?.reactions.total || 1
+                const total = stats?.reactions?.total || 1
                 const pct = Math.round((count / total) * 100)
                 return (
                   <div key={key} className="dash-reaction-item">

@@ -22,6 +22,10 @@ function MusicPlayer() {
         const module = await import('../music/Đường Tôi Chở Em Về ⧸ buitruonglinh _ Lyrics Video _ (mp3cut.net).mp3?url')
         setMusicSrc(module.default)
         requestAnimationFrame(() => audioRef.current?.play().then(() => setPlaying(true)).catch(() => setPlaying(false)))
+      } catch {
+        // Import mp3 lỗi (mất mạng, CDN encode sai tên file) — không để
+        // unhandled rejection, nút trở về trạng thái bấm lại được
+        setPlaying(false)
       } finally {
         setLoading(false)
       }

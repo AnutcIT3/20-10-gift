@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import giftRepository from '../api/giftRepository'
 import SeatLetterReveal from '../components/SeatLetterReveal'
 import GiftReveal from '../components/GiftReveal'
+import useDialogA11y from '../hooks/useDialogA11y'
 import '../styles/landing.css'
 
 function LandingPage() {
@@ -16,6 +17,7 @@ function LandingPage() {
   // Gift reveal state
   const [revealPath, setRevealPath] = useState(null)
   const [revealName, setRevealName] = useState('')
+  const [revealStudent, setRevealStudent] = useState(null)
 
   const [wishOpen, setWishOpen] = useState(false)
   const [wishForm, setWishForm] = useState({
@@ -32,6 +34,7 @@ function LandingPage() {
   const [wishSubmitting, setWishSubmitting] = useState(false)
   const [seatRevealStudent, setSeatRevealStudent] = useState(null)
   const [revealLimits, setRevealLimits] = useState({ min: '', max: '' })
+  const wishDialogRef = useDialogA11y(wishOpen, () => setWishOpen(false))
 
   const resetWish = () => {
     setWishForm({ isAnonymous: false, senderName: '', receiverName: '', title: '', content: '', revealAt: '' })
@@ -71,6 +74,9 @@ function LandingPage() {
     }
 
     setRevealName(displayName || studentData?.nickname || studentData?.full_name || '')
+    // Truyền student sang GiftPage qua router state để hero hiện ngay,
+    // không vứt đi dữ liệu vừa fetch rồi bắt người dùng chờ fetch lại
+    setRevealStudent(studentData)
     setRevealPath(giftPath)
   }
 
@@ -116,10 +122,13 @@ function LandingPage() {
     setWishSubmitting(true)
     try {
       const result = await giftRepository.resolveStudent(receiverName)
-      if (result.giftPath) await sendWishToGiftPath(result.giftPath)
-      else if (result.matches?.length) {
+      if (result?.giftPath) await sendWishToGiftPath(result.giftPath)
+      else if (result?.matches?.length) {
         setWishMatches(result.matches)
         setWishMessage('Có nhiều bạn trùng tên. Hãy chọn đúng người nhận lời chúc.')
+      } else {
+        // Response không có giftPath lẫn matches (mock trả null, backend đổi shape)
+        setWishError('Không tìm thấy người nhận trong danh sách.')
       }
     } catch (err) {
       if (err.status === 404) setWishError('Không tìm thấy người nhận trong danh sách.')
@@ -137,8 +146,9 @@ function LandingPage() {
     setLoading(true)
     try {
       const result = await giftRepository.resolveStudent(value)
-      if (result.giftPath) await openGiftWithReveal(result.giftPath, value)
-      else { setMatches(result.matches || []); setMessage(result.message || '') }
+      if (result?.giftPath) await openGiftWithReveal(result.giftPath, value)
+      else if (result?.matches?.length) { setMatches(result.matches); setMessage(result.message || '') }
+      else setError('Không tìm thấy tên này trong danh sách.')
     } catch (err) {
       if (err.status === 404) navigate(`/celebrate/${encodeURIComponent(value)}`)
       else if (!navigator.onLine || err.isNetworkError) setError('Bạn đang offline hoặc backend chưa được bật.')
@@ -151,7 +161,7 @@ function LandingPage() {
     return (
       <GiftReveal
         recipientName={revealName}
-        onComplete={() => navigate(revealPath)}
+        onComplete={() => navigate(revealPath, revealStudent ? { state: { student: revealStudent } } : undefined)}
       />
     )
   }
@@ -179,14 +189,14 @@ function LandingPage() {
       </section>
       {wishOpen && (
         <div className="wish-modal-backdrop" role="presentation" onClick={() => setWishOpen(false)}>
-          <section className="wish-modal" role="dialog" aria-modal="true" aria-labelledby="wish-modal-title" onClick={(event) => event.stopPropagation()}>
+          <section ref={wishDialogRef} className="wish-modal" role="dialog" aria-modal="true" aria-labelledby="wish-modal-title" onClick={(event) => event.stopPropagation()}>
             <button type="button" className="wish-modal-close" onClick={() => setWishOpen(false)} aria-label="Đóng">×</button>
             <h2 id="wish-modal-title">Gửi lời chúc</h2>
             <form className="wish-form" onSubmit={submitWish}>
               <fieldset>
                 <legend>Trạng thái</legend>
-                <label><input type="radio" checked={!wishForm.isAnonymous} onChange={() => setWishForm({ ...wishForm, isAnonymous: false })} /> Không ẩn danh</label>
-                <label><input type="radio" checked={wishForm.isAnonymous} onChange={() => setWishForm({ ...wishForm, isAnonymous: true, senderName: '' })} /> Ẩn danh</label>
+                <label><input type="radio" name="wish-visibility" checked={!wishForm.isAnonymous} onChange={() => setWishForm({ ...wishForm, isAnonymous: false })} /> Không ẩn danh</label>
+                <label><input type="radio" name="wish-visibility" checked={wishForm.isAnonymous} onChange={() => setWishForm({ ...wishForm, isAnonymous: true, senderName: '' })} /> Ẩn danh</label>
               </fieldset>
               {!wishForm.isAnonymous && <label>Tên của bạn<input value={wishForm.senderName} maxLength={100} onChange={(event) => setWishForm({ ...wishForm, senderName: event.target.value })} placeholder="Ví dụ: Nguyễn Văn A" /></label>}
               <label>Tên người nhận<input value={wishForm.receiverName} maxLength={100} onChange={(event) => setWishForm({ ...wishForm, receiverName: event.target.value })} placeholder="Ví dụ: Phương Anh" /></label>

@@ -69,6 +69,23 @@ async function run(options = {}) {
     const availableFiles = fs.readdirSync(migrationsDir)
       .filter((file) => /^\d+.*\.sql$/.test(file))
       .sort();
+
+    // Thứ tự chạy chỉ tất định nhờ sort tên file, nên mỗi số hiệu phải là duy
+    // nhất. Cặp 006 cũ đã lỡ apply trên mọi máy nên được miễn trừ.
+    const LEGACY_DUPLICATE_PREFIXES = new Set(['006']);
+    const prefixCounts = new Map();
+    for (const file of availableFiles) {
+      const prefix = file.match(/^(\d+)/)[1];
+      prefixCounts.set(prefix, (prefixCounts.get(prefix) || 0) + 1);
+    }
+    for (const [prefix, count] of prefixCounts) {
+      if (count > 1 && !LEGACY_DUPLICATE_PREFIXES.has(prefix)) {
+        throw new Error(
+          `Duplicate migration number ${prefix}: rename the newer file to a unique number`,
+        );
+      }
+    }
+
     const files = options.files || availableFiles;
     for (const file of files) {
       const filePath = path.join(migrationsDir, file);

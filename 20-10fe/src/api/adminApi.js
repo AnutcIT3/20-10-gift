@@ -13,6 +13,28 @@ export const adminAuth = {
   },
 }
 
+// Sau mỗi mutation thành công, lấy revision mới và phát sự kiện để AdminLayout
+// "adopt" — chính thiết bị vừa thao tác không tự remount (mất form, thông báo).
+// Nếu một thiết bị khác thay đổi dữ liệu đúng trong khoảnh khắc này thì thay
+// đổi đó bị adopt kèm; poll sẽ bắt kịp ở lần bump revision kế tiếp.
+let selfRevisionSync = null
+function notifySelfRevision() {
+  if (selfRevisionSync) return
+  selfRevisionSync = (async () => {
+    try {
+      const data = await request('/api/admin/data-revision')
+      const revision = Number(data?.revision)
+      if (Number.isFinite(revision)) {
+        window.dispatchEvent(new CustomEvent('gift-admin-revision', { detail: { revision } }))
+      }
+    } catch {
+      // Bỏ qua — polling của AdminLayout sẽ xử lý như thay đổi từ thiết bị khác
+    } finally {
+      selfRevisionSync = null
+    }
+  })()
+}
+
 async function request(path, options = {}) {
   const headers = new Headers(options.headers)
   const token = adminAuth.getToken()
@@ -22,11 +44,18 @@ async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers })
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
-    if (response.status === 401 && path !== '/api/auth/admin/login') adminAuth.clear()
+    if (response.status === 401 && path !== '/api/auth/admin/login') {
+      adminAuth.clear()
+      // Báo cho ProtectedAdminRoute đá về trang login ngay, thay vì để admin
+      // ngồi lại trang cũ với mọi thao tác đều lỗi cho tới khi F5
+      window.dispatchEvent(new Event('gift-admin-unauthorized'))
+    }
     const error = new Error(payload?.message || `Yêu cầu thất bại (${response.status})`)
     error.status = response.status
     throw error
   }
+  const method = (options.method || 'GET').toUpperCase()
+  if (method !== 'GET' && path !== '/api/auth/admin/login') notifySelfRevision()
   return payload?.data
 }
 

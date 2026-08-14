@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { adminApi } from '../../api/adminApi'
+import useDialogA11y from '../../hooks/useDialogA11y'
 
 const STATUSES = [
   { value: 'pending', label: 'Chờ duyệt' },
@@ -93,45 +94,59 @@ function LetterManager() {
     [students],
   )
 
+  const closeEdit = () => { setEditingLetter(null); setEditForm(null) }
+  const closeDetail = () => setSelectedLetter(null)
+  const editDialogRef = useDialogA11y(Boolean(editingLetter && editForm), closeEdit)
+  const detailDialogRef = useDialogA11y(Boolean(selectedLetter), closeDetail)
+
   useEffect(() => {
     adminApi.listStudents().then(setStudents).catch((err) => setError(err.message))
   }, [])
 
+  // Đánh số mỗi lượt load: response về muộn của filter/trang cũ bị bỏ,
+  // không ghi đè danh sách của filter đang chọn
+  const loadSeq = useRef(0)
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current
     setLoading(true)
     try {
       const result = await adminApi.listLetters({ status, studentId, page })
+      if (seq !== loadSeq.current) return
       setData(result)
       setSelectedIds((current) => current.filter((id) => result.items.some((letter) => letter.id === id)))
       setError('')
     } catch (err) {
+      if (seq !== loadSeq.current) return
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (seq === loadSeq.current) setLoading(false)
     }
   }, [status, studentId, page])
 
+  // setTimeout 0 để setState không chạy đồng bộ trong effect (react-hooks v7)
   useEffect(() => {
-    let cancelled = false
-    adminApi.listLetters({ status, studentId, page })
-      .then((result) => {
-        if (!cancelled) {
-          setData(result)
-          setSelectedIds((current) => current.filter((id) => result.items.some((letter) => letter.id === id)))
-          setError('')
-        }
-      })
-      .catch((err) => { if (!cancelled) setError(err.message) })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [status, studentId, page])
+    const initial = setTimeout(load, 0)
+    return () => clearTimeout(initial)
+  }, [load])
+
+  // URL là nguồn sự thật cho bộ lọc: đổi query (link từ Dashboard, nút back)
+  // trong lúc trang đang mở cũng phải cập nhật tab lọc, không chỉ lúc mount
+  useEffect(() => {
+    const sync = setTimeout(() => {
+      const params = new URLSearchParams(location.search)
+      const nextStatus = params.get('status') || 'pending'
+      const nextStudentId = params.get('studentId') || ''
+      if (nextStatus !== status || nextStudentId !== studentId) {
+        setStatus(nextStatus)
+        setStudentId(nextStudentId)
+        setPage(1)
+        setSelectedIds([])
+      }
+    }, 0)
+    return () => clearTimeout(sync)
+  }, [location.search, status, studentId])
 
   const applyFilter = (newStatus, newStudentId) => {
-    setLoading(true)
-    setStatus(newStatus)
-    setStudentId(newStudentId)
-    setPage(1)
-    setSelectedIds([])
     const params = new URLSearchParams()
     if (newStatus) params.set('status', newStatus)
     if (newStudentId) params.set('studentId', newStudentId)
@@ -303,8 +318,8 @@ function LetterManager() {
         </div>
         <fieldset className="admin-fieldset">
           <legend>Người gửi</legend>
-          <label><input type="radio" checked={!composeForm.isAnonymous} onChange={() => setComposeForm({ ...composeForm, isAnonymous: false })} /> Hiện tên</label>
-          <label><input type="radio" checked={composeForm.isAnonymous} onChange={() => setComposeForm({ ...composeForm, isAnonymous: true, senderName: '' })} /> Ẩn danh</label>
+          <label><input type="radio" name="compose-sender" checked={!composeForm.isAnonymous} onChange={() => setComposeForm({ ...composeForm, isAnonymous: false })} /> Hiện tên</label>
+          <label><input type="radio" name="compose-sender" checked={composeForm.isAnonymous} onChange={() => setComposeForm({ ...composeForm, isAnonymous: true, senderName: '' })} /> Ẩn danh</label>
         </fieldset>
         {!composeForm.isAnonymous && (
           <label>Tên người gửi<input maxLength={100} value={composeForm.senderName} onChange={(event) => setComposeForm({ ...composeForm, senderName: event.target.value })} /></label>
@@ -325,9 +340,9 @@ function LetterManager() {
       </form>
 
       <div className="admin-panel admin-filters">
-        <div className="admin-tabs" role="tablist" aria-label="Lọc trạng thái lời chúc">
+        <div className="admin-tabs" role="group" aria-label="Lọc trạng thái lời chúc">
           {STATUSES.map((item) => (
-            <button key={item.value} type="button" className={status === item.value ? 'active' : ''} onClick={() => applyFilter(item.value, studentId)}>
+            <button key={item.value} type="button" className={status === item.value ? 'active' : ''} aria-pressed={status === item.value} onClick={() => applyFilter(item.value, studentId)}>
               {item.label}
             </button>
           ))}
@@ -406,8 +421,8 @@ function LetterManager() {
       </div>
 
       {editingLetter && editForm && (
-        <div className="admin-modal-backdrop" role="presentation" onClick={() => setEditingLetter(null)}>
-          <section className="admin-modal large" role="dialog" aria-modal="true" aria-labelledby="letter-edit-title" onClick={(event) => event.stopPropagation()}>
+        <div className="admin-modal-backdrop" role="presentation" onClick={closeEdit}>
+          <section ref={editDialogRef} className="admin-modal large" role="dialog" aria-modal="true" aria-labelledby="letter-edit-title" onClick={(event) => event.stopPropagation()}>
             <h3 id="letter-edit-title">Sửa lời chúc</h3>
             <form className="admin-form-grid" onSubmit={submitEdit}>
               <label className="admin-span-2">Người nhận
@@ -419,8 +434,8 @@ function LetterManager() {
               </label>
               <fieldset className="admin-fieldset">
                 <legend>Người gửi</legend>
-                <label><input type="radio" checked={!editForm.isAnonymous} onChange={() => setEditForm({ ...editForm, isAnonymous: false })} /> Hiện tên</label>
-                <label><input type="radio" checked={editForm.isAnonymous} onChange={() => setEditForm({ ...editForm, isAnonymous: true, senderName: '' })} /> Ẩn danh</label>
+                <label><input type="radio" name="edit-sender" checked={!editForm.isAnonymous} onChange={() => setEditForm({ ...editForm, isAnonymous: false })} /> Hiện tên</label>
+                <label><input type="radio" name="edit-sender" checked={editForm.isAnonymous} onChange={() => setEditForm({ ...editForm, isAnonymous: true, senderName: '' })} /> Ẩn danh</label>
               </fieldset>
               {!editForm.isAnonymous && <label>Tên người gửi<input maxLength={100} value={editForm.senderName} onChange={(event) => setEditForm({ ...editForm, senderName: event.target.value })} /></label>}
               <label>Trạng thái
@@ -443,8 +458,8 @@ function LetterManager() {
       )}
 
       {selectedLetter && (
-        <div className="admin-modal-backdrop" role="presentation" onClick={() => setSelectedLetter(null)}>
-          <section className="admin-modal large" role="dialog" aria-modal="true" aria-labelledby="letter-modal-title" onClick={(event) => event.stopPropagation()}>
+        <div className="admin-modal-backdrop" role="presentation" onClick={closeDetail}>
+          <section ref={detailDialogRef} className="admin-modal large" role="dialog" aria-modal="true" aria-labelledby="letter-modal-title" onClick={(event) => event.stopPropagation()}>
             <h3 id="letter-modal-title">
               {selectedLetter.confirmDelete ? 'Xóa lời chúc' : (selectedLetter.title || 'Nội dung lời chúc')}
             </h3>

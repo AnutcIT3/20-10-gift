@@ -106,6 +106,9 @@ async function deleteImage(id) {
   const image = rows[0];
   if (!image) throw httpError('Không tìm thấy ảnh', 404);
 
+  // Xóa DB trước, Cloudinary sau: nếu Cloudinary lỗi thì chỉ sót file mồ côi
+  // vô hại; thứ tự ngược lại để lại row trỏ tới ảnh đã mất (URL 404)
+  await pool.execute('DELETE FROM gallery WHERE id = ?', [id]);
   if (image.public_id) {
     try {
       await cloudinary.uploader.destroy(image.public_id, { resource_type: image.resource_type || 'image' });
@@ -113,7 +116,6 @@ async function deleteImage(id) {
       console.error(`Cloudinary cleanup failed for ${image.public_id}:`, error.message);
     }
   }
-  await pool.execute('DELETE FROM gallery WHERE id = ?', [id]);
   return {};
 }
 

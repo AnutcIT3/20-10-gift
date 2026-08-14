@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { adminApi } from '../../api/adminApi'
+import useDialogA11y from '../../hooks/useDialogA11y'
 
 const EMPTY_FORM = { full_name: '', nickname: '', avatar_url: '', intro_message: '', class_name: 'A1' }
 
 function ConfirmModal({ title, message, confirmLabel = 'Xác nhận', danger = false, onConfirm, onCancel }) {
+  const dialogRef = useDialogA11y(true, onCancel)
   return (
     <div className="admin-modal-backdrop" role="presentation" onClick={onCancel}>
-      <section className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" onClick={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" onClick={(event) => event.stopPropagation()}>
         <h3 id="confirm-title">{title}</h3>
         <p>{message}</p>
         <div className="admin-form-actions">
@@ -23,10 +25,11 @@ function LinkEditorModal({ student, saving, onSave, onCancel }) {
   const currentCode = student.giftPath.split('/').filter(Boolean).pop() || ''
   const [accessCode, setAccessCode] = useState(currentCode)
   const previewCode = accessCode.trim().toLowerCase()
+  const dialogRef = useDialogA11y(true, onCancel)
 
   return (
     <div className="admin-modal-backdrop" role="presentation" onClick={onCancel}>
-      <section className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="link-editor-title" onClick={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="link-editor-title" onClick={(event) => event.stopPropagation()}>
         <h3 id="link-editor-title">Sửa link của {student.full_name}</h3>
         <form className="admin-link-form" onSubmit={(event) => { event.preventDefault(); onSave(previewCode) }}>
           <label>
@@ -75,14 +78,11 @@ function StudentManager() {
     finally { setLoading(false) }
   }, [])
 
+  // setTimeout 0 để setState không chạy đồng bộ trong effect (react-hooks v7)
   useEffect(() => {
-    let cancelled = false
-    adminApi.listStudents()
-      .then((data) => { if (!cancelled) { setStudents(data); setError('') } })
-      .catch((err) => { if (!cancelled) setError(err.message) })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [])
+    const initial = setTimeout(load, 0)
+    return () => clearTimeout(initial)
+  }, [load])
 
   const filteredStudents = useMemo(() => {
     const keyword = query.trim().toLowerCase()

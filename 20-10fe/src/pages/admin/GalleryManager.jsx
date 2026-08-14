@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { adminApi } from '../../api/adminApi'
+import useDialogA11y from '../../hooks/useDialogA11y'
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024
 const MAX_FILES = 20
@@ -42,36 +43,34 @@ function GalleryManager() {
     }).catch((err) => setError(err.message))
   }, [])
 
+  // Đánh số mỗi lượt load: response về muộn của lượt cũ (đổi học sinh nhanh)
+  // bị bỏ, không ghi đè gallery của học sinh đang chọn
+  const loadSeq = useRef(0)
   const loadGallery = useCallback(async ({ preserveSuccess = false } = {}) => {
     if (!studentId) return
+    const seq = ++loadSeq.current
     setLoading(true)
     try {
       const data = await adminApi.listGallery(studentId)
+      if (seq !== loadSeq.current) return
       setImages(data)
       setCaptions(Object.fromEntries(data.map((image) => [image.id, image.caption || ''])))
       setError('')
     } catch (err) {
+      if (seq !== loadSeq.current) return
       if (preserveSuccess) setMessage('Ảnh đã được tải lên. Nếu danh sách chưa cập nhật ngay, hãy tải lại trang.')
       else setError(err.message)
     }
-    finally { setLoading(false) }
+    finally { if (seq === loadSeq.current) setLoading(false) }
   }, [studentId])
 
+  // setTimeout 0 để setState không chạy đồng bộ trong effect (react-hooks v7)
   useEffect(() => {
-    if (!studentId) return undefined
-    let cancelled = false
-    adminApi.listGallery(studentId)
-      .then((data) => {
-        if (!cancelled) {
-          setImages(data)
-          setCaptions(Object.fromEntries(data.map((image) => [image.id, image.caption || ''])))
-          setError('')
-        }
-      })
-      .catch((err) => { if (!cancelled) setError(err.message) })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [studentId])
+    const initial = setTimeout(loadGallery, 0)
+    return () => clearTimeout(initial)
+  }, [loadGallery])
+
+  const confirmDialogRef = useDialogA11y(Boolean(confirmImage), () => setConfirmImage(null))
 
   const chooseFiles = (fileList) => {
     setMessage('')
@@ -210,7 +209,7 @@ function GalleryManager() {
       </div> : <div className="admin-empty">Học sinh này chưa có ảnh.</div>}
       {confirmImage && (
         <div className="admin-modal-backdrop" role="presentation" onClick={() => setConfirmImage(null)}>
-          <section className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="delete-image-title" onClick={(event) => event.stopPropagation()}>
+          <section ref={confirmDialogRef} className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="delete-image-title" onClick={(event) => event.stopPropagation()}>
             <h3 id="delete-image-title">Xóa ảnh</h3>
             <p>Ảnh này sẽ bị xóa vĩnh viễn khỏi thư viện.</p>
             <div className="admin-form-actions">

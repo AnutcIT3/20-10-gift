@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { adminApi } from '../../api/adminApi'
+import useDialogA11y from '../../hooks/useDialogA11y'
 
 const ROW_COUNT = 6
 const COLUMN_COUNT = 8
@@ -29,6 +30,7 @@ function studentInitial(student) {
 }
 
 function SeatChangeModal({ action, saving, onConfirm, onCancel }) {
+  const dialogRef = useDialogA11y(Boolean(action), onCancel)
   if (!action) return null
   const isClear = action.type === 'clear'
   const targetStudent = action.occupants?.[0]
@@ -45,7 +47,7 @@ function SeatChangeModal({ action, saving, onConfirm, onCancel }) {
 
   return (
     <div className="admin-modal-backdrop" role="presentation" onClick={onCancel}>
-      <section className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="seat-change-title" onClick={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="seat-change-title" onClick={(event) => event.stopPropagation()}>
         <h3 id="seat-change-title">{isClear ? 'Xóa vị trí' : 'Xác nhận vị trí'}</h3>
         <p>{message}</p>
         <div className="admin-form-actions">
@@ -92,7 +94,7 @@ function ClassroomSeating() {
   )
 
   const sortedStudents = useMemo(
-    () => [...students].sort((a, b) => a.full_name.localeCompare(b.full_name, 'vi')),
+    () => [...students].sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '', 'vi')),
     [students],
   )
 

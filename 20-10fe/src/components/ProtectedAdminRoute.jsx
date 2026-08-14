@@ -17,7 +17,14 @@ function ProtectedAdminRoute() {
         if (!cancelled) setStatus('missing')
     })
     return () => { cancelled = true }
-  }, [location.pathname, token])
+  }, [token])
+
+  // Token bị vô hiệu giữa phiên (bất kỳ request nào trả 401) → về login ngay
+  useEffect(() => {
+    const onUnauthorized = () => setStatus('missing')
+    window.addEventListener('gift-admin-unauthorized', onUnauthorized)
+    return () => window.removeEventListener('gift-admin-unauthorized', onUnauthorized)
+  }, [])
 
   if (!token) {
     return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />

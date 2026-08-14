@@ -27,7 +27,7 @@ function LazyImage({ src, alt, onClick }) {
   }, [])
 
   return (
-    <button ref={imgRef} type="button" className={`gallery-item ${loaded || failed ? 'loaded' : ''}`} onClick={onClick}>
+    <button ref={imgRef} type="button" className={`gallery-item ${loaded || failed ? 'loaded' : ''}`} onClick={onClick} aria-label={alt || 'Xem ảnh phóng to'}>
       {inView && !failed && (
         <img
           src={src}

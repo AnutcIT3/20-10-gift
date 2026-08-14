@@ -142,6 +142,11 @@ async function createStudent(data) {
       );
       return getStudent(result.insertId);
     } catch (error) {
+      // ER_DUP_ENTRY có thể do trùng access_code (retry được) hoặc trùng ghế
+      // (uq_students_seat — retry vô ích, phải báo 409 đúng nguyên nhân)
+      if (error.code === 'ER_DUP_ENTRY' && error.message.includes('uq_students_seat')) {
+        throw httpError('Vị trí ghế đã có học sinh khác', 409);
+      }
       if (error.code !== 'ER_DUP_ENTRY' || attempt === 2) throw error;
     }
   }
@@ -156,10 +161,18 @@ async function updateStudent(id, data) {
   if (!entries.length) throw httpError('Không có dữ liệu để cập nhật', 400);
 
   const assignments = entries.map(([key]) => `${key} = ?`).join(', ');
-  const [result] = await pool.execute(
-    `UPDATE students SET ${assignments} WHERE id = ?`,
-    [...entries.map(([, value]) => value), id],
-  );
+  let result;
+  try {
+    [result] = await pool.execute(
+      `UPDATE students SET ${assignments} WHERE id = ?`,
+      [...entries.map(([, value]) => value), id],
+    );
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY' && error.message.includes('uq_students_seat')) {
+      throw httpError('Vị trí ghế đã có học sinh khác', 409);
+    }
+    throw error;
+  }
   if (!result.affectedRows) throw httpError('Không tìm thấy học sinh', 404);
   return getStudent(id);
 }

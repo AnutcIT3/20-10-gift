@@ -1,10 +1,16 @@
 const rateLimit = require('express-rate-limit');
+const ipKey = require('../utils/ipKey');
+
+// Mọi limiter dùng chung keyGenerator gộp IPv6 về /64 — địa chỉ IPv6 đầy đủ
+// cho phép xoay địa chỉ trong dải được cấp để né hạn mức
+const ipKeyGenerator = (req) => ipKey(req.ip);
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: ipKeyGenerator,
   message: { success: false, message: 'Too many login attempts, please try again later.' },
 });
 
@@ -13,6 +19,7 @@ const publicLimiter = rateLimit({
   max: 50,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: ipKeyGenerator,
   message: { success: false, message: 'Too many requests, please try again later.' },
 });
 
@@ -24,6 +31,7 @@ const generalLimiter = rateLimit({
   // data-revision được admin poll mỗi 5s (180 req/15 phút/tab) nên tách sang
   // revisionLimiter riêng để không ăn hạn mức chung của người dùng thật
   skip: (req) => req.path === '/health' || req.path === '/ready' || req.path === '/admin/data-revision',
+  keyGenerator: ipKeyGenerator,
   message: { success: false, message: 'Too many requests, please try again later.' },
 });
 
@@ -32,6 +40,7 @@ const reactionLimiter = rateLimit({
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: ipKeyGenerator,
   message: { success: false, message: 'Quá nhiều lượt thả cảm xúc, vui lòng thử lại sau.' },
 });
 
@@ -42,6 +51,7 @@ const resolveLimiter = rateLimit({
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: ipKeyGenerator,
   message: { success: false, message: 'Quá nhiều lượt tìm tên, vui lòng thử lại sau.' },
 });
 
@@ -52,6 +62,7 @@ const revisionLimiter = rateLimit({
   max: 900,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: ipKeyGenerator,
   message: { success: false, message: 'Too many requests, please try again later.' },
 });
 

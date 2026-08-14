@@ -23,7 +23,9 @@ function AdminLayout() {
         const revision = Number(data.revision)
         if (observedRevision.current === null) {
           observedRevision.current = revision
-        } else if (observedRevision.current !== revision) {
+        } else if (revision > observedRevision.current) {
+          // Chỉ remount khi revision MỚI HƠN: response poll cũ về muộn sau khi
+          // đã adopt revision từ mutation của chính mình sẽ bị bỏ qua
           observedRevision.current = revision
           setOutletKey((key) => key + 1)
         }
@@ -40,11 +42,24 @@ function AdminLayout() {
       // Quay lại tab thì poll ngay để bắt kịp thay đổi trong lúc vắng mặt
       if (!document.hidden) pollRevision()
     }
+    // Mutation của chính thiết bị này: adopt revision mới mà không remount —
+    // trang vừa thao tác đã tự cập nhật dữ liệu của nó rồi. CHỈ adopt khi
+    // revision tăng đúng 1 bước; nhảy ≥2 nghĩa là có thay đổi của thiết bị
+    // khác lẫn vào, phải để poll remount kẻo nuốt mất thay đổi đó vĩnh viễn.
+    const handleSelfRevision = (event) => {
+      const revision = Number(event.detail?.revision)
+      if (!Number.isFinite(revision)) return
+      if (observedRevision.current === null || revision === observedRevision.current + 1) {
+        observedRevision.current = revision
+      }
+    }
     document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('gift-admin-revision', handleSelfRevision)
     return () => {
       stopped = true
       clearInterval(interval)
       document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('gift-admin-revision', handleSelfRevision)
     }
   }, [])
 

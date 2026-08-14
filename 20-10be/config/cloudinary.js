@@ -41,6 +41,13 @@ function createStorage(resourceType, allowedFormats) {
 
 function fileFilter(allowedExts, allowedMimes) {
   return (req, file, cb) => {
+    // Chặn sớm student_id rõ ràng không hợp lệ để khỏi tốn công đẩy file lên
+    // Cloudinary rồi mới trả 400 (multipart gửi field trước file thì body đã
+    // có ở bước này; thiếu field thì controller vẫn chặn sau khi upload)
+    const sid = req.body?.student_id;
+    if (sid !== undefined && (!/^\d+$/.test(String(sid)) || Number(sid) <= 0)) {
+      return cb(Object.assign(new Error('student_id không hợp lệ'), { statusCode: 400 }));
+    }
     const ext = file.originalname.split('.').pop().toLowerCase();
     if (!allowedExts.includes(ext)) {
       return cb(Object.assign(new Error('Invalid file format'), { statusCode: 400 }));

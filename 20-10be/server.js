@@ -83,6 +83,9 @@ app.get('/robots.txt', (req, res) => {
   res.type('text/plain').send('User-agent: *\nDisallow: /\n');
 });
 
+// LƯU Ý THỨ TỰ: resolveRoutes (public, chỉ có /resolve) phải mount TRƯỚC
+// studentRoutes (toàn bộ router sau authMiddleware) trên cùng /api/students —
+// đảo hai dòng là /api/students/resolve bị chặn 401. Có test HTTP giữ ràng buộc này.
 app.use('/api/students', resolveRoutes);
 app.use('/api/gifts', giftRoutes);
 app.use('/api/auth', authRoutes);

@@ -87,6 +87,43 @@ test('module 2: resolve rejects empty and one-character input', async () => {
   assert.equal((await resolveService.resolve('́́')).status, 400);
 });
 
+test('module 2: resolve endpoint stays public despite sharing /api/students with admin routes', async (t) => {
+  const original = pool.execute;
+  pool.execute = async () => [[{
+    full_name: 'Nguyễn A', nickname: 'A', avatar_url: null, access_code: 'code-a',
+  }]];
+  const server = app.listen(0);
+  t.after(() => {
+    server.close();
+    pool.execute = original;
+  });
+  await new Promise((resolve) => server.once('listening', resolve));
+  // Không gửi token: nếu thứ tự mount trong server.js bị đảo, request này sẽ 401
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/students/resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Nguyễn A' }),
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.data.giftPath, '/gift/code-a');
+});
+
+test('module 0: ipKey collapses IPv6 to /64 and keeps IPv4 intact', () => {
+  const ipKey = require('../utils/ipKey');
+  assert.equal(ipKey('203.0.113.7'), '203.0.113.7');
+  assert.equal(ipKey('::ffff:203.0.113.7'), '203.0.113.7');
+  assert.equal(
+    ipKey('2001:db8:abcd:12:aaaa:bbbb:cccc:dddd'),
+    ipKey('2001:db8:abcd:12:1111:2222:3333:4444'),
+  );
+  assert.notEqual(
+    ipKey('2001:db8:abcd:12:aaaa:bbbb:cccc:dddd'),
+    ipKey('2001:db8:abcd:13:aaaa:bbbb:cccc:dddd'),
+  );
+  assert.equal(ipKey('2001:db8::1'), '2001:db8:0:0::/64');
+});
+
 test('module 2: resolve escapes LIKE wildcards so input cannot match everything', async () => {
   const original = pool.execute;
   let captured;
@@ -863,9 +900,18 @@ test('module 2: resolve prefers a single exact normalized name over broader matc
   }
 });
 
-test('module 3: admin me endpoint verifies a token', async (t) => {
+test('module 3: admin me endpoint verifies a token and admin existence', async (t) => {
+  const original = pool.execute;
+  let adminRows = [{ id: 9 }];
+  pool.execute = async (sql) => {
+    if (sql.includes('FROM admins')) return [adminRows];
+    return [[]];
+  };
   const server = app.listen(0);
-  t.after(() => server.close());
+  t.after(() => {
+    server.close();
+    pool.execute = original;
+  });
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
 
@@ -878,6 +924,20 @@ test('module 3: admin me endpoint verifies a token', async (t) => {
   const body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(body.data.adminId, 9);
+
+  // Admin đã bị xóa → token còn hạn vẫn phải bị từ chối
+  adminRows = [];
+  const revoked = await fetch(`${base}/api/auth/admin/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert.equal(revoked.status, 401);
+
+  // Lỗi DB tạm thời phải là 500, KHÔNG phải 401 — 401 khiến frontend xóa phiên
+  pool.execute = async () => { throw new Error('connection refused'); };
+  const dbDown = await fetch(`${base}/api/auth/admin/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert.equal(dbDown.status, 500);
 });
 
 test('module 4: gallery caption can be updated with validation', async () => {

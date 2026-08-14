@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useLocation } from 'react-router-dom'
 import giftRepository from '../api/giftRepository'
 import HeroSection from '../components/HeroSection'
 import PhotoGallery from '../components/PhotoGallery'
@@ -70,7 +70,10 @@ function ShareButton({ studentName }) {
 // ── GiftPage ──────────────────────────────────────────────────────────────────
 function GiftPage() {
   const { accessCode } = useParams()
-  const [student, setStudent] = useState(null)
+  const location = useLocation()
+  // LandingPage đã fetch student cho hiệu ứng mở quà và truyền qua router
+  // state — dùng ngay làm hero thay vì bắt người dùng nhìn skeleton toàn trang
+  const [student, setStudent] = useState(() => location.state?.student || null)
   const [gallery, setGallery] = useState([])
   const [letters, setLetters] = useState([])
   const [aiGreeting, setAiGreeting] = useState('')
@@ -85,6 +88,9 @@ function GiftPage() {
       setLoading(true)
       setError('')
       setAiGreeting('')
+      // Đồng bộ hero với student truyền qua router state; navigate sang access
+      // code khác mà không có state thì xóa hero cũ để không hiện nhầm người
+      setStudent(location.state?.student || null)
 
       try {
         const {
@@ -119,9 +125,27 @@ function GiftPage() {
 
     load()
     return () => { cancelled = true }
-  }, [accessCode, retryKey])
+  }, [accessCode, retryKey, location.state])
 
   if (loading) {
+    // Có sẵn student từ router state → hero thật hiện ngay, chỉ skeleton phần thân
+    if (student) {
+      return (
+        <div className="gift-page">
+          <HeroSection student={student} />
+          <div className="gift-body" role="status" aria-live="polite">
+            <p className="gift-loading-text">Đang mở quà...</p>
+            <section className="gift-skeleton-card">
+              <div className="gift-skeleton-line" />
+              <div className="gift-skeleton-line wide" />
+            </section>
+            <section className="gift-skeleton-grid">
+              <div /><div /><div />
+            </section>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="gift-page gift-skeleton-page" role="status" aria-live="polite">
         <section className="hero gift-skeleton-hero">

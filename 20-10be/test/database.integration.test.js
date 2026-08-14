@@ -51,6 +51,11 @@ test('fresh and upgraded databases converge, checksums lock history, and backup 
   try {
     admin = await mysql.createConnection(config());
   } catch (error) {
+    // Đặt REQUIRE_DB_TESTS=1 (ví dụ trên CI) để thiếu MySQL là FAIL thay vì
+    // skip — tránh pipeline xanh giả trong khi bộ test giá trị nhất không chạy
+    if (process.env.REQUIRE_DB_TESTS) {
+      throw new Error(`MySQL integration required but unavailable: ${error.message}`);
+    }
     t.skip(`MySQL integration unavailable: ${error.message}`);
     return;
   }

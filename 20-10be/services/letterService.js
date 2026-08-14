@@ -145,6 +145,8 @@ async function listLetters(query) {
   );
   const total = Number(countRow.total);
   const offset = (page - 1) * pageSize;
+  // LIMIT/OFFSET nội suy trực tiếp là ngoại lệ có chủ đích: cả hai đã được ép
+  // về integer trong khoảng an toàn ở parsePagination phía trên, không phải input thô
   const [items] = await pool.execute(
     `SELECT l.id, l.student_id, s.full_name AS student_name, l.sender_name,
       l.title, l.content, l.is_anonymous, l.status, l.reveal_at, l.created_at
@@ -282,4 +284,5 @@ module.exports = {
   bulkUpdateStatus,
   deleteLetter,
   bulkDelete,
+  sanitizeLetterPayload,
 };
