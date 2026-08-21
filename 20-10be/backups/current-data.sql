@@ -7,29 +7,29 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 -- Table: students (22 rows)
 DELETE FROM `students`;
-INSERT INTO `students` (`id`, `full_name`, `normalized_name`, `nickname`, `avatar_url`, `intro_message`, `access_code`, `class_name`, `is_active`, `created_at`, `updated_at`, `seat_row`, `seat_col`, `view_count`) VALUES
-(1, 'Nguyễn Thúy Vy', 'nguyen thuy vy', 'Vy', NULL, 'Chúc Vy luôn xinh đẹp và hạnh phúc!', 'vy1020', 'A1', 1, '2026-07-07 16:18:48', '2026-08-04 02:45:12', 1, 1, 0),
-(2, 'Trần Mai Anh', 'tran mai anh', 'Anh', NULL, 'Chúc Mai Anh học tốt và mãi tươi cười!', 'anh2010', 'A1', 1, '2026-07-07 16:18:48', '2026-08-04 02:45:12', 1, 2, 0),
-(3, 'Phương Anh', 'phuong anh', 'Phương Anh', NULL, 'Một món quà nhỏ dành riêng cho Phương Anh trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-phuong-anh', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 4, 1, 1),
-(4, 'Thanh Huyền', 'thanh huyen', 'Thanh Huyền', NULL, 'Một món quà nhỏ dành riêng cho Thanh Huyền trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-thanh-huyen', '12A1', 1, '2026-07-07 16:18:48', '2026-08-04 02:48:19', 1, 4, 3),
-(5, 'Vũ Huyền', 'vu huyen', 'Vũ Huyền', NULL, 'Một món quà nhỏ dành riêng cho Vũ Huyền trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-vu-huyen', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 4, 2, 0),
-(6, 'Mai Huyền', 'mai huyen', 'Mai Huyền', NULL, 'Một món quà nhỏ dành riêng cho Mai Huyền trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-mai-huyen', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 5, 6, 0),
-(7, 'Phương Linh', 'phuong linh', 'Phương Linh', NULL, 'Một món quà nhỏ dành riêng cho Phương Linh trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-phuong-linh', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 4, 3, 1),
-(8, 'Linh Tần', 'linh tan', 'Linh Tần', NULL, 'Một món quà nhỏ dành riêng cho Linh Tần trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-linh-tan', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 2, 3, 2),
-(9, 'Thúy', 'thuy', 'Thúy', NULL, 'Một món quà nhỏ dành riêng cho Thúy trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-thuy-sac', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 2, 4, 0),
-(10, 'Thủy', 'thuy', 'Thủy', NULL, 'Một món quà nhỏ dành riêng cho Thủy trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-thuy-hoi', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 6, 4, 1),
-(11, 'My', 'my', 'chị của tuất', NULL, 'Một món quà nhỏ dành riêng cho My trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-my', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 5, 2, 1),
-(12, 'Ngân', 'ngan', 'Ngân', NULL, 'Một món quà nhỏ dành riêng cho Ngân trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-ngan', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 5, 5, 0),
-(13, 'Giang', 'giang', 'Giang', NULL, 'Một món quà nhỏ dành riêng cho Giang trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-giang', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 1, 8, 0),
-(14, 'Phương', 'phuong', 'Phương', NULL, 'Một món quà nhỏ dành riêng cho Phương trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-phuong', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 2, 8, 1),
-(15, 'Huyền Anh', 'huyen anh', 'Huyền Anh', NULL, 'Một món quà nhỏ dành riêng cho Huyền Anh trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-huyen-anh', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 2, 7, 1),
-(16, 'Vân Anh', 'van anh', 'Vân Anh', NULL, 'Một món quà nhỏ dành riêng cho Vân Anh trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-van-anh', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 6, 2, 0),
-(17, 'Phượng', 'phuong', 'Phượng', NULL, 'Một món quà nhỏ dành riêng cho Phượng trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-phuong-sac', '12A1', 1, '2026-07-07 16:18:48', '2026-08-04 02:54:49', 0, 9, 1),
-(18, 'Ngọc', 'ngoc', 'Ngọc', NULL, 'Một món quà nhỏ dành riêng cho Ngọc trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-ngoc', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 3, 8, 0),
-(19, 'Dương', 'duong', 'Dương', NULL, 'Một món quà nhỏ dành riêng cho Dương trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-duong', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 3, 6, 0),
-(20, 'Hùng', 'hung', 'Hùng', NULL, 'Một món quà nhỏ dành riêng cho Hùng trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-hung', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 5, 4, 10),
-(21, 'minh', 'minh', NULL, NULL, NULL, '7njiGFTJaimC', 'A1', 1, '2026-07-29 09:57:52', '2026-08-04 02:48:48', 6, 8, 2),
-(22, 'Hương', 'huong', 'Hương', NULL, 'Một món quà nhỏ dành riêng cho Hương trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-huong', '12A1', 1, '2026-08-04 02:54:49', '2026-08-04 02:54:49', 5, 3, 0);
+INSERT INTO `students` (`id`, `full_name`, `normalized_name`, `nickname`, `avatar_url`, `intro_message`, `access_code`, `class_name`, `is_active`, `created_at`, `updated_at`, `seat_row`, `seat_col`, `view_count`, `member_type`) VALUES
+(1, 'Nguyễn Thúy Vy', 'nguyen thuy vy', 'Vy', NULL, 'Chúc Vy luôn xinh đẹp và hạnh phúc!', 'vy1020', 'A1', 1, '2026-07-07 16:18:48', '2026-08-04 02:45:12', 1, 1, 0, 'class'),
+(2, 'Trần Mai Anh', 'tran mai anh', 'Anh', NULL, 'Chúc Mai Anh học tốt và mãi tươi cười!', 'anh2010', 'A1', 1, '2026-07-07 16:18:48', '2026-08-04 02:45:12', 1, 2, 0, 'class'),
+(3, 'Phương Anh', 'phuong anh', 'Phương Anh', NULL, 'Một món quà nhỏ dành riêng cho Phương Anh trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-phuong-anh', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 4, 1, 1, 'class'),
+(4, 'Thanh Huyền', 'thanh huyen', 'Thanh Huyền', NULL, 'Một món quà nhỏ dành riêng cho Thanh Huyền trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-thanh-huyen', '12A1', 1, '2026-07-07 16:18:48', '2026-08-14 09:52:57', 1, 4, 4, 'class'),
+(5, 'Vũ Huyền', 'vu huyen', 'Vũ Huyền', NULL, 'Một món quà nhỏ dành riêng cho Vũ Huyền trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-vu-huyen', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 4, 2, 0, 'class'),
+(6, 'Mai Huyền', 'mai huyen', 'Mai Huyền', NULL, 'Một món quà nhỏ dành riêng cho Mai Huyền trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-mai-huyen', '12A1', 1, '2026-07-07 16:18:48', '2026-08-14 09:54:02', 5, 6, 1, 'class'),
+(7, 'Phương Linh', 'phuong linh', 'Phương Linh', NULL, 'Một món quà nhỏ dành riêng cho Phương Linh trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-phuong-linh', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 4, 3, 1, 'class'),
+(8, 'Linh Tần', 'linh tan', 'Linh Tần', NULL, 'Một món quà nhỏ dành riêng cho Linh Tần trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-linh-tan', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 2, 3, 2, 'class'),
+(9, 'Thúy', 'thuy', 'Thúy', NULL, 'Một món quà nhỏ dành riêng cho Thúy trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-thuy-sac', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 2, 4, 0, 'class'),
+(10, 'Thủy', 'thuy', 'Thủy', NULL, 'Một món quà nhỏ dành riêng cho Thủy trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-thuy-hoi', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 6, 4, 1, 'class'),
+(11, 'My', 'my', 'chị của tuất', NULL, 'Một món quà nhỏ dành riêng cho My trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-my', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 5, 2, 1, 'class'),
+(12, 'Ngân', 'ngan', 'Ngân', NULL, 'Một món quà nhỏ dành riêng cho Ngân trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-ngan', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 5, 5, 0, 'class'),
+(13, 'Giang', 'giang', 'Giang', NULL, 'Một món quà nhỏ dành riêng cho Giang trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-giang', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 1, 8, 0, 'class'),
+(14, 'Phương', 'phuong', 'Phương', NULL, 'Một món quà nhỏ dành riêng cho Phương trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-phuong', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 2, 8, 1, 'class'),
+(15, 'Huyền Anh', 'huyen anh', 'Huyền Anh', NULL, 'Một món quà nhỏ dành riêng cho Huyền Anh trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-huyen-anh', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 2, 7, 1, 'class'),
+(16, 'Vân Anh', 'van anh', 'Vân Anh', NULL, 'Một món quà nhỏ dành riêng cho Vân Anh trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-van-anh', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 6, 2, 0, 'class'),
+(17, 'Phượng', 'phuong', 'Phượng', NULL, 'Một món quà nhỏ dành riêng cho Phượng trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-phuong-sac', '12A1', 1, '2026-07-07 16:18:48', '2026-08-04 02:54:49', 0, 9, 1, 'class'),
+(18, 'Ngọc', 'ngoc', 'Ngọc', NULL, 'Một món quà nhỏ dành riêng cho Ngọc trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-ngoc', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 3, 8, 0, 'class'),
+(19, 'Dương', 'duong', 'Dương', NULL, 'Một món quà nhỏ dành riêng cho Dương trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-duong', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 3, 6, 0, 'class'),
+(20, 'Hùng', 'hung', 'Hùng', NULL, 'Một món quà nhỏ dành riêng cho Hùng trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-hung', '12A1', 1, '2026-07-07 16:18:48', '2026-08-03 22:50:08', 5, 4, 10, 'class'),
+(21, 'minh', 'minh', NULL, NULL, NULL, '7njiGFTJaimC', 'A1', 1, '2026-07-29 09:57:52', '2026-08-04 02:48:48', 6, 8, 2, 'class'),
+(22, 'Hương', 'huong', 'Hương', NULL, 'Một món quà nhỏ dành riêng cho Hương trong ngày 20/10. Chúc bạn luôn rạng rỡ, tự tin và gặp thật nhiều điều tốt đẹp.', '12a1-huong', '12A1', 1, '2026-08-04 02:54:49', '2026-08-04 02:54:49', 5, 3, 0, 'class');
 
 -- Table: gallery (2 rows)
 DELETE FROM `gallery`;
@@ -37,14 +37,15 @@ INSERT INTO `gallery` (`id`, `student_id`, `image_url`, `public_id`, `resource_t
 (2, 20, 'https://res.cloudinary.com/dibmyfkbv/image/upload/v1785341639/gift_20_10/qkgbgmknnlycfi5zf1w5.jpg', 'gift_20_10/qkgbgmknnlycfi5zf1w5', 'image', 'tuất', 0, '2026-07-29 09:14:00', '2026-07-29 09:17:40'),
 (3, 20, 'https://res.cloudinary.com/dibmyfkbv/image/upload/v1785341639/gift_20_10/ghubn8rqgsdal6wzp3n7.jpg', 'gift_20_10/ghubn8rqgsdal6wzp3n7', 'image', NULL, 1, '2026-07-29 09:14:00', '2026-07-29 09:17:40');
 
--- Table: letters (5 rows)
+-- Table: letters (6 rows)
 DELETE FROM `letters`;
-INSERT INTO `letters` (`id`, `student_id`, `sender_name`, `title`, `content`, `is_anonymous`, `status`, `created_at`, `updated_at`, `reveal_at`) VALUES
-(1, 1, 'Hoàng Nam', 'Lời chúc từ Nam', 'Chúc Vy ngày 20/10 vui vẻ nhé!', 0, 'approved', '2026-07-07 16:18:48', '2026-07-07 16:18:48', NULL),
-(2, 1, NULL, 'Thư ẩn danh', 'Bạn là người tuyệt vời nhất lớp!', 1, 'approved', '2026-07-07 16:18:48', '2026-07-07 16:18:48', NULL),
-(3, 20, NULL, NULL, 'nguu', 1, 'approved', '2026-07-07 16:21:32', '2026-07-07 16:26:25', NULL),
-(4, 20, 'tuấn', NULL, 'ngu x2', 0, 'approved', '2026-07-07 16:21:45', '2026-07-07 16:26:24', NULL),
-(5, 3, NULL, NULL, 'chúc bạn 20-10 vui vẻ', 1, 'approved', '2026-07-29 09:48:42', '2026-07-29 10:12:42', NULL);
+INSERT INTO `letters` (`id`, `student_id`, `sender_name`, `title`, `content`, `is_anonymous`, `status`, `created_at`, `updated_at`, `reveal_at`, `image_url`, `image_public_id`) VALUES
+(1, 1, 'Hoàng Nam', 'Lời chúc từ Nam', 'Chúc Vy ngày 20/10 vui vẻ nhé!', 0, 'approved', '2026-07-07 16:18:48', '2026-07-07 16:18:48', NULL, NULL, NULL),
+(2, 1, NULL, 'Thư ẩn danh', 'Bạn là người tuyệt vời nhất lớp!', 1, 'approved', '2026-07-07 16:18:48', '2026-07-07 16:18:48', NULL, NULL, NULL),
+(3, 20, NULL, NULL, 'nguu', 1, 'approved', '2026-07-07 16:21:32', '2026-07-07 16:26:25', NULL, NULL, NULL),
+(4, 20, 'tuấn', NULL, 'ngu x2', 0, 'approved', '2026-07-07 16:21:45', '2026-07-07 16:26:24', NULL, NULL, NULL),
+(5, 3, NULL, NULL, 'chúc bạn 20-10 vui vẻ', 1, 'approved', '2026-07-29 09:48:42', '2026-07-29 10:12:42', NULL, NULL, NULL),
+(7, 3, 'ádasdas', NULL, 'sấdasdasd', 0, 'approved', '2026-08-14 06:28:40', '2026-08-14 06:29:03', NULL, NULL, NULL);
 
 -- Table: letter_reactions (4 rows)
 DELETE FROM `letter_reactions`;
@@ -54,7 +55,7 @@ INSERT INTO `letter_reactions` (`id`, `letter_id`, `emoji_key`, `session_id`, `c
 (3, 4, 'love', 'd5ff79a24b4584d1be04f6c9b2b4d4ca', '2026-07-29 09:07:43'),
 (4, 3, 'kiss', 'd5ff79a24b4584d1be04f6c9b2b4d4ca', '2026-07-29 09:07:44');
 
--- Table: student_views (24 rows)
+-- Table: student_views (26 rows)
 DELETE FROM `student_views`;
 INSERT INTO `student_views` (`id`, `student_id`, `session_id`, `viewed_at`) VALUES
 (1, 20, '02f42a807d06a4331ba7d96a905d62b3', '2026-07-29 08:16:31'),
@@ -80,6 +81,8 @@ INSERT INTO `student_views` (`id`, `student_id`, `session_id`, `viewed_at`) VALU
 (36, 20, '31a694ac76de32453ccd50bdfdbe1577', '2026-07-29 20:56:48'),
 (37, 20, 'd071339662e874208c85f8e91f837bce', '2026-07-29 23:27:36'),
 (39, 14, '1647003cc33deace0a400fa472f55f42', '2026-07-29 23:32:27'),
-(43, 21, 'de67babb7441ccdbe1d406e747f0846c', '2026-08-04 02:25:55');
+(43, 21, 'de67babb7441ccdbe1d406e747f0846c', '2026-08-04 02:25:55'),
+(46, 4, 'dbbad8a4ccc4eebe4421be83d9062ed7', '2026-08-14 09:52:57'),
+(48, 6, 'dbbad8a4ccc4eebe4421be83d9062ed7', '2026-08-14 09:54:02');
 
 SET FOREIGN_KEY_CHECKS = 1;
