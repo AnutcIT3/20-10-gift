@@ -9,6 +9,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
+const buildSslOption = require('../config/dbSsl');
 
 const BACKUPS_DIR = path.join(__dirname, '..', 'backups');
 const TABLES = [
@@ -50,6 +51,7 @@ function getDatabaseConfig() {
     );
   }
 
+  const ssl = buildSslOption();
   return {
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT || 3306),
@@ -58,6 +60,7 @@ function getDatabaseConfig() {
     database: process.env.DB_NAME,
     charset: 'utf8mb4',
     multipleStatements: true,
+    ...(ssl ? { ssl } : {}),
   };
 }
 

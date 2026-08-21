@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
+const buildSslOption = require('../config/dbSsl');
 
 function checksum(sql) {
   const normalizedSql = sql.replace(/\r\n?/g, '\n');
@@ -14,6 +15,7 @@ function rawChecksum(sql) {
 }
 
 function databaseConfig(env, database) {
+  const ssl = buildSslOption(env);
   return {
     host: env.DB_HOST,
     port: Number(env.DB_PORT || 3306),
@@ -21,6 +23,7 @@ function databaseConfig(env, database) {
     password: env.DB_PASSWORD || '',
     multipleStatements: true,
     charset: 'utf8mb4',
+    ...(ssl ? { ssl } : {}),
     ...(database ? { database } : {}),
   };
 }
@@ -54,6 +57,17 @@ async function run(options = {}) {
       `CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
     );
     await connection.changeUser({ database });
+
+    // MySQL managed (Aiven, Azure...) bật sql_require_primary_key để bảo vệ
+    // replication, làm migration 005 và 013 chết vì chúng tạo bảng TẠM không có
+    // khóa chính. Tắt ở mức PHIÊN — chỉ ảnh hưởng kết nối migration này, không
+    // đổi cấu hình máy chủ. Phải đặt SAU changeUser vì lệnh đó reset biến phiên.
+    try {
+      await connection.query('SET SESSION sql_require_primary_key = 0');
+    } catch {
+      // MySQL local không có biến này — bỏ qua
+    }
+
     await connection.execute(`CREATE TABLE IF NOT EXISTS schema_migrations (
       id INT PRIMARY KEY AUTO_INCREMENT,
       filename VARCHAR(255) NOT NULL UNIQUE,

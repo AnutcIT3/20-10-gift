@@ -96,6 +96,10 @@ DB_USER=root
 DB_PASSWORD=your_mysql_password
 DB_NAME=gift_20_10
 
+# TLS — bắt buộc khi dùng MySQL cloud (Aiven/TiDB/Azure), để false khi chạy local
+DB_SSL=false
+DB_SSL_CA=
+
 JWT_SECRET=replace_with_a_long_random_secret
 JWT_EXPIRES_IN=24h
 ADMIN_USERNAME=admin
@@ -122,15 +126,43 @@ Không commit `.env`, `.env.local`, API key hoặc secret lên Git.
 
 ## Đồng bộ dữ liệu giữa các máy
 
-Khi `start-public.bat` đang chạy, máy đó là máy chủ dữ liệu trung tâm. Tất cả
-admin đăng nhập bằng cùng URL `trycloudflare.com` đều đọc và ghi vào cùng MySQL.
-Trang admin kiểm tra phiên bản dữ liệu mỗi 5 giây và tự tải lại màn hình hiện tại
-khi một thiết bị khác thay đổi học sinh, chỗ ngồi, ảnh hoặc lời chúc.
+**Cách hiện dùng: một MySQL dùng chung trên cloud (Aiven).** Cả hai máy trỏ
+`.env` vào cùng một database nên luôn giống nhau — không còn phải backup/restore
+qua lại, không còn khả năng lệch dữ liệu. Chuyển máy chỉ cần `git pull` cho code.
 
-Không chạy `start-public.bat` độc lập trên nhiều máy nếu muốn dữ liệu cập nhật
-trực tiếp, vì mỗi backend dùng database trong `.env` của chính máy đó. Khi cần
-chuyển máy chủ, hãy dừng máy cũ, đưa snapshot mới nhất lên Git, khôi phục snapshot
-trên máy mới rồi chỉ mở một tunnel từ máy mới.
+Cấu hình trên **mỗi** máy (giá trị lấy từ *Connection information* trong console
+Aiven; `ca.pem` tải ở cùng chỗ đó):
+
+```env
+DB_HOST=<host>.aivencloud.com
+DB_PORT=<port>
+DB_USER=avnadmin
+DB_PASSWORD=<mật khẩu>
+DB_NAME=defaultdb
+DB_SSL=true
+DB_SSL_CA=certs/aiven-ca.pem   # để trống thì vẫn mã hóa nhưng không xác thực CA
+```
+
+Chạy `npm run db:check` để xác nhận máy đang nối vào đâu, độ trễ bao nhiêu và có
+bao nhiêu dữ liệu. Lần đầu dựng database mới thì chạy `npm run migrate` rồi
+`npm run restore`, và `npm run create-admin` (tài khoản admin không nằm trong
+snapshot).
+
+Lưu ý khi dùng MySQL cloud:
+
+- **Cần mạng để chạy dự án.** Muốn làm offline thì đổi `.env` về MySQL local
+  (giữ sẵn bản sao cấu hình cũ để bỏ dấu ghi chú là quay về được ngay).
+- **Trạng thái khóa 20/10 giờ dùng chung** cho cả hai máy, vì nó nằm trong
+  database.
+- Gói free của Aiven **tự tắt service khi lâu không dùng** và **không có backup
+  tự động** — vẫn nên chạy `npm run backup:shared` định kỳ (xem phần dưới).
+
+### Cách cũ: snapshot qua Git (nay dùng làm sao lưu)
+
+Cơ chế dưới đây vẫn hoạt động và giờ đóng vai trò **lưới an toàn** thay vì công
+cụ đồng bộ: nó kéo toàn bộ dữ liệu từ database hiện tại về một file `.sql` trong
+Git. Nếu dịch vụ cloud gặp sự cố, đổi `.env` về local rồi `npm run restore` là
+chạy lại được trong vài phút.
 
 Repository lưu một snapshot dữ liệu dùng chung tại
 `20-10be/backups/current-data.sql`. Snapshot gồm học sinh, gallery, lời chúc,
@@ -214,6 +246,7 @@ Backend:
 - `npm run dev` — chạy bằng nodemon.
 - `npm start` — chạy production.
 - `npm run migrate` — chạy migrations idempotent.
+- `npm run db:check` — cho biết đang nối vào database nào, độ trễ và số dữ liệu hiện có.
 - `npm run backup` — tạo backup phục hồi cục bộ, không commit lên Git.
 - `npm run backup:shared` — cập nhật snapshot dùng chung; cần review trước khi commit.
 - `npm run restore` — thay dữ liệu dùng chung bằng snapshot trong Git.

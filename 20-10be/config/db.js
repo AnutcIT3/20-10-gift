@@ -1,5 +1,6 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
+const buildSslOption = require('./dbSsl');
 
 const required = ['DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
 for (const key of required) {
@@ -7,6 +8,8 @@ for (const key of required) {
     throw new Error(`Missing DB env: ${key}`);
   }
 }
+
+const ssl = buildSslOption();
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -17,6 +20,11 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+  ...(ssl ? { ssl } : {}),
+  // Chủ động đóng kết nối rảnh trước khi máy chủ cloud tự ngắt
+  // (Aiven ~10 phút, TiDB 340 giây) để tránh lỗi "connection lost" rải rác
+  idleTimeout: 120000,
+  enableKeepAlive: true,
   // DATETIME (reveal_at) được ghi dạng chuỗi UTC; parse lại cũng phải theo UTC
   // để giá trị không lệch theo múi giờ của máy chạy Node
   timezone: 'Z',
