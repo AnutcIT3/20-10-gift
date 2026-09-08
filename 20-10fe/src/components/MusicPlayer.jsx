@@ -36,11 +36,22 @@ function MusicPlayer() {
       try { await audioRef.current.play(); setPlaying(true) } catch { setPlaying(false) }
     } else { audioRef.current.pause(); setPlaying(false) }
   }
+  const label = loading ? 'Đang tải…' : playing ? 'Tạm dừng' : 'Bật nhạc'
   return (
     <div className="music-player">
       {musicSrc && <audio ref={audioRef} src={musicSrc} loop preload="none" onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />}
-      <button type="button" onClick={toggle} disabled={loading} aria-label={playing ? 'Tạm dừng nhạc' : 'Phát nhạc'}>
-        {playing ? '⏸' : '♫'} <span>{loading ? 'Đang tải...' : playing ? 'Tạm dừng' : 'Bật nhạc'}</span>
+      <button
+        type="button"
+        className={`music-btn${playing ? ' is-playing' : ''}`}
+        onClick={toggle}
+        disabled={loading}
+        aria-label={playing ? 'Tạm dừng nhạc' : 'Phát nhạc'}
+      >
+        {/* Đĩa chỉ quay khi đang phát; lúc dừng/tải chỉ có nốt nhạc */}
+        {playing
+          ? <span className="music-disc" aria-hidden="true"><span /></span>
+          : <span aria-hidden="true">♫</span>}
+        <span className="music-label">{label}</span>
       </button>
     </div>
   )
