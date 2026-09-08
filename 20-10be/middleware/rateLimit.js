@@ -5,8 +5,15 @@ const ipKey = require('../utils/ipKey');
 // cho phép xoay địa chỉ trong dải được cấp để né hạn mức
 const ipKeyGenerator = (req) => ipKey(req.ip);
 
+// HẠN MỨC TÍNH THEO IP, MÀ CẢ LỚP Ở TRƯỜNG ĐI CHUNG MỘT IP (NAT Wi-Fi) — qua
+// Cloudflare tunnel backend cũng chỉ thấy IP đó. Con số vì thế phải đủ cho
+// ~60 người dùng cùng lúc chứ không phải một người. Trần thật nằm ở gói free:
+// Aiven 76 kết nối (pool 30/máy), tunnel ~200 request đang bay, còn Gemini hết
+// quota thì greetingService tự trả lời chúc tĩnh — nên nới ở đây là an toàn.
+const WINDOW_15_MIN = 15 * 60 * 1000;
+
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: WINDOW_15_MIN,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
@@ -14,18 +21,29 @@ const authLimiter = rateLimit({
   message: { success: false, message: 'Too many login attempts, please try again later.' },
 });
 
-const publicLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 50,
+// Lời chúc AI: mỗi lượt mở trang quà / trang celebrate gọi một lần
+const greetingLimiter = rateLimit({
+  windowMs: WINDOW_15_MIN,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: ipKeyGenerator,
   message: { success: false, message: 'Too many requests, please try again later.' },
 });
 
-const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+// Thư gửi bạn ngoài lớp tự tạo hồ sơ "bạn bè" — giữ chặt hơn lời chúc AI
+const friendLetterLimiter = rateLimit({
+  windowMs: WINDOW_15_MIN,
   max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: ipKeyGenerator,
+  message: { success: false, message: 'Quá nhiều lượt gửi, vui lòng thử lại sau.' },
+});
+
+const generalLimiter = rateLimit({
+  windowMs: WINDOW_15_MIN,
+  max: 5000,
   standardHeaders: true,
   legacyHeaders: false,
   // data-revision được admin poll mỗi 5s (180 req/15 phút/tab) nên tách sang
@@ -36,30 +54,31 @@ const generalLimiter = rateLimit({
 });
 
 const reactionLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 60,
+  windowMs: WINDOW_15_MIN,
+  max: 2000,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: ipKeyGenerator,
   message: { success: false, message: 'Quá nhiều lượt thả cảm xúc, vui lòng thử lại sau.' },
 });
 
-// Resolve trả về access code (cơ chế xác thực duy nhất của trang quà)
-// nên cần hạn mức riêng chặt hơn generalLimiter để chặn dò quét hàng loạt.
+// Resolve trả về access code (cơ chế xác thực duy nhất của trang quà) nên vẫn
+// cần hạn mức riêng để chặn dò quét hàng loạt — 1000/15 phút đủ cho cả trường
+// gõ đi gõ lại nhưng vẫn khiến quét bằng script phải kéo dài nhiều giờ.
 const resolveLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 60,
+  windowMs: WINDOW_15_MIN,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: ipKeyGenerator,
   message: { success: false, message: 'Quá nhiều lượt tìm tên, vui lòng thử lại sau.' },
 });
 
-// Hạn mức riêng cho polling data-revision: đủ cho vài tab admin cùng lúc
-// (5s/lượt = 180 req/15 phút/tab) nhưng vẫn chặn được lạm dụng.
+// Polling data-revision: 5s/lượt = 180 req/15 phút/tab; nhiều admin, nhiều tab
+// cùng IP vẫn còn dư.
 const revisionLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 900,
+  windowMs: WINDOW_15_MIN,
+  max: 3000,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: ipKeyGenerator,
@@ -67,5 +86,11 @@ const revisionLimiter = rateLimit({
 });
 
 module.exports = {
-  authLimiter, publicLimiter, generalLimiter, reactionLimiter, resolveLimiter, revisionLimiter,
+  authLimiter,
+  greetingLimiter,
+  friendLetterLimiter,
+  generalLimiter,
+  reactionLimiter,
+  resolveLimiter,
+  revisionLimiter,
 };

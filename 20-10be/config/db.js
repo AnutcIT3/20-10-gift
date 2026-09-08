@@ -18,7 +18,10 @@ const pool = mysql.createPool({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   waitForConnections: true,
-  connectionLimit: 10,
+  // Aiven free cho 76 kết nối: 2 máy × 30 = 60, chừa phần còn lại cho
+  // db:check / backup / migrate và nội bộ Aiven. Mỗi vòng tới Aiven ~76 ms nên
+  // pool rộng mới cho 40 người mở trang cùng lúc mà không phải xếp hàng.
+  connectionLimit: 30,
   queueLimit: 0,
   ...(ssl ? { ssl } : {}),
   // Chủ động đóng kết nối rảnh trước khi máy chủ cloud tự ngắt

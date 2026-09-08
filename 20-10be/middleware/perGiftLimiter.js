@@ -3,7 +3,9 @@ const ipKey = require('../utils/ipKey');
 
 const perGiftLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 5,
+  // Cả lớp chung IP trường có thể cùng gửi cho MỘT bạn trong một giờ (bạn
+  // được yêu quý nhất lớp) — 60 đủ cho cả lớp, honeypot vẫn chặn bot
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
   // Khóa theo (trang quà, IP) để cả lớp chung WiFi vẫn gửi được cho nhiều bạn;
