@@ -16,14 +16,14 @@ class ErrorBoundary extends Component {
 
     return (
       <main className="app-error" role="alert">
-        <section className="app-error__panel">
+        <section className="app-error__panel letter-paper">
           <h1>Trang gặp sự cố</h1>
           <p>Dữ liệu của bạn không bị thay đổi. Hãy tải lại trang để tiếp tục.</p>
           <div className="app-error__actions">
-            <button type="button" onClick={() => window.location.reload()}>
+            <button type="button" className="btn-ink" onClick={() => window.location.reload()}>
               Tải lại trang
             </button>
-            <a href="/">Về trang chủ</a>
+            <a href="/" className="btn-dashed">Về trang chủ</a>
           </div>
         </section>
       </main>

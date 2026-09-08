@@ -4,7 +4,18 @@ import giftRepository from '../api/giftRepository'
 import HeroSection from '../components/HeroSection'
 import PhotoGallery from '../components/PhotoGallery'
 import LetterSection from '../components/LetterSection'
+import GiftLocked from '../components/GiftLocked'
+import PaperError from '../components/PaperError'
+import TypingText from '../components/TypingText'
+import Petals from '../components/paper/Petals'
+import { CLASS_LABEL } from '../lib/event'
 import '../styles/gift.css'
+
+const ERROR_VIEWS = {
+  notfound: { title: 'Không tìm thấy trang này', stamp: ['KHÔNG', 'TÌM', { big: 'THẤY' }] },
+  network: { title: 'Không kết nối được', stamp: ['MẤT', 'KẾT', { big: 'NỐI' }] },
+  error: { title: 'Có lỗi xảy ra', stamp: ['CÓ', 'LỖI', { big: 'RỒI' }] },
+}
 
 // ── Share Button ──────────────────────────────────────────────────────────────
 function ShareButton({ studentName }) {
@@ -44,19 +55,12 @@ function ShareButton({ studentName }) {
       <button
         id="share-gift-btn"
         type="button"
-        className="share-btn"
+        className="btn-stamp btn-stamp--clay share-btn"
         onClick={handleShare}
         title="Chia sẻ trang quà"
         aria-label="Chia sẻ trang quà"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-          <circle cx="18" cy="5" r="3"/>
-          <circle cx="6" cy="12" r="3"/>
-          <circle cx="18" cy="19" r="3"/>
-          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-        </svg>
-        <span>Chia sẻ</span>
+        ✉ Chia sẻ
       </button>
       {toast && (
         <div className="share-toast" role="status" aria-live="polite">
@@ -64,6 +68,55 @@ function ShareButton({ studentName }) {
         </div>
       )}
     </div>
+  )
+}
+
+function GiftHeader({ studentName }) {
+  return (
+    <header className="gift__header">
+      <Link to="/" className="gift__back">← Tìm tên khác</Link>
+      <div className="gift__brand">
+        <img src="/logoclass.jpg" alt="Logo lớp" />
+        <span>{CLASS_LABEL}</span>
+      </div>
+      <ShareButton studentName={studentName} />
+    </header>
+  )
+}
+
+function GiftFooter() {
+  return (
+    <footer className="gift__footer">
+      <img src="/logoclass.jpg" alt="" />
+      <span>{CLASS_LABEL}</span>
+    </footer>
+  )
+}
+
+// Khung xương lúc tải: giữ bố cục thật, chỉ đổi về màu be/kem
+function GiftSkeleton({ withHero }) {
+  return (
+    <>
+      {withHero && (
+        <section className="hero" aria-hidden="true">
+          <div className="hero__text">
+            <div className="skeleton skeleton--title" />
+            <div className="skeleton skeleton--line skeleton--wide" style={{ marginTop: 18 }} />
+          </div>
+          <div className="hero__photo">
+            <div className="skeleton skeleton--photo" />
+          </div>
+        </section>
+      )}
+      <p className="gift__loading">Đang mở quà…</p>
+      <div className="gift-skeleton__lines" aria-hidden="true">
+        <div className="skeleton skeleton--line" />
+        <div className="skeleton skeleton--line skeleton--wide" />
+      </div>
+      <div className="gift-skeleton__grid" aria-hidden="true">
+        <div className="skeleton" /><div className="skeleton" /><div className="skeleton" />
+      </div>
+    </>
   )
 }
 
@@ -78,7 +131,7 @@ function GiftPage() {
   const [letters, setLetters] = useState([])
   const [aiGreeting, setAiGreeting] = useState('')
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(null) // { kind, message }
   const [locked, setLocked] = useState(false)
   const [retryKey, setRetryKey] = useState(0)
 
@@ -87,7 +140,7 @@ function GiftPage() {
 
     async function load() {
       setLoading(true)
-      setError('')
+      setError(null)
       setLocked(false)
       setAiGreeting('')
       // Đồng bộ hero với student truyền qua router state; navigate sang access
@@ -104,7 +157,7 @@ function GiftPage() {
         if (cancelled) return
 
         if (!studentData) {
-          setError('Không tìm thấy trang này. Có thể bạn đã nhập sai đường link?')
+          setError({ kind: 'notfound', message: 'Không tìm thấy trang này. Có thể bạn đã nhập sai đường link?' })
           return
         }
 
@@ -121,9 +174,9 @@ function GiftPage() {
       } catch (err) {
         if (!cancelled) {
           if (err.status === 423) setLocked(true)
-          else if (err.status === 404) setError('Không tìm thấy trang này. Link có thể đã hết hiệu lực.')
-          else if (!navigator.onLine || err.isNetworkError) setError('Không thể kết nối backend. Hãy kiểm tra mạng và chắc chắn server đang chạy.')
-          else setError(err.message || 'Có lỗi xảy ra, vui lòng thử lại sau.')
+          else if (err.status === 404) setError({ kind: 'notfound', message: 'Có thể đường link đã hết hiệu lực hoặc bạn gõ nhầm. Thử tìm lại tên ở trang chủ nhé.' })
+          else if (!navigator.onLine || err.isNetworkError) setError({ kind: 'network', message: 'Không thể kết nối backend. Hãy kiểm tra mạng và chắc chắn server đang chạy.' })
+          else setError({ kind: 'error', message: err.message || 'Có lỗi xảy ra, vui lòng thử lại sau.' })
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -135,88 +188,51 @@ function GiftPage() {
   }, [accessCode, retryKey, location.state])
 
   // Admin đang khóa trang quà chờ ngày 20/10
-  if (locked) {
-    return (
-      <div className="gift-locked">
-        <div className="gift-locked-card">
-          <span className="gift-locked-emoji" aria-hidden="true">🎁</span>
-          <h1>Chưa đến ngày 20/10</h1>
-          <p>
-            Món quà của bạn đang được gói lại thật kỹ để chờ đúng ngày.
-            Hãy quay lại vào dịp 20/10 nhé — hộp quà sẽ tự mở! 💝
-          </p>
-          <Link to="/" className="gift-error-back secondary">Về trang chủ</Link>
-        </div>
-      </div>
-    )
-  }
+  if (locked) return <GiftLocked />
+
+  const studentName = student?.nickname || student?.full_name
 
   if (loading) {
-    // Có sẵn student từ router state → hero thật hiện ngay, chỉ skeleton phần thân
-    if (student) {
-      return (
-        <div className="gift-page">
-          <HeroSection student={student} />
-          <div className="gift-body" role="status" aria-live="polite">
-            <p className="gift-loading-text">Đang mở quà...</p>
-            <section className="gift-skeleton-card">
-              <div className="gift-skeleton-line" />
-              <div className="gift-skeleton-line wide" />
-            </section>
-            <section className="gift-skeleton-grid">
-              <div /><div /><div />
-            </section>
-          </div>
-        </div>
-      )
-    }
     return (
-      <div className="gift-page gift-skeleton-page" role="status" aria-live="polite">
-        <section className="hero gift-skeleton-hero">
-          <div className="hero-bg" />
-          <div className="hero-content">
-            <div className="gift-skeleton-avatar" />
-            <div className="gift-skeleton-line title" />
-            <div className="gift-skeleton-line intro" />
-          </div>
-        </section>
-        <div className="gift-body">
-          <p className="gift-loading-text">Đang mở quà...</p>
-          <section className="gift-skeleton-card">
-            <div className="gift-skeleton-line" />
-            <div className="gift-skeleton-line wide" />
-          </section>
-          <section className="gift-skeleton-grid">
-            <div /><div /><div />
-          </section>
+      <div className="gift page-paper" role="status" aria-live="polite">
+        <div className="gift__inner">
+          <GiftHeader studentName={studentName} />
+          {/* Có sẵn student từ router state → hero thật hiện ngay, chỉ skeleton phần thân */}
+          {student && <HeroSection student={student} />}
+          <GiftSkeleton withHero={!student} />
         </div>
       </div>
     )
   }
 
   if (error) {
+    const view = ERROR_VIEWS[error.kind] || ERROR_VIEWS.error
     return (
-      <div className="gift-error">
-        <p className="gift-error-message" role="alert">{error}</p>
-        <div className="gift-error-actions">
-          <button type="button" className="gift-error-back" onClick={() => setRetryKey((key) => key + 1)}>Thử lại</button>
-          <Link to="/" className="gift-error-back secondary">Về trang chủ</Link>
-        </div>
-      </div>
+      <PaperError
+        title={view.title}
+        stamp={view.stamp}
+        message={error.message}
+        onRetry={() => setRetryKey((key) => key + 1)}
+      />
     )
   }
 
   return (
-    <div className="gift-page">
-      <HeroSection student={student} />
-      <div className="gift-body">
-        <div className="gift-top-actions">
-          <Link to="/">← Tìm tên khác</Link>
-          <ShareButton studentName={student?.nickname || student?.full_name} />
-        </div>
-        {aiGreeting && <section className="ai-greeting" aria-live="polite"><span>✨ Một lời chúc dành riêng cho bạn</span><p>{aiGreeting}</p></section>}
+    <div className="gift page-paper">
+      <Petals />
+      <div className="gift__inner">
+        <GiftHeader studentName={studentName} />
+        <HeroSection student={student} />
+        {aiGreeting && (
+          <section className="ai-note" aria-live="polite">
+            <span className="ai-note__clip" aria-hidden="true" />
+            <span className="ai-note__label">✨ MỘT LỜI CHÚC DÀNH RIÊNG CHO BẠN</span>
+            <p><TypingText text={aiGreeting} /></p>
+          </section>
+        )}
         <PhotoGallery images={gallery} />
         <LetterSection letters={letters} accessCode={accessCode} />
+        <GiftFooter />
       </div>
     </div>
   )

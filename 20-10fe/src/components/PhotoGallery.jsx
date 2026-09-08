@@ -1,47 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import EmptyState from './EmptyState'
+import Polaroid from './paper/Polaroid'
 
-function LazyImage({ src, alt, onClick }) {
-  const imgRef = useRef(null)
-  const [loaded, setLoaded] = useState(false)
-  const [inView, setInView] = useState(false)
-  const [failed, setFailed] = useState(false)
-
-  useEffect(() => {
-    const el = imgRef.current
-    if (!el) return
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setInView(true)
-          observer.disconnect()
-        }
-      },
-      { rootMargin: '200px' },
-    )
-
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
-
-  return (
-    <button ref={imgRef} type="button" className={`gallery-item ${loaded || failed ? 'loaded' : ''}`} onClick={onClick} aria-label={alt || 'Xem ảnh phóng to'}>
-      {inView && !failed && (
-        <img
-          src={src}
-          alt={alt || ''}
-          loading="lazy"
-          onLoad={() => setLoaded(true)}
-          onError={() => setFailed(true)}
-          className="gallery-img"
-        />
-      )}
-      {failed && <span className="gallery-image-fallback" role="img" aria-label="Ảnh không thể tải">🖼️</span>}
-    </button>
-  )
-}
+// Polaroid xoay xen kẽ, tấm chẵn hạ xuống một chút, băng keo đổi góc luân phiên
+const ROTATIONS = [-3, 2, -1.5, 2.5, -2, 1.5]
+const LIFTS = [0, 12, 0, 6, 16, 0]
+const TAPES = ['left', 'center', 'right']
+const TAPE_ROTATIONS = [3, -3, 2]
 
 function PhotoGallery({ images = [] }) {
   const [lightboxIndex, setLightboxIndex] = useState(null)
@@ -60,7 +25,7 @@ function PhotoGallery({ images = [] }) {
   useEffect(() => {
     if (lightboxIndex === null) return
     const dialog = dialogRef.current
-    dialog?.querySelector('.lightbox-close')?.focus()
+    dialog?.querySelector('.lightbox__close')?.focus()
     const handleKey = (e) => {
       if (e.key === 'Escape') closeLightbox()
       if (e.key === 'ArrowLeft') showPrevious()
@@ -100,31 +65,42 @@ function PhotoGallery({ images = [] }) {
     else showNext()
   }
 
-  if (!images.length) {
-    return (
-      <section className="gallery-section">
-        <h2 className="section-title">📸 Kỷ niệm</h2>
-        <EmptyState icon="📷" message="Chưa có ảnh nào..." />
-      </section>
-    )
-  }
+  const count = images.length
 
   return (
-    <section className="gallery-section">
-      <h2 className="section-title">📸 Kỷ niệm</h2>
-      <div className="gallery-grid">
-        {images.map((img, index) => (
-          <div key={img.id} className="gallery-card">
-            <LazyImage src={img.image_url} alt={img.caption || ''} onClick={() => openLightbox(index)} />
-            {img.caption && <p className="gallery-caption">{img.caption}</p>}
-          </div>
-        ))}
-      </div>
+    <section className="gift__section" aria-labelledby="gallery-title">
+      <h2 id="gallery-title" className="section-title">
+        Kỷ niệm
+        <span className="section-title__count">{count ? `${count} tấm ảnh` : 'chưa có ảnh'}</span>
+      </h2>
+      {count === 0 ? (
+        <Polaroid caption="Chưa có ảnh nào…" fallback="📷" rotate={-2} className="gallery__empty" />
+      ) : (
+        <div className="gallery">
+          {images.map((img, index) => (
+            <Polaroid
+              key={img.id}
+              src={img.image_url}
+              alt={img.caption || ''}
+              caption={img.caption}
+              rotate={ROTATIONS[index % ROTATIONS.length]}
+              lift={LIFTS[index % LIFTS.length]}
+              tape={TAPES[index % TAPES.length]}
+              tapeRotate={TAPE_ROTATIONS[index % TAPE_ROTATIONS.length]}
+              hover
+              lazy
+              onClick={() => openLightbox(index)}
+              ariaLabel={img.caption ? `Xem ảnh: ${img.caption}` : 'Xem ảnh phóng to'}
+              style={{ '--delay': `${0.3 + Math.min(index, 8) * 0.1}s` }}
+            />
+          ))}
+        </div>
+      )}
 
       {lightboxIndex !== null && createPortal(
         <div
           ref={dialogRef}
-          className="lightbox-overlay"
+          className="lightbox"
           onClick={closeLightbox}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -132,42 +108,40 @@ function PhotoGallery({ images = [] }) {
           aria-modal="true"
           aria-label="Xem ảnh"
         >
-          <button type="button" className="lightbox-close" onClick={closeLightbox} aria-label="Đóng">
-            ✕
-          </button>
-          <button
-            type="button"
-            className="lightbox-nav lightbox-prev"
-            onClick={(e) => {
-              e.stopPropagation()
-              showPrevious()
-            }}
-            aria-label="Ảnh trước"
-          >
-            ‹
-          </button>
-          <img
-            src={images[lightboxIndex].image_url}
-            alt={images[lightboxIndex].caption || ''}
-            className="lightbox-img"
-            onClick={(e) => e.stopPropagation()}
-          />
-          <button
-            type="button"
-            className="lightbox-nav lightbox-next"
-            onClick={(e) => {
-              e.stopPropagation()
-              showNext()
-            }}
-            aria-label="Ảnh sau"
-          >
-            ›
-          </button>
-          {images[lightboxIndex].caption && (
-            <p className="lightbox-caption">{images[lightboxIndex].caption}</p>
+          <button type="button" className="lightbox__close" onClick={closeLightbox} aria-label="Đóng">✕</button>
+          {count > 1 && (
+            <button
+              type="button"
+              className="lightbox__nav lightbox__nav--prev"
+              onClick={(e) => { e.stopPropagation(); showPrevious() }}
+              aria-label="Ảnh trước"
+            >
+              ‹
+            </button>
           )}
-          <p className="lightbox-counter">
-            {lightboxIndex + 1} / {images.length}
+          <figure className="lightbox__polaroid" onClick={(e) => e.stopPropagation()}>
+            <span className="tape tape--center lightbox__tape" aria-hidden="true" />
+            <img
+              src={images[lightboxIndex].image_url}
+              alt={images[lightboxIndex].caption || ''}
+              className="lightbox__img"
+            />
+            {images[lightboxIndex].caption && (
+              <figcaption className="lightbox__caption">{images[lightboxIndex].caption}</figcaption>
+            )}
+          </figure>
+          {count > 1 && (
+            <button
+              type="button"
+              className="lightbox__nav lightbox__nav--next"
+              onClick={(e) => { e.stopPropagation(); showNext() }}
+              aria-label="Ảnh sau"
+            >
+              ›
+            </button>
+          )}
+          <p className="lightbox__counter">
+            {lightboxIndex + 1} / {count}{count > 1 && ' · vuốt ngang để xem tiếp'}
           </p>
         </div>,
         document.body,

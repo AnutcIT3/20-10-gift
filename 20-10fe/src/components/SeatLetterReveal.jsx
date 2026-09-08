@@ -1,19 +1,17 @@
-import '../styles/seatletter.css' // Import file CSS mới tạo
+import { CLASS_NAME } from '../lib/event'
+import '../styles/seatletter.css'
 
 const ROW_COUNT = 6
 const DESKS_PER_ROW = 4 // Mỗi dãy 4 bàn/hàng
 
-// Biểu tượng Bức thư SVG
-const EnvelopeIcon = () => (
-  <svg 
-    viewBox="0 0 24 24" 
-    className="seat-letter-icon" 
-    aria-hidden="true" 
-    fill="currentColor"
-  >
-    <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
-  </svg>
-)
+// Phong bì mini bay lên từ bàn của học sinh
+function MiniLetter() {
+  return (
+    <span className="seat-letter" aria-hidden="true">
+      <span className="seat-letter__flap" />
+    </span>
+  )
+}
 
 function SeatLetterReveal({ student }) {
   if (!student) return null
@@ -21,21 +19,17 @@ function SeatLetterReveal({ student }) {
   const seatRow = Number(student.seat_row ?? student.seat?.row ?? 1)
   const seatCol = Number(student.seat_col ?? student.seat?.col ?? 1)
   const isSpecialSeat = seatRow === 0 && seatCol === 9
-  const displayName = student.nickname || student.full_name || 'Ban'
+  const displayName = student.nickname || student.full_name || 'bạn'
 
   const renderDesk = (row, col) => {
     const isActive = row === seatRow && col === seatCol
     return (
       <div
         key={`${row}-${col}`}
-        className={isActive ? 'seat-map-desk active' : 'seat-map-desk'}
-        aria-label={isActive ? `Cho ngoi cua ${displayName}` : `Ban ${row}-${col}`}
+        className={`seat-desk${isActive ? ' is-active' : ''}`}
+        aria-label={isActive ? `Chỗ ngồi của ${displayName}` : `Bàn ${row}-${col}`}
       >
-        {isActive && (
-          <div className="seat-letter-wrapper">
-            <EnvelopeIcon />
-          </div>
-        )}
+        {isActive && <MiniLetter />}
       </div>
     )
   }
@@ -53,20 +47,24 @@ function SeatLetterReveal({ student }) {
   return (
     <div className="seat-reveal-backdrop" role="status" aria-live="polite">
       <section className="seat-reveal">
-        <div className="seat-board-row">
-          <div className="seat-board-label">Bang lop</div>
+        <div className="seat-reveal__top">
+          <span className="seat-reveal__class">Lớp {CLASS_NAME}</span>
+          <div className="seat-reveal__board">BẢNG</div>
           <div
-            className={isSpecialSeat ? 'seat-map-desk seat-special-desk active' : 'seat-map-desk seat-special-desk'}
-            aria-label={isSpecialSeat ? `Cho ngoi cua ${displayName}` : 'Ban goc tren phai'}
+            className={`seat-desk seat-desk--teacher${isSpecialSeat ? ' is-active' : ''}`}
+            aria-label={isSpecialSeat ? `Chỗ ngồi của ${displayName}` : 'Bàn góc trên phải'}
           >
-            {isSpecialSeat && <div className="seat-letter-wrapper"><EnvelopeIcon /></div>}
+            {isSpecialSeat && <MiniLetter />}
           </div>
         </div>
-        
-        <div className="classroom-container">
-          <div className="seat-block left">{leftBlock}</div>
-          <div className="seat-block right">{rightBlock}</div>
+
+        <div className="seat-reveal__room">
+          <div className="seat-reveal__block">{leftBlock}</div>
+          <div className="seat-reveal__aisle" aria-hidden="true" />
+          <div className="seat-reveal__block">{rightBlock}</div>
         </div>
+
+        <p className="seat-reveal__caption">Có thư gửi tới bàn của {displayName}… ✉</p>
       </section>
     </div>
   )
