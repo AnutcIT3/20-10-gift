@@ -43,7 +43,8 @@ async function getDashboardStats() {
     `SELECT
        SUM(status = 'pending')           AS pending,
        SUM(status = 'approved')          AS approved,
-       SUM(status = 'rejected')          AS rejected
+       SUM(status = 'rejected')          AS rejected,
+       SUM(status = 'approved' AND reveal_at IS NOT NULL AND reveal_at > UTC_TIMESTAMP()) AS scheduled
      FROM letters`,
   );
 
@@ -87,6 +88,8 @@ async function getDashboardStats() {
       pending: Number(letterRow.pending || 0),
       approved: Number(letterRow.approved || 0),
       rejected: Number(letterRow.rejected || 0),
+      // Đã duyệt nhưng hẹn giờ chưa tới — tab "Hẹn giờ" ở hộp thư admin
+      scheduled: Number(letterRow.scheduled || 0),
     },
     gallery: {
       total: Number(imageRow.total),

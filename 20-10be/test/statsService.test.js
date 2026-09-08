@@ -60,7 +60,7 @@ test('dashboard stats normalizes aggregate values and reaction totals', async ()
   try {
     const result = await statsService.getDashboardStats();
     assert.deepEqual(result.students, { total: 22, active: 21, totalViews: 24 });
-    assert.deepEqual(result.letters, { pending: 1, approved: 4, rejected: 0 });
+    assert.deepEqual(result.letters, { pending: 1, approved: 4, rejected: 0, scheduled: 0 });
     assert.deepEqual(result.reactions, { byEmoji: { love: 3, think: 1 }, total: 4 });
     assert.equal(result.gallery.studentsWithoutImages, 19);
   } finally {

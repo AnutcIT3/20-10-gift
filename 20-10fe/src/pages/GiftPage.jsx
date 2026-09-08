@@ -226,7 +226,10 @@ function GiftPage() {
         {aiGreeting && (
           <section className="ai-note" aria-live="polite">
             <span className="ai-note__clip" aria-hidden="true" />
-            <span className="ai-note__label">✨ MỘT LỜI CHÚC DÀNH RIÊNG CHO BẠN</span>
+            <span className="ai-note__label">
+              <span className="ai-note__label-long">✨ MỘT LỜI CHÚC DÀNH RIÊNG CHO BẠN</span>
+              <span className="ai-note__label-short">✨ LỜI CHÚC DÀNH RIÊNG</span>
+            </span>
             <p><TypingText text={aiGreeting} /></p>
           </section>
         )}

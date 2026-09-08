@@ -197,6 +197,10 @@
   transform: rotate(-2deg);
 }
 
+.ai-note__label-short {
+  display: none;
+}
+
 .ai-note p {
   margin: 14px 0 0;
   font: 29px/1.5 var(--font-write);
@@ -777,6 +781,14 @@
     padding: 3px 10px;
     font-size: 14px;
     letter-spacing: .06em;
+  }
+
+  .ai-note__label-long {
+    display: none;
+  }
+
+  .ai-note__label-short {
+    display: inline;
   }
 
   .ai-note p {
