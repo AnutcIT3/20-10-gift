@@ -217,6 +217,7 @@ các admin dùng cùng URL public không cần pull Git để thấy thay đổi
 | `/admin/students` | Quản lý học sinh |
 | `/admin/gallery` | Upload, sắp xếp, xóa ảnh |
 | `/admin/letters` | Duyệt, từ chối, xóa lời chúc |
+| `/admin/seating` | Sơ đồ lớp, xếp chỗ ngồi |
 
 ## API chính
 
@@ -266,5 +267,6 @@ Frontend:
 - Lời chúc mới qua public API có trạng thái `pending` và chỉ xuất hiện sau khi admin duyệt.
 - Mọi tên được nhập đều nhận một lời chúc Gemini: người trong lớp xem trên GiftPage cá nhân, người ngoài danh sách xem trang chúc chung. Gemini key chỉ nằm ở backend để không lộ trên trình duyệt.
 - Tên ngoài danh sách được hỏi "thành viên trong lớp hay khách ghé thăm" trước khi hiện lời chúc — hai kiểu lời chúc khác nhau (`classmate` / `visitor`).
-- Admin có thể **khóa trang quà chờ ngày 20/10** từ Dashboard: người mở trang quà thấy "Chưa đến ngày 20/10, vui lòng chờ thêm", nhưng gửi lời chúc vẫn hoạt động — gửi link cho các bạn nam chúc trước, đến ngày admin bấm "Mở trang quà".
+- Admin có thể **khóa trang quà chờ ngày 20/10** bằng công tắc **Trang quà** ở sidebar admin: người mở trang quà thấy "Chưa đến ngày 20/10, vui lòng chờ thêm", nhưng gửi lời chúc vẫn hoạt động — gửi link cho các bạn nam chúc trước, đến ngày admin gạt công tắc để mở.
 - Xem `PLAN.md` và `IMPLEMENTATION.md` để biết thiết kế và API contract ban đầu.
+- Giao diện người dùng và admin theo handoff "Sổ lưu bút" (thư mục `design_handoff_luu_but_2010`): giấy kem, polaroid dán băng keo, thư kẻ dòng có tem. Font Itim / Lora / Patrick Hand tự lưu trữ trong `20-10fe/public/fonts` (giấy phép OFL) nên chạy offline và không cần nới CSP.

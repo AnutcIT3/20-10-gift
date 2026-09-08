@@ -85,9 +85,10 @@ export const adminApi = {
     method: 'PUT', body: JSON.stringify({ items }),
   }),
   deleteImage: (id) => request(`/api/gallery/${id}`, { method: 'DELETE' }),
-  listLetters: ({ status, studentId, page = 1, pageSize = 20 }) => {
+  listLetters: ({ status, studentId, search, page = 1, pageSize = 20 }) => {
     const params = new URLSearchParams({ status, page, pageSize })
     if (studentId) params.set('studentId', studentId)
+    if (search) params.set('search', search)
     return request(`/api/admin/letters?${params}`)
   },
   createLetters: (data) => request('/api/admin/letters', {
