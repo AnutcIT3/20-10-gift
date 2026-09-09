@@ -56,7 +56,7 @@ def align_all(people, det_size=640, ctx_id=-1):
                        providers=providers)
     app.prepare(ctx_id=ctx_id, det_size=(det_size, det_size))
 
-    crops, labels, meta, skipped = [], [], [], []
+    photos, skipped = [], []
     for person, files in people.items():
         for path in files:
             img = imread_unicode(path)
@@ -68,26 +68,86 @@ def align_all(people, det_size=640, ctx_id=-1):
             if not faces:
                 skipped.append((rel, 'khong tim thay mat'))
                 continue
-            # nhieu mat (anh nhom) -> lay mat to nhat
+            # Giu MOI khuon mat tim duoc, sap theo do lon. Viec chon mat nao
+            # de o buoc sau (choose_faces) vi "mat to nhat" khong phai luc nao
+            # cung dung khi trong anh co hai nguoi xap xi nhau.
             faces.sort(key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]),
                        reverse=True)
-            face = faces[0]
-            crop = face_align.norm_crop(img, landmark=face.kps, image_size=112)
-            gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-            x1, y1, x2, y2 = face.bbox
-            crops.append(crop)
-            labels.append(person)
-            meta.append({
-                'file': rel,
-                'person': person,
-                'img_w': int(img.shape[1]), 'img_h': int(img.shape[0]),
-                'faces_found': len(faces),
-                'face_px': int(min(x2 - x1, y2 - y1)),
-                'det_score': round(float(face.det_score), 3),
-                'blur': round(float(cv2.Laplacian(gray, cv2.CV_64F).var()), 1),
-                'brightness': round(float(gray.mean()), 1),
+            candidates = []
+            for face in faces:
+                crop = face_align.norm_crop(img, landmark=face.kps, image_size=112)
+                gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+                x1, y1, x2, y2 = face.bbox
+                candidates.append({
+                    'crop': crop,
+                    'meta': {
+                        'file': rel,
+                        'person': person,
+                        'img_w': int(img.shape[1]), 'img_h': int(img.shape[0]),
+                        'faces_found': len(faces),
+                        'face_px': int(min(x2 - x1, y2 - y1)),
+                        'det_score': round(float(face.det_score), 3),
+                        'blur': round(float(cv2.Laplacian(gray, cv2.CV_64F).var()), 1),
+                        'brightness': round(float(gray.mean()), 1),
+                    },
+                })
+            photos.append({'person': person, 'file': rel, 'candidates': candidates})
+    return photos, skipped
+
+
+def choose_faces(photos, ctx_id=-1, chooser_key='arcface_r50'):
+    """Chon dung khuon mat cua nguoi trong anh nhieu nguoi.
+
+    Vong 1 lay mat to nhat de dung ho so tam cho tung nguoi. Vong 2 chon lai,
+    voi moi anh lay khuon mat giong ho so cua chinh nguoi do nhat. Nho vay anh
+    chup chung ma ban minh nho hon vai phan tram khong con bi lay nham.
+
+    Chi mot model duy nhat lam viec chon nay, va cac model deu nhan cung mot bo
+    anh da cat, nen so sanh giua chung van cong bang.
+    """
+    multi = [p for p in photos if len(p['candidates']) > 1]
+    if not multi:
+        return ([p['candidates'][0]['crop'] for p in photos],
+                [p['person'] for p in photos],
+                [p['candidates'][0]['meta'] for p in photos], [])
+
+    chooser, _ = load_model(chooser_key, ctx_id)
+    flat = [c['crop'] for p in photos for c in p['candidates']]
+    emb = embed_all(chooser, flat)
+    spans, at = [], 0
+    for p in photos:
+        spans.append((at, at + len(p['candidates'])))
+        at += len(p['candidates'])
+
+    picked = [0] * len(photos)
+    for _ in range(2):
+        profiles = {}
+        for person in {p['person'] for p in photos}:
+            vs = [emb[spans[i][0] + picked[i]]
+                  for i, p in enumerate(photos) if p['person'] == person]
+            m = np.mean(vs, axis=0)
+            profiles[person] = m / np.linalg.norm(m)
+        for i, p in enumerate(photos):
+            lo, hi = spans[i]
+            scores = emb[lo:hi] @ profiles[p['person']]
+            picked[i] = int(np.argmax(scores))
+
+    crops, labels, meta, repicked = [], [], [], []
+    for i, p in enumerate(photos):
+        k = picked[i]
+        crops.append(p['candidates'][k]['crop'])
+        labels.append(p['person'])
+        meta.append(p['candidates'][k]['meta'])
+        if k != 0:
+            lo, hi = spans[i]
+            repicked.append({
+                'file': p['file'],
+                'faces': len(p['candidates']),
+                'chosen': k + 1,
+                'score_chosen': round(float(emb[lo + k] @ profiles[p['person']]), 3),
+                'score_largest': round(float(emb[lo] @ profiles[p['person']]), 3),
             })
-    return crops, labels, meta, skipped
+    return crops, labels, meta, repicked
 
 
 # -- Buoc 2: cac model ung vien ----------------------------------------------
@@ -181,12 +241,14 @@ def score_against(probe, gal):
     return float(np.max(gal @ probe))
 
 
-def evaluate(emb, labels, strategy='mean'):
+def evaluate(emb, labels, strategy='mean', meta=None):
     people = sorted(set(labels))
     idx_of = {p: [i for i, l in enumerate(labels) if l == p] for p in people}
 
     rank1, genuine, margins = 0, [], []
     confusions = defaultdict(int)
+    failures = []
+    weak = []
     n_probe = 0
     for person in people:
         for probe_i in idx_of[person]:
@@ -202,10 +264,18 @@ def evaluate(emb, labels, strategy='mean'):
             n_probe += 1
             genuine.append(scores[person])
             margins.append(ranked[0][1] - ranked[1][1] if len(ranked) > 1 else 1.0)
+            src = meta[probe_i]['file'] if meta else '#%d' % probe_i
             if ranked[0][0] == person:
                 rank1 += 1
+                weak.append((scores[person], src))
             else:
                 confusions[(person, ranked[0][0])] += 1
+                failures.append({
+                    'file': src, 'person': person,
+                    'guessed': ranked[0][0],
+                    'score_guessed': round(ranked[0][1], 4),
+                    'score_correct': round(scores[person], 4),
+                })
 
     # Nguoi la: bo han mot nguoi khoi thu vien roi cho anh cua ho di nhan dien
     impostor = []
@@ -235,6 +305,10 @@ def evaluate(emb, labels, strategy='mean'):
         'margin_min': round(float(np.min(margins)), 4) if margins else 0,
         'confusions': sorted([[a + ' -> ' + b, n] for (a, b), n in confusions.items()],
                              key=lambda x: -x[1]),
+        'failures': failures,
+        # anh nhan dung nhung diem thap nhat: ung vien thay the neu muon chac hon
+        'weakest': [{'file': f, 'score': round(s, 4)}
+                    for s, f in sorted(weak)[:5]],
     }
 
 
@@ -247,7 +321,7 @@ def latency(model, crop, reps=30):
 
 
 # -- Bao cao -----------------------------------------------------------------
-def write_report(out_dir, people, meta, skipped, results, args):
+def write_report(out_dir, people, meta, skipped, results, args, repicked=()):
     os.makedirs(out_dir, exist_ok=True)
     cols = ['model', 'strategy', 'probes', 'rank1', 'tau_0fa', 'tar_at_0fa',
             'genuine_mean', 'genuine_min', 'impostor_mean', 'impostor_max',
@@ -306,6 +380,46 @@ def write_report(out_dir, people, meta, skipped, results, args):
     if not any_conf:
         lines.append('- Không ảnh nào bị xếp nhầm sang người khác.')
     lines.append('')
+
+    # Anh nao gay loi - de biet nen thay tam nao
+    all_fail = defaultdict(list)
+    for r in results:
+        for f in r['failures']:
+            all_fail[f['file']].append('{} ({})'.format(r['label'], r['strategy']))
+    if all_fail:
+        lines.append('## Ảnh gây lỗi')
+        lines.append('')
+        lines.append('Những tấm này bị nhận nhầm sang người khác. Mở ra xem: '
+                     'thường là ảnh nghiêng nhiều, đeo khẩu trang, quá xa, '
+                     'hoặc trong ảnh có người khác lớn hơn trong khung.')
+        lines.append('')
+        for path, models in sorted(all_fail.items(), key=lambda kv: -len(kv[1])):
+            lines.append('- `{}` — sai ở {}/{} lượt chấm'.format(
+                path, len(models), len(results)))
+        lines.append('')
+
+    if results:
+        lines.append('## Ảnh yếu nhất của model dẫn đầu')
+        lines.append('')
+        lines.append('Nhận đúng nhưng điểm sát ngưỡng nhất. Nếu muốn chắc hơn thì '
+                     'thay bằng ảnh rõ mặt hơn.')
+        lines.append('')
+        for w in best['weakest']:
+            lines.append('- `{}` — điểm {}'.format(w['file'], w['score']))
+        lines.append('')
+
+    if repicked:
+        lines.append('## Ảnh chụp chung đã chọn lại mặt')
+        lines.append('')
+        lines.append('Những tấm này có nhiều người trong khung và người to nhất '
+                     'KHÔNG phải chủ nhân thư mục. Script đã tự lấy đúng mặt bằng '
+                     'cách so với các ảnh khác của chính bạn đó.')
+        lines.append('')
+        for r in repicked:
+            lines.append('- `{}` — {} mặt, lấy mặt #{} (giống hồ sơ {} thay vì {})'
+                         .format(r['file'], r['faces'], r['chosen'],
+                                 r['score_chosen'], r['score_largest']))
+        lines.append('')
 
     lines.append('## Chất lượng ảnh đầu vào')
     lines.append('')
@@ -373,12 +487,16 @@ def main():
 
     print('\nPhat hien + can chinh khuon mat (dung chung cho moi model)...')
     t0 = time.perf_counter()
-    crops, labels, meta, skipped = align_all(people, ctx_id=ctx_id)
+    photos_found, skipped = align_all(people, ctx_id=ctx_id)
+    crops, labels, meta, repicked = choose_faces(photos_found, ctx_id=ctx_id)
     print('  {} khuon mat trong {:.1f}s{}'.format(
         len(crops), time.perf_counter() - t0,
         ', bo qua {} anh'.format(len(skipped)) if skipped else ''))
     for rel, why in skipped:
         print('  ! {}: {}'.format(rel, why))
+    for r in repicked:
+        print('  ~ {}: anh co {} mat, lay mat #{} (giong ho so {} thay vi {})'.format(
+            r['file'], r['faces'], r['chosen'], r['score_chosen'], r['score_largest']))
     if len(set(labels)) < 2:
         print('Can it nhat 2 nguoi de so sanh.')
         sys.exit(1)
@@ -400,14 +518,14 @@ def main():
         print('  embedding {} trong {:.1f}s'.format(emb.shape, time.perf_counter() - t0))
         ms = latency(model, crops[0])
         for strategy in args.strategies.split(','):
-            r = evaluate(emb, labels, strategy.strip())
+            r = evaluate(emb, labels, strategy.strip(), meta)
             r.update(model=key, label=MODELS[key]['label'], strategy=strategy.strip(),
                      latency_ms=ms, size_mb=size_mb)
             results.append(r)
             print('  [{}] rank-1 {}% | nhan dung o 0 nhan nham {}% | tau={}'.format(
                 strategy, r['rank1'], r['tar_at_0fa'], r['tau_0fa']))
 
-    write_report(args.out, people, meta, skipped, results, args)
+    write_report(args.out, people, meta, skipped, results, args, repicked)
     print('\nBao cao: ' + os.path.join(args.out, 'report.md'))
 
 
