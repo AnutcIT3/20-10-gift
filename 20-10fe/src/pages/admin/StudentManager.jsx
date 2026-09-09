@@ -2,8 +2,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { adminApi } from '../../api/adminApi'
 import useDialogA11y from '../../hooks/useDialogA11y'
+import { seatLabel } from '../../lib/seat'
 
-const EMPTY_FORM = { full_name: '', nickname: '', avatar_url: '', intro_message: '', class_name: 'A1' }
+const EMPTY_FORM = {
+  full_name: '', nickname: '', avatar_url: '', intro_message: '', class_name: 'A1', access_code: '', is_active: true,
+}
+const FILTERS = [
+  { value: 'all', label: 'Tất cả' },
+  { value: 'active', label: 'Đang hoạt động' },
+  { value: 'friend', label: 'Bạn ngoài lớp' },
+  { value: 'noimg', label: 'Chưa có ảnh' },
+]
+
+function accessCodeOf(student) {
+  return (student.giftPath || '').split('/').filter(Boolean).pop() || ''
+}
+
+function capitalize(text) {
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text
+}
 
 // Menu ⋮ gom các thao tác phụ/nguy hiểm, bảng chỉ còn các nút dùng hằng ngày.
 // Menu render position:fixed để không bị cắt bởi overflow của khung bảng.
@@ -31,14 +48,14 @@ function RowMenu({ items }) {
 
   const toggle = (event) => {
     const rect = event.currentTarget.getBoundingClientRect()
-    const up = rect.bottom + 200 > window.innerHeight
-    setPos({ top: up ? rect.top - 4 : rect.bottom + 4, left: Math.max(8, rect.right - 160), up })
+    const up = rect.bottom + 240 > window.innerHeight
+    setPos({ top: up ? rect.top - 4 : rect.bottom + 4, left: Math.max(8, rect.right - 170), up })
     setOpen((current) => !current)
   }
 
   return (
     <span ref={wrapRef}>
-      <button type="button" aria-label="Thao tác khác" aria-expanded={open} onClick={toggle}>⋮</button>
+      <button type="button" className="stu-menu-btn" aria-label="Thao tác khác" aria-expanded={open} onClick={toggle}>⋮</button>
       {open && (
         <div
           className="admin-menu"
@@ -62,7 +79,7 @@ function RowMenu({ items }) {
   )
 }
 
-function ConfirmModal({ title, message, confirmLabel = 'Xác nhận', danger = false, onConfirm, onCancel }) {
+function ConfirmModal({ title, message, confirmLabel = 'Xác nhận', onConfirm, onCancel }) {
   const dialogRef = useDialogA11y(true, onCancel)
   return (
     <div className="admin-modal-backdrop" role="presentation" onClick={onCancel}>
@@ -70,44 +87,9 @@ function ConfirmModal({ title, message, confirmLabel = 'Xác nhận', danger = f
         <h3 id="confirm-title">{title}</h3>
         <p>{message}</p>
         <div className="admin-form-actions">
-          <button type="button" className={danger ? 'admin-danger-primary' : 'admin-primary'} onClick={onConfirm}>{confirmLabel}</button>
-          <button type="button" onClick={onCancel}>Hủy</button>
+          <button type="button" className="admin-btn admin-btn--primary" onClick={onConfirm}>{confirmLabel}</button>
+          <button type="button" className="admin-btn" onClick={onCancel}>Hủy</button>
         </div>
-      </section>
-    </div>
-  )
-}
-
-function LinkEditorModal({ student, saving, onSave, onCancel }) {
-  const currentCode = student.giftPath.split('/').filter(Boolean).pop() || ''
-  const [accessCode, setAccessCode] = useState(currentCode)
-  const previewCode = accessCode.trim().toLowerCase()
-  const dialogRef = useDialogA11y(true, onCancel)
-
-  return (
-    <div className="admin-modal-backdrop" role="presentation" onClick={onCancel}>
-      <section ref={dialogRef} className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="link-editor-title" onClick={(event) => event.stopPropagation()}>
-        <h3 id="link-editor-title">Sửa link của {student.full_name}</h3>
-        <form className="admin-link-form" onSubmit={(event) => { event.preventDefault(); onSave(previewCode) }}>
-          <label>
-            Mã link
-            <input
-              autoFocus
-              required
-              minLength={3}
-              maxLength={20}
-              pattern="[a-z0-9_-]+"
-              value={accessCode}
-              onChange={(event) => setAccessCode(event.target.value.toLowerCase())}
-              placeholder="mai-anh"
-            />
-          </label>
-          <p className="admin-link-preview">{window.location.origin}/gift/{previewCode}</p>
-          <div className="admin-form-actions">
-            <button className="admin-primary" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu link'}</button>
-            <button type="button" onClick={onCancel}>Hủy</button>
-          </div>
-        </form>
       </section>
     </div>
   )
@@ -121,14 +103,14 @@ function StudentManager() {
   const [editingId, setEditingId] = useState(null)
   const [copiedId, setCopiedId] = useState(null)
   const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState('all')
   const [confirmAction, setConfirmAction] = useState(null)
-  const [linkEditor, setLinkEditor] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [savingLink, setSavingLink] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const formRef = useRef(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -145,20 +127,48 @@ function StudentManager() {
 
   const filteredStudents = useMemo(() => {
     const keyword = query.trim().toLowerCase()
-    if (!keyword) return students
-    return students.filter((student) => `${student.full_name || ''} ${student.nickname || ''} ${student.class_name || ''}`.toLowerCase().includes(keyword))
-  }, [students, query])
+    return students.filter((student) => {
+      if (filter === 'active' && !student.is_active) return false
+      if (filter === 'friend' && student.member_type !== 'friend') return false
+      if (filter === 'noimg' && (student.member_type === 'friend' || Number(student.gallery_count) > 0)) return false
+      if (!keyword) return true
+      return `${student.full_name || ''} ${student.nickname || ''} ${student.class_name || ''} ${accessCodeOf(student)}`
+        .toLowerCase().includes(keyword)
+    })
+  }, [students, query, filter])
+
+  const closeForm = () => { setEditingId(null); setForm(EMPTY_FORM); setFormOpen(false) }
 
   const submit = async (event) => {
     event.preventDefault(); setSaving(true); setError(''); setMessage('')
     try {
-      const data = Object.fromEntries(Object.entries(form).map(([key, value]) => [key, value.trim() || null]))
-      if (editingId) await adminApi.updateStudent(editingId, data)
-      else await adminApi.createStudent(data)
-      setForm(EMPTY_FORM); setEditingId(null); setFormOpen(false)
-      setMessage(editingId ? 'Đã cập nhật học sinh.' : 'Đã thêm học sinh.')
+      const data = {
+        full_name: form.full_name.trim() || null,
+        nickname: form.nickname.trim() || null,
+        avatar_url: form.avatar_url.trim() || null,
+        intro_message: form.intro_message.trim() || null,
+        class_name: form.class_name.trim() || null,
+      }
+      if (editingId) {
+        const current = students.find((student) => student.id === editingId)
+        await adminApi.updateStudent(editingId, data)
+        // Mã truy cập và trạng thái có API riêng — chỉ gọi khi thật sự đổi
+        const nextCode = form.access_code.trim().toLowerCase()
+        if (current && nextCode && nextCode !== accessCodeOf(current)) {
+          await adminApi.updateGiftLink(editingId, nextCode)
+        }
+        if (current && Boolean(current.is_active) !== form.is_active) {
+          if (form.is_active) await adminApi.activateStudent(editingId)
+          else await adminApi.deactivateStudent(editingId)
+        }
+      } else {
+        await adminApi.createStudent(data)
+      }
+      const wasEditing = Boolean(editingId)
+      closeForm()
+      setMessage(wasEditing ? 'Đã cập nhật học sinh.' : 'Đã thêm học sinh.')
       await load()
-    } catch (err) { setError(err.message) }
+    } catch (err) { setError(err.message); await load() }
     finally { setSaving(false) }
   }
 
@@ -171,8 +181,10 @@ function StudentManager() {
       avatar_url: student.avatar_url || '',
       intro_message: student.intro_message || '',
       class_name: student.class_name || 'A1',
+      access_code: accessCodeOf(student),
+      is_active: Boolean(student.is_active),
     })
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   const copyLink = async (student) => {
@@ -186,14 +198,6 @@ function StudentManager() {
     } catch {
       setError('Không thể sao chép tự động. Hãy copy link thủ công.')
     }
-  }
-
-  const viewLetters = (student) => {
-    navigate(`/admin/letters?studentId=${student.id}&status=approved`)
-  }
-
-  const viewGallery = (student) => {
-    navigate(`/admin/gallery?studentId=${student.id}`)
   }
 
   const deactivate = (student) => {
@@ -225,39 +229,13 @@ function StudentManager() {
       title: 'Xóa học sinh',
       message: `Xóa vĩnh viễn ${student.full_name} cùng toàn bộ ảnh, lời chúc, reaction và lượt xem? Thao tác này không thể hoàn tác.`,
       confirmLabel: 'Xóa vĩnh viễn',
-      danger: true,
       run: async () => {
         await adminApi.deleteStudent(student.id)
-        if (editingId === student.id) {
-          setEditingId(null)
-          setForm(EMPTY_FORM)
-        }
+        if (editingId === student.id) closeForm()
         await load()
         setMessage(`Đã xóa ${student.full_name}.`)
       },
     })
-  }
-
-  const editLink = (student) => {
-    setError('')
-    setMessage('')
-    setLinkEditor(student)
-  }
-
-  const saveLink = async (accessCode) => {
-    if (!linkEditor) return
-    setSavingLink(true)
-    setError('')
-    try {
-      const result = await adminApi.updateGiftLink(linkEditor.id, accessCode)
-      setLinkEditor(null)
-      await load()
-      setMessage(`Đã đổi link thành ${result.giftPath}. Link cũ không còn hiệu lực.`)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setSavingLink(false)
-    }
   }
 
   const confirm = async () => {
@@ -271,17 +249,31 @@ function StudentManager() {
     catch (err) { setError(err.message) }
   }
 
+  const exportStudents = async () => {
+    setExporting(true)
+    setMessage('')
+    setError('')
+    try { await adminApi.exportStudents(); setMessage('Xuất CSV thành công!') }
+    catch (err) { setError(err.message) }
+    finally { setExporting(false) }
+  }
+
+  const classMembers = students.filter((student) => student.member_type !== 'friend').length
+
   return (
     <section>
       <header className="admin-page-header">
         <div>
           <p className="admin-kicker">Học sinh</p>
-          <h2>Quản lý học sinh</h2>
+          <h2>Danh sách lớp · {classMembers} bạn</h2>
         </div>
-        <div className="dash-header-actions">
+        <div className="admin-header-actions">
+          <button type="button" className="admin-btn" disabled={exporting} onClick={exportStudents}>
+            {exporting ? 'Đang xuất…' : '⤓ Xuất CSV'}
+          </button>
           <button
             type="button"
-            className="dash-refresh-btn"
+            className="admin-btn admin-btn--primary"
             onClick={() => {
               if (editingId) {
                 // Đang sửa → chuyển sang chế độ thêm mới
@@ -295,65 +287,132 @@ function StudentManager() {
           >
             {formOpen && !editingId ? 'Đóng khung thêm' : '+ Thêm học sinh'}
           </button>
-          <button
-            type="button"
-            className="dash-export-btn"
-            disabled={exporting}
-            onClick={async () => {
-              setExporting(true)
-              setMessage('')
-              setError('')
-              try { await adminApi.exportStudents(); setMessage('Xuất CSV thành công!') }
-              catch (err) { setError(err.message) }
-              finally { setExporting(false) }
-            }}
-          >
-            {exporting ? 'Đang xuất...' : '⬇️ Xuất CSV'}
-          </button>
         </div>
       </header>
+
+      {message && <p key={message} className="admin-alert success" role="status">{message}</p>}
+      {error && <p key={error} className="admin-alert error" role="alert">{error}</p>}
+
       {/* Form thêm/sửa mặc định đóng — thêm học sinh là việc chỉ làm lúc setup */}
       {(formOpen || editingId) && (
-      <form className="admin-panel admin-form-grid" onSubmit={submit}>
-        <h3>{editingId ? 'Chỉnh sửa học sinh' : 'Thêm học sinh'}</h3>
-        <label>Họ và tên<input required maxLength={100} value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></label>
-        <label>Biệt danh<input maxLength={50} value={form.nickname} onChange={(e) => setForm({ ...form, nickname: e.target.value })} /></label>
-        <label>Lớp<input maxLength={20} value={form.class_name} onChange={(e) => setForm({ ...form, class_name: e.target.value })} /></label>
-        <label className="admin-span-2">URL avatar<input maxLength={500} value={form.avatar_url} onChange={(e) => setForm({ ...form, avatar_url: e.target.value })} /></label>
-        {form.avatar_url && <div className="admin-avatar-preview admin-span-2"><img src={form.avatar_url} alt="Preview avatar" onError={(event) => { event.currentTarget.style.display = 'none' }} /></div>}
-        <label className="admin-span-2">Lời giới thiệu<textarea value={form.intro_message} onChange={(e) => setForm({ ...form, intro_message: e.target.value })} /></label>
-        <div className="admin-form-actions admin-span-2">
-          <button className="admin-primary" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu'}</button>
-          <button type="button" onClick={() => { setEditingId(null); setForm(EMPTY_FORM); setFormOpen(false) }}>Hủy</button>
-        </div>
-      </form>
+        <form ref={formRef} className="admin-form letter-paper letter-paper--form" onSubmit={submit}>
+          <h3>{editingId ? 'Sửa học sinh' : 'Thêm học sinh'}</h3>
+          <label className="admin-field">Họ và tên<input className="input-hand" required maxLength={100} value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></label>
+          <label className="admin-field">Tên gọi<input className="input-hand" maxLength={50} value={form.nickname} onChange={(e) => setForm({ ...form, nickname: e.target.value })} /></label>
+          <label className="admin-field">Mã truy cập
+            <input
+              className="input-hand input-hand--mono"
+              value={form.access_code}
+              disabled={!editingId}
+              placeholder={editingId ? 'mai-anh' : 'tự tạo khi lưu'}
+              minLength={3}
+              maxLength={20}
+              pattern="[a-zA-Z0-9_-]+"
+              onChange={(e) => setForm({ ...form, access_code: e.target.value.toLowerCase() })}
+            />
+          </label>
+          <label className="admin-field">Trạng thái
+            <select className="input-hand" value={form.is_active ? 'active' : 'inactive'} disabled={!editingId} onChange={(e) => setForm({ ...form, is_active: e.target.value === 'active' })}>
+              <option value="active">Đang hoạt động</option>
+              <option value="inactive">Đã tắt</option>
+            </select>
+          </label>
+          <label className="admin-field">Lớp<input className="input-hand" maxLength={20} value={form.class_name} onChange={(e) => setForm({ ...form, class_name: e.target.value })} /></label>
+          <label className="admin-field">URL ảnh đại diện<input className="input-hand input-hand--mono" maxLength={500} value={form.avatar_url} onChange={(e) => setForm({ ...form, avatar_url: e.target.value })} placeholder="https://…" /></label>
+          {form.avatar_url && <div className="admin-avatar-preview"><img src={form.avatar_url} alt="Preview avatar" onError={(event) => { event.currentTarget.style.display = 'none' }} /></div>}
+          <label className="admin-field admin-field--full">Lời dẫn trên trang quà<textarea className="input-hand" rows={2} value={form.intro_message} onChange={(e) => setForm({ ...form, intro_message: e.target.value })} /></label>
+          {editingId && form.access_code && (
+            <p className="admin-form__note">Link quà: {window.location.origin}/gift/{form.access_code.trim().toLowerCase()} — đổi mã thì link cũ hết hiệu lực.</p>
+          )}
+          <div className="admin-form__actions">
+            <button type="button" className="admin-btn" onClick={closeForm}>Hủy</button>
+            <button className="admin-btn admin-btn--primary" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu'}</button>
+          </div>
+        </form>
       )}
-      {message && <p key={message} className="admin-alert success" role="status">{message}</p>}{error && <p key={error} className="admin-alert error" role="alert">{error}</p>}
-      <div className="admin-panel">
-        <label>Tìm kiếm học sinh<input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nhập tên, biệt danh hoặc lớp" /></label>
+
+      <div className="admin-filters">
+        <input
+          className="admin-input admin-input--search"
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Tìm tên, tên gọi, mã truy cập…"
+          aria-label="Tìm kiếm học sinh"
+        />
+        <div className="admin-tabs admin-tabs--sm" role="group" aria-label="Lọc học sinh">
+          {FILTERS.map((item) => (
+            <button key={item.value} type="button" className={filter === item.value ? 'active' : ''} aria-pressed={filter === item.value} onClick={() => setFilter(item.value)}>
+              {item.label}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="admin-panel admin-table-wrap">
-        {loading ? <p>Đang tải...</p> : <table><thead><tr><th>Học sinh</th><th>Lớp</th><th>Trạng thái</th><th>Gift link</th><th>Thao tác</th></tr></thead>
-          <tbody>{filteredStudents.map((student) => <tr key={student.id}>
-            <td><div className="admin-student-cell">{student.avatar_url ? <img src={student.avatar_url} alt="" /> : <span>{student.full_name?.charAt(0)}</span>}<div><strong>{student.full_name}</strong><small>{student.nickname}</small></div></div></td><td>{student.member_type === 'friend' ? <span className="admin-badge friend">🌸 Bạn bè</span> : student.class_name}</td>
-            <td><span className={`admin-badge ${student.is_active ? 'active' : 'inactive'}`}>{student.is_active ? 'Hoạt động' : 'Đã tắt'}</span></td>
-            <td className="admin-link-cell"><a href={student.giftPath} target="_blank" rel="noreferrer">{student.giftPath}</a></td>
-            <td className="admin-row-actions">
-              <button onClick={() => copyLink(student)}>{copiedId === student.id ? 'Đã copy ✓' : 'Copy link'}</button>
-              <button onClick={() => viewLetters(student)}>Lời chúc</button>
-              <button onClick={() => viewGallery(student)}>Ảnh</button>
-              <RowMenu items={[
-                { label: 'Sửa thông tin', onClick: () => edit(student) },
-                { label: 'Sửa link', onClick: () => editLink(student) },
-                student.is_active
-                  ? { label: 'Tắt trang', danger: true, onClick: () => deactivate(student) }
-                  : { label: 'Bật trang', onClick: () => activate(student) },
-                { label: 'Xóa vĩnh viễn', danger: true, onClick: () => removeStudent(student) },
-              ]} />
-            </td>
-          </tr>)}</tbody></table>}
+
+      <div className="admin-card stu-table" role="table" aria-label="Danh sách học sinh">
+        <div className="stu-row stu-row--head" role="row">
+          <span role="columnheader">HỌ TÊN</span>
+          <span role="columnheader">CHỖ NGỒI</span>
+          <span role="columnheader">ẢNH</span>
+          <span role="columnheader">LỜI CHÚC</span>
+          <span role="columnheader">LƯỢT XEM</span>
+          <span role="columnheader">LINK QUÀ</span>
+          <span role="columnheader" aria-label="Thao tác" />
+        </div>
+        {loading ? <p className="admin-loading" style={{ padding: '16px 18px' }}>Đang tải…</p>
+          : filteredStudents.length === 0 ? <p className="admin-loading" style={{ padding: '16px 18px' }}>Không có học sinh phù hợp.</p>
+          : filteredStudents.map((student) => {
+            const isFriend = student.member_type === 'friend'
+            const photos = Number(student.gallery_count ?? 0)
+            const noImage = !isFriend && photos === 0
+            const seat = seatLabel(student.seat_row, student.seat_col)
+            const initial = (student.nickname || student.full_name || '?').trim().charAt(0).toUpperCase()
+            const statusLine = [
+              student.nickname && student.nickname !== student.full_name ? `"${student.nickname}"` : null,
+              isFriend ? 'bạn ngoài lớp · tự tạo khi có lời chúc'
+                : !student.is_active ? 'đã tắt'
+                  : noImage ? 'chưa có ảnh' : 'đang hoạt động',
+            ].filter(Boolean).join(' · ')
+            return (
+              <div key={student.id} className={`stu-row${noImage ? ' stu-row--noimg' : ''}`} role="row">
+                <div className="stu-name" role="cell">
+                  <span className={`stu-avatar${isFriend ? ' stu-avatar--friend' : noImage ? ' stu-avatar--noimg' : ''}`} aria-hidden="true">
+                    {student.avatar_url ? <img src={student.avatar_url} alt="" /> : initial}
+                  </span>
+                  <div>
+                    <b>{student.full_name}</b>
+                    <small className={isFriend ? 'is-moss' : noImage ? 'is-clay' : ''}>{statusLine}</small>
+                  </div>
+                </div>
+                <span className={`stu-cell${seat ? '' : ' stu-cell--muted'}`} role="cell">{seat ? capitalize(seat) : '—'}</span>
+                <span className={`stu-cell${isFriend ? ' stu-cell--muted' : noImage ? ' stu-cell--clay' : ''}`} role="cell">{isFriend ? '—' : `${photos} ảnh`}</span>
+                <span className="stu-cell" role="cell">
+                  <b>{Number(student.letter_count ?? 0)}</b>
+                  {Number(student.pending_letter_count) > 0 && ` · ${student.pending_letter_count} chờ`}
+                </span>
+                <span className="stu-cell" role="cell">{Number(student.view_count ?? 0)}</span>
+                <div className="stu-link" role="cell">
+                  <code title={student.giftPath}>{student.giftPath}</code>
+                  <button type="button" className="admin-btn admin-btn--sm" onClick={() => copyLink(student)}>
+                    {copiedId === student.id ? 'Đã copy ✓' : 'Copy'}
+                  </button>
+                </div>
+                <div role="cell">
+                  <RowMenu items={[
+                    { label: 'Sửa thông tin', onClick: () => edit(student) },
+                    { label: 'Mở trang quà', onClick: () => window.open(student.giftPath, '_blank', 'noopener') },
+                    { label: 'Lời chúc', onClick: () => navigate(`/admin/letters?studentId=${student.id}&status=approved`) },
+                    { label: 'Ảnh', onClick: () => navigate(`/admin/gallery?studentId=${student.id}`) },
+                    student.is_active
+                      ? { label: 'Tắt trang', danger: true, onClick: () => deactivate(student) }
+                      : { label: 'Bật trang', onClick: () => activate(student) },
+                    { label: 'Xóa vĩnh viễn', danger: true, onClick: () => removeStudent(student) },
+                  ]} />
+                </div>
+              </div>
+            )
+          })}
       </div>
-      {linkEditor && <LinkEditorModal key={linkEditor.id} student={linkEditor} saving={savingLink} onSave={saveLink} onCancel={() => setLinkEditor(null)} />}
       {confirmAction && <ConfirmModal {...confirmAction} onConfirm={confirm} onCancel={() => setConfirmAction(null)} />}
     </section>
   )

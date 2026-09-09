@@ -20,7 +20,7 @@ beforeEach(() => {
 test('renders the persisted classroom positions returned by the admin API', async () => {
   render(<ClassroomSeating />)
 
-  expect(await screen.findByRole('heading', { name: 'Sơ đồ lớp' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Ai ngồi đâu?' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Phượng (12A1)' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Hương (12A1)' })).toBeInTheDocument()
   expect(screen.getByLabelText('Thống kê sơ đồ lớp')).toHaveTextContent('2 ghế đã xếp')

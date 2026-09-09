@@ -3,7 +3,10 @@ const reactionService = require('./reactionService');
 const { cloudinary } = require('../config/cloudinary');
 
 const STATUSES = ['pending', 'approved', 'rejected'];
+// 'scheduled' là trạng thái ảo chỉ dùng để LỌC: đã duyệt nhưng reveal_at chưa tới
+const LIST_STATUSES = [...STATUSES, 'scheduled'];
 const MAX_BULK_ITEMS = 100;
+const MAX_SEARCH_LENGTH = 100;
 
 function httpError(message, statusCode) {
   return Object.assign(new Error(message), { statusCode });
@@ -114,7 +117,7 @@ function sanitizeLetterPayload(data, {
 
 function parseListQuery(query = {}) {
   const status = query.status || 'pending';
-  if (!STATUSES.includes(status)) throw httpError('Trạng thái không hợp lệ', 400);
+  if (!LIST_STATUSES.includes(status)) throw httpError('Trạng thái không hợp lệ', 400);
   const page = query.page === undefined ? 1 : Number(query.page);
   const pageSize = query.pageSize === undefined ? 20 : Number(query.pageSize);
   if (!Number.isInteger(page) || page < 1
@@ -128,20 +131,50 @@ function parseListQuery(query = {}) {
       throw httpError('studentId không hợp lệ', 400);
     }
   }
-  return { status, page, pageSize, studentId };
+  let search = null;
+  if (query.search !== undefined && query.search !== '') {
+    // ?search=a&search=b thành mảng — coi là không hợp lệ thay vì ghép chuỗi
+    if (typeof query.search !== 'string') throw httpError('search không hợp lệ', 400);
+    search = query.search.trim().replace(/\s+/g, ' ');
+    if (search.length > MAX_SEARCH_LENGTH) {
+      throw httpError(`Từ khóa tìm kiếm tối đa ${MAX_SEARCH_LENGTH} ký tự`, 400);
+    }
+    if (!search) search = null;
+  }
+  return { status, page, pageSize, studentId, search };
+}
+
+// Escape % và _ để từ khóa không thể khớp tràn lan qua LIKE
+function escapeLike(value) {
+  return value.replace(/[\\%_]/g, '\\$&');
 }
 
 async function listLetters(query) {
-  const { status, page, pageSize, studentId } = parseListQuery(query);
-  const filters = ['l.status = ?'];
-  const params = [status];
+  const {
+    status, page, pageSize, studentId, search,
+  } = parseListQuery(query);
+  const filters = [];
+  const params = [];
+  if (status === 'scheduled') {
+    // Hẹn giờ: đã duyệt nhưng chưa tới giờ hiện (reveal_at lưu UTC, so với UTC)
+    filters.push("l.status = 'approved' AND l.reveal_at IS NOT NULL AND l.reveal_at > UTC_TIMESTAMP()");
+  } else {
+    filters.push('l.status = ?');
+    params.push(status);
+  }
   if (studentId !== null) {
     filters.push('l.student_id = ?');
     params.push(studentId);
   }
+  if (search) {
+    const term = `%${escapeLike(search)}%`;
+    filters.push('(l.sender_name LIKE ? OR l.title LIKE ? OR l.content LIKE ? OR s.full_name LIKE ?)');
+    params.push(term, term, term, term);
+  }
   const where = filters.join(' AND ');
+  // JOIN students ở cả câu đếm để bộ lọc theo tên người nhận dùng chung WHERE
   const [[countRow]] = await pool.execute(
-    `SELECT COUNT(*) AS total FROM letters l WHERE ${where}`,
+    `SELECT COUNT(*) AS total FROM letters l JOIN students s ON s.id = l.student_id WHERE ${where}`,
     params,
   );
   const total = Number(countRow.total);

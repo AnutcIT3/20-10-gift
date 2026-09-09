@@ -1,74 +1,67 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { adminApi } from '../../api/adminApi'
 
 const EMOJI_MAP = {
   smile: '🙂', laugh: '😄', angry: '😠', kiss: '😘',
   love: '😍', sad: '😞', thumbsup: '👍', think: '🤔',
 }
-const REACTION_ORDER = ['love', 'laugh', 'smile', 'thumbsup', 'kiss', 'think', 'sad', 'angry']
 const AUTO_REFRESH_MS = 30_000
+const INBOX_PREVIEW = 3
 
-function StatCard({ to, value, label, accent, hint, attention = false }) {
-  const inner = (
-    <div className="dash-stat-inner" style={accent ? { '--dash-accent': accent } : {}}>
-      <strong>{value ?? '—'}</strong>
-      <span>{label}</span>
-      {hint && <em className="dash-stat-hint">{hint}</em>}
-    </div>
-  )
-  const className = `dash-stat-card${attention ? ' attention' : ''}`
-  return to ? <Link to={to} className={className}>{inner}</Link>
-    : <div className={className}>{inner}</div>
+function greetingByHour(date = new Date()) {
+  const hour = date.getHours()
+  if (hour < 11) return 'Chào buổi sáng'
+  if (hour < 14) return 'Chào buổi trưa'
+  if (hour < 18) return 'Chào buổi chiều'
+  return 'Chào buổi tối'
 }
 
-function BarChart({ items, max }) {
-  if (!items.length) return <p className="dash-empty-msg">Chưa có dữ liệu</p>
-  return (
-    <ul className="dash-bar-list">
-      {items.map(({ label, value, sub }) => (
-        <li key={label} className="dash-bar-row">
-          <span className="dash-bar-label" title={sub ? `${label}${sub}` : label}>
-            {label}
-            {sub ? <small>{sub}</small> : null}
-          </span>
-          <div className="dash-bar-track">
-            <div
-              className="dash-bar-fill"
-              style={{ width: max ? `${Math.round((value / max) * 100)}%` : '0%' }}
-            />
-          </div>
-          <span className="dash-bar-value">{value}</span>
-        </li>
-      ))}
-    </ul>
+function formatReveal(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} · ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function StatCard({ to, value, label, tone = '' }) {
+  const className = `dash-stat${tone ? ` dash-stat--${tone}` : ''}`
+  const inner = (
+    <>
+      <b>{value ?? '—'}</b>
+      <span>{label}</span>
+    </>
   )
+  return to ? <Link to={to} className={className}>{inner}</Link> : <div className={className}>{inner}</div>
 }
 
 function Dashboard() {
-  const navigate = useNavigate()
   const [stats, setStats] = useState(null)
-  const [settings, setSettings] = useState(null)
-  const [lockSaving, setLockSaving] = useState(false)
+  const [inbox, setInbox] = useState({ items: [], total: 0 })
+  const [selectedIds, setSelectedIds] = useState([])
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [lastRefresh, setLastRefresh] = useState(null)
   const timerRef = useRef(null)
   // Đánh số lượt load: response auto-refresh cũ về muộn không được ghi đè
-  // trạng thái khóa mà admin vừa toggle
+  // dữ liệu mới hơn
   const loadSeq = useRef(0)
 
   const load = useCallback(async (silent = false) => {
     const seq = ++loadSeq.current
     if (!silent) setLoading(true)
     try {
-      const [statsData, settingsData] = await Promise.all([
+      const [statsData, pending] = await Promise.all([
         adminApi.getStats(),
-        adminApi.getSettings(),
+        adminApi.listLetters({ status: 'pending', page: 1, pageSize: INBOX_PREVIEW }),
       ])
       if (seq !== loadSeq.current) return
       setStats(statsData)
-      setSettings(settingsData)
+      setInbox({ items: pending?.items || [], total: Number(pending?.pagination?.total || 0) })
+      setSelectedIds((current) => current.filter((id) => (pending?.items || []).some((letter) => letter.id === id)))
       setLastRefresh(new Date())
       setError('')
     } catch (err) {
@@ -77,22 +70,6 @@ function Dashboard() {
       if (seq === loadSeq.current) setLoading(false)
     }
   }, [])
-
-  const toggleLock = useCallback(async () => {
-    if (!settings) return
-    setLockSaving(true)
-    try {
-      const updated = await adminApi.updateSettings({ gift_pages_locked: !settings.gift_pages_locked })
-      // Vô hiệu hóa load đang bay (nếu có) để nó không đè trạng thái vừa đổi
-      loadSeq.current += 1
-      setSettings(updated)
-      setError('')
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLockSaving(false)
-    }
-  }, [settings])
 
   useEffect(() => {
     const initialLoad = setTimeout(() => load(), 0)
@@ -103,147 +80,194 @@ function Dashboard() {
     }
   }, [load])
 
+  // Handler nào cũng clear message/error TRƯỚC để toast remount và chạy lại animation
+  const decide = async (id, status) => {
+    setBusy(true)
+    setMessage('')
+    setError('')
+    try {
+      await adminApi.updateLetterStatus(id, status)
+      setMessage(status === 'approved' ? 'Đã duyệt lời chúc.' : 'Đã từ chối lời chúc.')
+      await load(true)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const approveSelected = async () => {
+    if (!selectedIds.length) return
+    setBusy(true)
+    setMessage('')
+    setError('')
+    try {
+      await adminApi.bulkUpdateLetterStatus(selectedIds, 'approved')
+      setMessage(`Đã duyệt ${selectedIds.length} lời chúc.`)
+      setSelectedIds([])
+      await load(true)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const exportStudents = async () => {
+    setExporting(true)
+    setMessage('')
+    setError('')
+    try { await adminApi.exportStudents(); setMessage('Xuất CSV thành công!') }
+    catch (err) { setError(err.message) }
+    finally { setExporting(false) }
+  }
+
+  const allSelected = inbox.items.length > 0 && inbox.items.every((letter) => selectedIds.includes(letter.id))
+  const toggleAll = () => setSelectedIds(allSelected ? [] : inbox.items.map((letter) => letter.id))
+  const toggleOne = (id) => setSelectedIds((current) => (
+    current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+  ))
+
   const topViewed = stats?.topViewed || []
   const maxViews = topViewed[0]?.view_count || 1
-  const reactions = stats?.reactions?.byEmoji || {}
+  const reactions = Object.entries(stats?.reactions?.byEmoji || {})
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1])
 
   return (
-    <section className="dash-root">
+    <section>
       <header className="admin-page-header">
         <div>
           <p className="admin-kicker">Tổng quan</p>
-          <h2>Bảng điều khiển</h2>
+          <h2>{greetingByHour()}, admin</h2>
         </div>
-        <div className="dash-header-actions">
+        <div className="admin-header-actions">
           {lastRefresh && (
-            <span className="dash-last-refresh">
-              Cập nhật {lastRefresh.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            <span className="admin-header-note">
+              Cập nhật {lastRefresh.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · tự làm mới 30 s
             </span>
           )}
-          <button type="button" className="dash-refresh-btn" onClick={() => load()} disabled={loading}>
-            {loading ? '⟳ Đang tải...' : '⟳ Làm mới'}
+          <button type="button" className="admin-btn" onClick={() => load()} disabled={loading}>
+            {loading ? '⟳ Đang tải…' : '⟳ Làm mới'}
+          </button>
+          <button type="button" className="admin-btn" onClick={exportStudents} disabled={exporting}>
+            {exporting ? 'Đang xuất…' : '⤓ Xuất CSV'}
           </button>
         </div>
       </header>
 
+      {message && <p key={message} className="admin-alert success" role="status">{message}</p>}
       {error && <p key={error} className="admin-alert error" role="alert">{error}</p>}
 
-      {/* ── Khóa/mở trang quà: giữ bất ngờ tới đúng ngày 20/10 ── */}
-      {settings && (
-        <section className={`dash-panel dash-lock-panel${settings.gift_pages_locked ? ' locked' : ''}`}>
-          <div>
-            <strong>{settings.gift_pages_locked ? '🔒 Trang quà đang KHÓA' : '🎉 Trang quà đang MỞ'}</strong>
-            <p>
-              {settings.gift_pages_locked
-                ? 'Người mở trang quà sẽ thấy "Chưa đến ngày 20/10, vui lòng chờ thêm". Gửi lời chúc vẫn hoạt động bình thường.'
-                : 'Mọi người có thể mở trang quà. Bật khóa nếu muốn giữ bất ngờ tới đúng ngày 20/10.'}
-            </p>
-          </div>
-          <button type="button" disabled={lockSaving} onClick={toggleLock}>
-            {lockSaving ? 'Đang lưu...' : settings.gift_pages_locked ? '🎉 Mở trang quà' : '🔒 Khóa chờ 20/10'}
-          </button>
-        </section>
-      )}
-
-      {/* ── Lời chúc lên đầu: duyệt pending là việc admin làm nhiều nhất ── */}
-      <section className="dash-section">
-        <h3 className="dash-section-title">💌 Lời chúc</h3>
-        <div className="dash-stat-grid">
-          <StatCard
-            to="/admin/letters?status=pending"
-            value={stats?.letters?.pending}
-            label="Chờ duyệt"
-            accent="#d97706"
-            attention={(stats?.letters?.pending ?? 0) > 0}
-            hint={(stats?.letters?.pending ?? 0) > 0 ? 'Bấm để duyệt →' : undefined}
-          />
-          <StatCard
-            to="/admin/letters?status=approved"
-            value={stats?.letters?.approved}
-            label="Đã duyệt"
-            accent="#16a34a"
-          />
-          <StatCard
-            to="/admin/letters?status=rejected"
-            value={stats?.letters?.rejected}
-            label="Đã từ chối"
-            accent="#dc2626"
-          />
-        </div>
-      </section>
-
-      {/* ── Học sinh ── */}
-      <section className="dash-section">
-        <h3 className="dash-section-title">👩‍🎓 Học sinh</h3>
-        <div className="dash-stat-grid">
-          <StatCard to="/admin/students" value={stats?.students?.total} label="Tổng học sinh" />
-          <StatCard to="/admin/students" value={stats?.students?.active} label="Đang hoạt động" accent="#8e5ea2" />
-          <StatCard value={stats?.students?.totalViews} label="Tổng lượt xem" accent="#e05e99" />
-        </div>
-      </section>
-
-      {/* ── Thư viện ảnh (gom 2 chỉ số ảnh về một nhóm) ── */}
-      <section className="dash-section">
-        <h3 className="dash-section-title">🖼️ Thư viện ảnh</h3>
-        <div className="dash-stat-grid">
-          <StatCard value={stats?.gallery?.total} label="Tổng ảnh" to="/admin/gallery" />
-          <StatCard to="/admin/gallery" value={stats?.gallery?.studentsWithoutImages} label="Học sinh chưa có ảnh" accent="#64748b" />
-        </div>
-      </section>
-
-      <div className="dash-two-col">
-        {/* ── Top được xem ── */}
-        <section className="dash-panel">
-          <h3 className="dash-panel-title">👁️ Top lượt xem</h3>
-          {loading && !stats ? <p className="dash-loading">Đang tải...</p> : (
-            <BarChart
-              items={topViewed.map((s) => ({
-                label: s.full_name,
-                value: s.view_count,
-                sub: s.nickname ? ` · ${s.nickname}` : null,
-              }))}
-              max={maxViews}
-            />
-          )}
-          <button
-            type="button"
-            className="dash-link-btn"
-            onClick={() => navigate('/admin/students')}
-          >
-            Xem tất cả học sinh →
-          </button>
-        </section>
-
-        {/* ── Reactions ── */}
-        <section className="dash-panel">
-          <h3 className="dash-panel-title">❤️ Tổng reactions — {stats?.reactions?.total ?? 0}</h3>
-          {loading && !stats ? <p className="dash-loading">Đang tải...</p> : (
-            <div className="dash-reaction-grid">
-              {REACTION_ORDER.map((key) => {
-                const count = reactions[key] || 0
-                const emoji = EMOJI_MAP[key]
-                const total = stats?.reactions?.total || 1
-                const pct = Math.round((count / total) * 100)
-                return (
-                  <div key={key} className="dash-reaction-item">
-                    <span className="dash-reaction-emoji">{emoji}</span>
-                    <div className="dash-reaction-bar-track">
-                      <div className="dash-reaction-bar-fill" style={{ width: `${pct}%` }} />
-                    </div>
-                    <span className="dash-reaction-num">{count}</span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </section>
+      <div className="dash-stats">
+        <StatCard to="/admin/letters?status=pending" value={stats?.letters?.pending} label="Chờ duyệt" tone="clay" />
+        <StatCard to="/admin/letters?status=approved" value={stats?.letters?.approved} label="Đã duyệt" tone="moss" />
+        <StatCard to="/admin/letters?status=rejected" value={stats?.letters?.rejected} label="Từ chối" tone="line" />
+        <StatCard
+          to="/admin/students"
+          value={stats?.students?.total}
+          label={stats ? `Học sinh · ${stats.students?.active ?? 0} hoạt động` : 'Học sinh'}
+        />
+        <StatCard value={stats?.students?.totalViews} label="Lượt xem" />
+        <StatCard
+          to="/admin/gallery"
+          value={stats?.gallery?.total}
+          label={stats ? `Ảnh · ${stats.gallery?.studentsWithoutImages ?? 0} bạn chưa có` : 'Ảnh'}
+        />
       </div>
 
-      {/* ── Quick links ── */}
-      <div className="admin-quick-links">
-        <Link to="/admin/students">Quản lý học sinh</Link>
-        <Link to="/admin/gallery">Tải ảnh lên</Link>
-        <Link to="/admin/letters">Duyệt lời chúc</Link>
+      <div className="dash-grid">
+        {/* Việc cần làm lên đầu: duyệt lời chúc chờ */}
+        <section className="admin-card" aria-labelledby="inbox-title">
+          <div className="admin-card__head">
+            <h3 id="inbox-title">Hộp thư chờ duyệt</h3>
+            {inbox.items.length > 0 && (
+              <div className="admin-header-actions">
+                <button type="button" className="admin-btn admin-btn--sm" onClick={toggleAll} disabled={busy}>
+                  {allSelected ? 'Bỏ chọn' : 'Chọn tất cả'}
+                </button>
+                <button type="button" className="admin-btn admin-btn--sm admin-btn--moss" onClick={approveSelected} disabled={busy || !selectedIds.length}>
+                  ✓ Duyệt{selectedIds.length ? ` ${selectedIds.length}` : ''}
+                </button>
+              </div>
+            )}
+          </div>
+          {loading && !stats ? (
+            <p className="admin-loading" style={{ padding: '16px 20px' }}>Đang tải…</p>
+          ) : inbox.items.length === 0 ? (
+            <p className="admin-loading" style={{ padding: '18px 20px', margin: 0 }}>Hộp thư trống — không còn lời chúc nào chờ duyệt 🎉</p>
+          ) : inbox.items.map((letter) => {
+            const anonymous = letter.is_anonymous || !letter.sender_name
+            return (
+              <div key={letter.id} className="inbox-row">
+                <input
+                  type="checkbox"
+                  className="admin-check"
+                  checked={selectedIds.includes(letter.id)}
+                  onChange={() => toggleOne(letter.id)}
+                  aria-label={`Chọn lời chúc của ${anonymous ? 'người ẩn danh' : letter.sender_name}`}
+                />
+                <div>
+                  <div className="inbox-row__meta">
+                    <b className={`inbox-row__sender${anonymous ? ' inbox-row__sender--anon' : ''}`}>
+                      {anonymous ? 'Ẩn danh' : letter.sender_name}
+                    </b>
+                    <span className="inbox-row__to">→ {letter.student_name}</span>
+                    {letter.reveal_at && <span className="chip chip--peach">⏰ hiện {formatReveal(letter.reveal_at)}</span>}
+                    {letter.image_url && <span className="chip chip--beige">📷 1 ảnh</span>}
+                    {letter.member_type === 'friend' && <span className="chip chip--moss">bạn ngoài lớp</span>}
+                  </div>
+                  <p className="inbox-row__text">{letter.content}</p>
+                </div>
+                <div className="inbox-row__actions">
+                  <button type="button" className="admin-btn admin-btn--icon admin-btn--ok" onClick={() => decide(letter.id, 'approved')} disabled={busy} aria-label="Duyệt">✓</button>
+                  <button type="button" className="admin-btn admin-btn--icon admin-btn--no" onClick={() => decide(letter.id, 'rejected')} disabled={busy} aria-label="Từ chối">✕</button>
+                </div>
+              </div>
+            )
+          })}
+          {inbox.total > 0 && (
+            <Link to="/admin/letters?status=pending" className="admin-card__link">
+              Xem cả {inbox.total} lời chúc chờ duyệt →
+            </Link>
+          )}
+        </section>
+
+        <div className="dash-side">
+          <section className="admin-card admin-card--pad" aria-labelledby="top-title">
+            <h3 id="top-title">Được xem nhiều</h3>
+            {loading && !stats ? <p className="admin-loading">Đang tải…</p> : topViewed.length === 0 ? (
+              <p className="admin-hint" style={{ margin: 0 }}>Chưa có lượt xem nào.</p>
+            ) : (
+              <ul className="dash-bars">
+                {topViewed.map((student) => (
+                  <li key={student.id} className="dash-bar">
+                    <span className="dash-bar__label" title={student.full_name}>{student.full_name}</span>
+                    <div className="dash-bar__track">
+                      <div className="dash-bar__fill" style={{ width: `${Math.round((student.view_count / maxViews) * 100)}%` }} />
+                    </div>
+                    <b className="dash-bar__value">{student.view_count}</b>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="admin-card admin-card--pad" aria-labelledby="reactions-title">
+            <h3 id="reactions-title">Cảm xúc · {stats?.reactions?.total ?? 0}</h3>
+            {loading && !stats ? <p className="admin-loading">Đang tải…</p> : reactions.length === 0 ? (
+              <p className="admin-hint" style={{ margin: 0 }}>Chưa có cảm xúc nào.</p>
+            ) : (
+              <div className="dash-chips">
+                {reactions.map(([key, count], index) => (
+                  <span key={key} className={`dash-chip${index === 0 ? ' dash-chip--top' : ''}`}>
+                    {EMOJI_MAP[key] || key} <b>{count}</b>
+                  </span>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
       </div>
     </section>
   )

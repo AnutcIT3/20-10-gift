@@ -2,12 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { adminApi } from '../../api/adminApi'
 import useDialogA11y from '../../hooks/useDialogA11y'
+import Polaroid from '../../components/paper/Polaroid'
+import { formatStamp } from '../../lib/event'
 
 const STATUSES = [
   { value: 'pending', label: 'Chờ duyệt' },
   { value: 'approved', label: 'Đã duyệt' },
-  { value: 'rejected', label: 'Đã từ chối' },
+  { value: 'rejected', label: 'Từ chối' },
 ]
+// Tab "Hẹn giờ" là bộ lọc ảo (đã duyệt nhưng chưa tới giờ) — không phải trạng thái lưu
+const TABS = [...STATUSES, { value: 'scheduled', label: 'Hẹn giờ' }]
 
 const EMPTY_COMPOSE_FORM = {
   studentIds: [],
@@ -46,18 +50,23 @@ function computeRevealLimits() {
   }
 }
 
+function formatReveal(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} · ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
 function ReactionSummary({ reactions = {} }) {
   const entries = Object.entries(reactions).filter(([, count]) => count > 0)
   if (!entries.length) return null
-  const total = entries.reduce((sum, [, value]) => sum + value, 0)
   return (
     <div className="admin-reactions">
       {entries.map(([key, count]) => (
         <span key={key} className="admin-reaction-chip" title={key}>
-          {EMOJI_MAP[key] || key} {count}
+          {EMOJI_MAP[key] || key} <b>{count}</b>
         </span>
       ))}
-      <span className="admin-reaction-total">{total} cảm xúc</span>
     </div>
   )
 }
@@ -72,12 +81,16 @@ function LetterManager() {
   const searchParams = new URLSearchParams(location.search)
   const initStudentId = searchParams.get('studentId') || ''
   const initStatus = searchParams.get('status') || 'pending'
+  const initSearch = searchParams.get('search') || ''
 
   const [students, setStudents] = useState([])
   const [status, setStatus] = useState(initStatus)
   const [studentId, setStudentId] = useState(initStudentId)
+  const [search, setSearch] = useState(initSearch)
+  const [searchInput, setSearchInput] = useState(initSearch)
   const [page, setPage] = useState(1)
   const [data, setData] = useState({ items: [], pagination: { total: 0, totalPages: 0 } })
+  const [counts, setCounts] = useState(null)
   const [selectedLetter, setSelectedLetter] = useState(null)
   const [editingLetter, setEditingLetter] = useState(null)
   const [editForm, setEditForm] = useState(null)
@@ -111,7 +124,10 @@ function LetterManager() {
     const seq = ++loadSeq.current
     setLoading(true)
     try {
-      const result = await adminApi.listLetters({ status, studentId, page })
+      const [result, stats] = await Promise.all([
+        adminApi.listLetters({ status, studentId, search, page }),
+        adminApi.getStats().catch(() => null),
+      ])
       if (seq !== loadSeq.current) return
       // Duyệt/xóa hết mục của trang cuối làm tổng số trang co lại — clamp về
       // trang hợp lệ, nếu không admin kẹt ở trang rỗng (pagination đã bị ẩn)
@@ -121,6 +137,7 @@ function LetterManager() {
         return
       }
       setData(result)
+      if (stats?.letters) setCounts(stats.letters)
       setSelectedIds((current) => current.filter((id) => result.items.some((letter) => letter.id === id)))
       setError('')
     } catch (err) {
@@ -129,7 +146,7 @@ function LetterManager() {
     } finally {
       if (seq === loadSeq.current) setLoading(false)
     }
-  }, [status, studentId, page])
+  }, [status, studentId, search, page])
 
   // setTimeout 0 để setState không chạy đồng bộ trong effect (react-hooks v7)
   useEffect(() => {
@@ -144,22 +161,34 @@ function LetterManager() {
       const params = new URLSearchParams(location.search)
       const nextStatus = params.get('status') || 'pending'
       const nextStudentId = params.get('studentId') || ''
-      if (nextStatus !== status || nextStudentId !== studentId) {
+      const nextSearch = params.get('search') || ''
+      if (nextStatus !== status || nextStudentId !== studentId || nextSearch !== search) {
         setStatus(nextStatus)
         setStudentId(nextStudentId)
+        setSearch(nextSearch)
+        setSearchInput(nextSearch)
         setPage(1)
         setSelectedIds([])
       }
     }, 0)
     return () => clearTimeout(sync)
-  }, [location.search, status, studentId])
+  }, [location.search, status, studentId, search])
 
-  const applyFilter = (newStatus, newStudentId) => {
+  const applyFilter = useCallback((newStatus, newStudentId, newSearch = search) => {
     const params = new URLSearchParams()
     if (newStatus) params.set('status', newStatus)
     if (newStudentId) params.set('studentId', newStudentId)
+    if (newSearch) params.set('search', newSearch)
     navigate(`/admin/letters${params.toString() ? `?${params}` : ''}`, { replace: true })
-  }
+  }, [navigate, search])
+
+  // Gõ tìm kiếm: chờ 350 ms rồi mới đẩy vào URL để không gọi API theo từng phím
+  useEffect(() => {
+    const trimmed = searchInput.trim()
+    if (trimmed === search) return undefined
+    const timer = setTimeout(() => applyFilter(status, studentId, trimmed), 350)
+    return () => clearTimeout(timer)
+  }, [searchInput, search, status, studentId, applyFilter])
 
   const buildPayload = (form) => ({
     student_id: form.studentId ? Number(form.studentId) : undefined,
@@ -301,145 +330,169 @@ function LetterManager() {
     ? students.find((student) => String(student.id) === String(studentId))?.full_name || ''
     : ''
 
+  const tabCount = (value) => (counts && counts[value] !== undefined ? ` · ${counts[value]}` : '')
+
   return (
     <section>
       <header className="admin-page-header">
         <div>
           <p className="admin-kicker">Lời chúc</p>
-          <h2>Quản lý lời chúc{selectedStudentName ? ` - ${selectedStudentName}` : ''}</h2>
+          <h2>Hộp thư{selectedStudentName && <> · <span className="accent">{selectedStudentName}</span></>}</h2>
         </div>
-        <div className="dash-header-actions">
-          <span>{data.pagination.total} kết quả</span>
-          <button type="button" className="dash-refresh-btn" onClick={() => setComposeOpen((open) => !open)}>
-            {composeOpen ? 'Đóng khung soạn' : '✍️ Soạn lời chúc'}
-          </button>
+        <div className="admin-header-actions">
+          <div className="admin-tabs" role="group" aria-label="Lọc trạng thái lời chúc">
+            {TABS.map((item) => (
+              <button key={item.value} type="button" className={status === item.value ? 'active' : ''} aria-pressed={status === item.value} onClick={() => applyFilter(item.value, studentId)}>
+                {item.label}{tabCount(item.value)}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
-      {/* Form soạn mặc định đóng: việc hằng ngày là DUYỆT, danh sách phải ở màn hình đầu */}
-      {composeOpen && (
-      <form className="admin-panel admin-form-grid" onSubmit={submitCompose}>
-        <h3>Gửi lời chúc từ admin</h3>
-        <label className="admin-span-2">
-          Người nhận
-          <select
-            multiple
-            className="admin-multi-select"
-            value={composeForm.studentIds.map(String)}
-            onChange={(event) => setComposeForm({ ...composeForm, studentIds: selectedOptions(event) })}
-          >
-            {activeStudents.map((student) => (
-              <option key={student.id} value={student.id}>{student.full_name}</option>
-            ))}
-          </select>
-        </label>
-        <div className="admin-span-2 admin-inline-actions">
-          <button
-            type="button"
-            onClick={() => setComposeForm({ ...composeForm, studentIds: activeStudents.map((student) => student.id) })}
-          >
-            Chọn tất cả người đang hoạt động
-          </button>
-          <button type="button" onClick={() => setComposeForm({ ...composeForm, studentIds: [] })}>Bỏ chọn</button>
-          <span>{composeForm.studentIds.length} người nhận</span>
-        </div>
-        <fieldset className="admin-fieldset">
-          <legend>Người gửi</legend>
-          <label><input type="radio" name="compose-sender" checked={!composeForm.isAnonymous} onChange={() => setComposeForm({ ...composeForm, isAnonymous: false })} /> Hiện tên</label>
-          <label><input type="radio" name="compose-sender" checked={composeForm.isAnonymous} onChange={() => setComposeForm({ ...composeForm, isAnonymous: true, senderName: '' })} /> Ẩn danh</label>
-        </fieldset>
-        {!composeForm.isAnonymous && (
-          <label>Tên người gửi<input maxLength={100} value={composeForm.senderName} onChange={(event) => setComposeForm({ ...composeForm, senderName: event.target.value })} /></label>
-        )}
-        <label>Trạng thái
-          <select value={composeForm.status} onChange={(event) => setComposeForm({ ...composeForm, status: event.target.value })}>
-            {STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </select>
-        </label>
-        <label>Hiện lúc
-          <input type="datetime-local" value={composeForm.revealAt} min={revealLimits.min} max={revealLimits.max} onChange={(event) => setComposeForm({ ...composeForm, revealAt: event.target.value })} />
-        </label>
-        <label className="admin-span-2">Tiêu đề<input maxLength={200} value={composeForm.title} onChange={(event) => setComposeForm({ ...composeForm, title: event.target.value })} /></label>
-        <label className="admin-span-2">Nội dung<textarea required maxLength={5000} value={composeForm.content} onChange={(event) => setComposeForm({ ...composeForm, content: event.target.value })} /></label>
-        <div className="admin-form-actions admin-span-2">
-          <button className="admin-primary" disabled={saving}>{saving ? 'Đang gửi...' : 'Gửi lời chúc'}</button>
-        </div>
-      </form>
-      )}
-
-      <div className="admin-panel admin-filters">
-        <div className="admin-tabs" role="group" aria-label="Lọc trạng thái lời chúc">
-          {STATUSES.map((item) => (
-            <button key={item.value} type="button" className={status === item.value ? 'active' : ''} aria-pressed={status === item.value} onClick={() => applyFilter(item.value, studentId)}>
-              {item.label}
-            </button>
+      <div className="admin-filters">
+        <input
+          className="admin-input admin-input--search"
+          type="search"
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
+          placeholder="Tìm theo người gửi, người nhận, nội dung…"
+          aria-label="Tìm lời chúc"
+        />
+        <select className="admin-select" value={studentId} onChange={(event) => applyFilter(status, event.target.value)} aria-label="Người nhận">
+          <option value="">Mọi người nhận</option>
+          {students.map((student) => (
+            <option key={student.id} value={student.id}>{student.full_name}</option>
           ))}
-        </div>
-        <label>
-          Học sinh
-          <select value={studentId} onChange={(event) => applyFilter(status, event.target.value)}>
-            <option value="">Tất cả</option>
-            {students.map((student) => (
-              <option key={student.id} value={student.id}>{student.full_name}</option>
-            ))}
-          </select>
-        </label>
+        </select>
+        {data.items.length > 0 && (
+          <label className="admin-check-label">
+            <input type="checkbox" className="admin-check" checked={allVisibleSelected} onChange={toggleAllVisible} />
+            Chọn tất cả
+          </label>
+        )}
+        <span className="admin-header-note">{data.pagination.total} kết quả</span>
+        <button type="button" className="admin-btn admin-btn--ink push-end" onClick={() => setComposeOpen((open) => !open)}>
+          {composeOpen ? 'Đóng khung soạn' : '✍ Soạn lời chúc'}
+        </button>
       </div>
 
+      {/* Form soạn mặc định đóng: việc hằng ngày là DUYỆT, danh sách phải ở màn hình đầu */}
+      {composeOpen && (
+        <form className="admin-form letter-paper letter-paper--form" onSubmit={submitCompose}>
+          <h3>Gửi lời chúc từ admin</h3>
+          <label className="admin-field admin-field--full">
+            Người nhận (giữ Ctrl/⌘ để chọn nhiều)
+            <select
+              multiple
+              className="admin-select admin-multi"
+              value={composeForm.studentIds.map(String)}
+              onChange={(event) => setComposeForm({ ...composeForm, studentIds: selectedOptions(event) })}
+            >
+              {activeStudents.map((student) => (
+                <option key={student.id} value={student.id}>{student.full_name}</option>
+              ))}
+            </select>
+          </label>
+          <div className="admin-inline admin-field--full">
+            <button type="button" className="admin-btn admin-btn--sm" onClick={() => setComposeForm({ ...composeForm, studentIds: activeStudents.map((student) => student.id) })}>
+              Chọn tất cả người đang hoạt động
+            </button>
+            <button type="button" className="admin-btn admin-btn--sm" onClick={() => setComposeForm({ ...composeForm, studentIds: [] })}>Bỏ chọn</button>
+            <span>{composeForm.studentIds.length} người nhận</span>
+          </div>
+          <div className="admin-radio-row admin-field--full" role="radiogroup" aria-label="Người gửi">
+            <label><input type="radio" name="compose-sender" checked={!composeForm.isAnonymous} onChange={() => setComposeForm({ ...composeForm, isAnonymous: false })} /> Hiện tên</label>
+            <label><input type="radio" name="compose-sender" checked={composeForm.isAnonymous} onChange={() => setComposeForm({ ...composeForm, isAnonymous: true, senderName: '' })} /> Ẩn danh</label>
+          </div>
+          {!composeForm.isAnonymous && (
+            <label className="admin-field">Tên người gửi<input className="input-hand" maxLength={100} value={composeForm.senderName} onChange={(event) => setComposeForm({ ...composeForm, senderName: event.target.value })} /></label>
+          )}
+          <label className="admin-field">Trạng thái
+            <select className="input-hand" value={composeForm.status} onChange={(event) => setComposeForm({ ...composeForm, status: event.target.value })}>
+              {STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+          </label>
+          <label className="admin-field">Hiện lúc (tùy chọn)
+            <input className="input-hand" type="datetime-local" value={composeForm.revealAt} min={revealLimits.min} max={revealLimits.max} onChange={(event) => setComposeForm({ ...composeForm, revealAt: event.target.value })} />
+          </label>
+          <label className="admin-field">Tiêu đề<input className="input-hand" maxLength={200} value={composeForm.title} onChange={(event) => setComposeForm({ ...composeForm, title: event.target.value })} /></label>
+          <label className="admin-field admin-field--full">Nội dung<textarea className="input-hand" required maxLength={5000} rows={3} value={composeForm.content} onChange={(event) => setComposeForm({ ...composeForm, content: event.target.value })} /></label>
+          <div className="admin-form__actions">
+            <button type="button" className="admin-btn" onClick={() => setComposeOpen(false)}>Hủy</button>
+            <button className="admin-btn admin-btn--primary" disabled={saving}>{saving ? 'Đang gửi…' : 'Dán tem & gửi ✉'}</button>
+          </div>
+        </form>
+      )}
+
       {selectedIds.length > 0 && (
-        <div className="admin-panel admin-bulk-bar">
-          <strong>{selectedIds.length} lời chúc đã chọn</strong>
-          <button type="button" className="admin-approve-primary" onClick={() => bulkChangeStatus('approved')}>Duyệt hàng loạt</button>
-          <button type="button" onClick={() => bulkChangeStatus('rejected')}>Từ chối hàng loạt</button>
-          <button type="button" onClick={() => setSelectedIds([])}>Bỏ chọn</button>
-          <button type="button" className="danger push-end" onClick={bulkRemove}>Xóa hàng loạt</button>
+        <div className="admin-bulk-bar">
+          <b>{selectedIds.length} đã chọn</b>
+          <button type="button" className="admin-btn admin-btn--sm admin-btn--moss" onClick={() => bulkChangeStatus('approved')}>✓ Duyệt</button>
+          <button type="button" className="admin-btn admin-btn--sm" onClick={() => bulkChangeStatus('rejected')}>Từ chối</button>
+          <button type="button" className="admin-btn admin-btn--sm" onClick={() => setSelectedIds([])}>Bỏ chọn</button>
+          <button type="button" className="admin-btn admin-btn--sm admin-btn--danger push-end" onClick={bulkRemove}>Xóa</button>
         </div>
       )}
 
       {message && <p key={message} className="admin-alert success" role="status">{message}</p>}
       {error && <p key={error} className="admin-alert error" role="alert">{error}</p>}
 
-      {loading && !data.items.length ? <p>Đang tải...</p> : data.items.length ? (
+      {loading && !data.items.length ? <p className="admin-loading">Đang tải…</p> : data.items.length ? (
         // Giữ nguyên danh sách khi refetch sau duyệt/từ chối — không mất vị trí cuộn
         <div className={`admin-letter-list${loading ? ' refreshing' : ''}`}>
-          <label className="admin-select-all">
-            <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} />
-            Chọn tất cả trên trang này
-          </label>
-          {data.items.map((letter) => (
-            <article key={letter.id} className="admin-panel admin-letter-card">
-              <header>
-                <label className="admin-letter-select">
-                  <input type="checkbox" checked={selectedIds.includes(letter.id)} onChange={() => toggleSelected(letter.id)} />
-                  <span>
-                    <strong>{letter.student_name}{letter.member_type === 'friend' && <span className="admin-badge friend"> 🌸 Bạn bè</span>}</strong>
-                    <small>Từ: {letter.is_anonymous || !letter.sender_name ? 'Ẩn danh' : letter.sender_name}</small>
-                  </span>
-                </label>
-                <span className={`admin-badge ${letter.status}`}>
-                  {STATUSES.find((item) => item.value === letter.status)?.label || letter.status}
-                </span>
-              </header>
-              {letter.title && <h3>{letter.title}</h3>}
-              <p>{letter.content}</p>
-              {letter.image_url && <img className="admin-letter-image" src={letter.image_url} alt="Ảnh kèm lời chúc" loading="lazy" />}
-              {letter.reveal_at && (
-                <div className="admin-reveal-chip">
-                  Hiện lúc {new Date(letter.reveal_at).toLocaleString('vi-VN')}
+          {data.items.map((letter) => {
+            const anonymous = letter.is_anonymous || !letter.sender_name
+            const tone = letter.status === 'approved' ? ' letter-row--approved' : letter.status === 'rejected' ? ' letter-row--rejected' : ''
+            return (
+              <article key={letter.id} className={`letter-row${tone}`}>
+                <input
+                  type="checkbox"
+                  className="admin-check"
+                  checked={selectedIds.includes(letter.id)}
+                  onChange={() => toggleSelected(letter.id)}
+                  aria-label={`Chọn lời chúc gửi ${letter.student_name}`}
+                />
+                <div className="letter-row__main">
+                  <div className="letter-row__meta">
+                    <b className={`letter-row__sender${anonymous ? ' letter-row__sender--anon' : ''}`}>
+                      {anonymous ? 'Ẩn danh' : letter.sender_name}
+                    </b>
+                    <span className="letter-row__to">→ <b>{letter.student_name}</b></span>
+                    {letter.reveal_at && <span className="chip chip--peach">⏰ hiện {formatReveal(letter.reveal_at)}</span>}
+                    {letter.image_url && <span className="chip chip--beige">📷 1 ảnh</span>}
+                    {letter.member_type === 'friend' && <span className="chip chip--moss">bạn ngoài lớp</span>}
+                    <span className={`admin-badge ${letter.status}`}>
+                      {STATUSES.find((item) => item.value === letter.status)?.label || letter.status}
+                    </span>
+                  </div>
+                  {letter.title && <p className="letter-row__title">{letter.title}</p>}
+                  <p className="letter-row__content">{letter.content}</p>
+                  <div className="letter-row__foot">
+                    {letter.image_url && (
+                      <Polaroid src={letter.image_url} alt="Ảnh kèm lời chúc" small rotate={-2} tape="none" lazy className="letter-row__photo" />
+                    )}
+                    <time className="letter-row__time" dateTime={letter.created_at}>Gửi {formatStamp(letter.created_at)}</time>
+                    <ReactionSummary reactions={letter.reactions} />
+                  </div>
                 </div>
-              )}
-              <ReactionSummary reactions={letter.reactions} />
-              <small>{new Date(letter.created_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}</small>
-              {/* Hành động chính (Duyệt nhanh) đứng đầu và nổi bật; Xóa tách ra mép phải */}
-              <div className="admin-row-actions">
-                {letter.status !== 'approved' && <button type="button" className="admin-approve-primary" onClick={() => changeStatus(letter.id, 'approved')}>Duyệt nhanh</button>}
-                {letter.status !== 'rejected' && <button type="button" onClick={() => changeStatus(letter.id, 'rejected')}>Từ chối</button>}
-                <button type="button" onClick={() => setSelectedLetter(letter)}>Xem đầy đủ</button>
-                <button type="button" onClick={() => startEdit(letter)}>Sửa</button>
-                <button type="button" className="danger push-end" onClick={() => setSelectedLetter({ ...letter, confirmDelete: true })}>Xóa</button>
-              </div>
-            </article>
-          ))}
+                {/* Hành động chính (Duyệt) đứng đầu và nổi bật; Xóa tách xuống cuối */}
+                <div className="letter-row__side">
+                  {letter.status !== 'approved' && (
+                    <button type="button" className="admin-btn admin-btn--moss" onClick={() => changeStatus(letter.id, 'approved')}>✓ Duyệt</button>
+                  )}
+                  <div className="letter-row__pair">
+                    {letter.status !== 'rejected' && <button type="button" className="admin-btn" onClick={() => changeStatus(letter.id, 'rejected')}>Từ chối</button>}
+                    <button type="button" className="admin-btn" onClick={() => setSelectedLetter(letter)}>Xem đủ</button>
+                  </div>
+                  <div className="letter-row__pair">
+                    <button type="button" className="admin-btn" onClick={() => startEdit(letter)}>Sửa</button>
+                    <button type="button" className="admin-btn admin-btn--ghost" onClick={() => setSelectedLetter({ ...letter, confirmDelete: true })}>Xóa vĩnh viễn</button>
+                  </div>
+                </div>
+              </article>
+            )
+          })}
         </div>
       ) : (
         <div className="admin-empty">Không có lời chúc phù hợp.</div>
@@ -447,9 +500,9 @@ function LetterManager() {
 
       {data.pagination.totalPages > 1 && (
         <div className="admin-pagination">
-          <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Trang trước</button>
-          <span>Trang {page}/{data.pagination.totalPages}</span>
-          <button type="button" disabled={page >= data.pagination.totalPages} onClick={() => setPage(page + 1)}>Trang sau</button>
+          <button type="button" className="admin-btn admin-btn--sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>← Trước</button>
+          <span>Trang {page} / {data.pagination.totalPages}</span>
+          <button type="button" className="admin-btn admin-btn--sm" disabled={page >= data.pagination.totalPages} onClick={() => setPage(page + 1)}>Sau →</button>
         </div>
       )}
 
@@ -457,33 +510,32 @@ function LetterManager() {
         <div className="admin-modal-backdrop" role="presentation" onClick={closeEdit}>
           <section ref={editDialogRef} className="admin-modal large" role="dialog" aria-modal="true" aria-labelledby="letter-edit-title" onClick={(event) => event.stopPropagation()}>
             <h3 id="letter-edit-title">Sửa lời chúc</h3>
-            <form className="admin-form-grid" onSubmit={submitEdit}>
-              <label className="admin-span-2">Người nhận
-                <select value={editForm.studentId} onChange={(event) => setEditForm({ ...editForm, studentId: event.target.value })}>
+            <form className="admin-form" onSubmit={submitEdit}>
+              <label className="admin-field admin-field--full">Người nhận
+                <select className="input-hand" value={editForm.studentId} onChange={(event) => setEditForm({ ...editForm, studentId: event.target.value })}>
                   {activeStudents.map((student) => (
                     <option key={student.id} value={student.id}>{student.full_name}</option>
                   ))}
                 </select>
               </label>
-              <fieldset className="admin-fieldset">
-                <legend>Người gửi</legend>
+              <div className="admin-radio-row admin-field--full" role="radiogroup" aria-label="Người gửi">
                 <label><input type="radio" name="edit-sender" checked={!editForm.isAnonymous} onChange={() => setEditForm({ ...editForm, isAnonymous: false })} /> Hiện tên</label>
                 <label><input type="radio" name="edit-sender" checked={editForm.isAnonymous} onChange={() => setEditForm({ ...editForm, isAnonymous: true, senderName: '' })} /> Ẩn danh</label>
-              </fieldset>
-              {!editForm.isAnonymous && <label>Tên người gửi<input maxLength={100} value={editForm.senderName} onChange={(event) => setEditForm({ ...editForm, senderName: event.target.value })} /></label>}
-              <label>Trạng thái
-                <select value={editForm.status} onChange={(event) => setEditForm({ ...editForm, status: event.target.value })}>
+              </div>
+              {!editForm.isAnonymous && <label className="admin-field">Tên người gửi<input className="input-hand" maxLength={100} value={editForm.senderName} onChange={(event) => setEditForm({ ...editForm, senderName: event.target.value })} /></label>}
+              <label className="admin-field">Trạng thái
+                <select className="input-hand" value={editForm.status} onChange={(event) => setEditForm({ ...editForm, status: event.target.value })}>
                   {STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
               </label>
-              <label>Hiện lúc
-                <input type="datetime-local" value={editForm.revealAt} onChange={(event) => setEditForm({ ...editForm, revealAt: event.target.value })} />
+              <label className="admin-field">Hiện lúc
+                <input className="input-hand" type="datetime-local" value={editForm.revealAt} onChange={(event) => setEditForm({ ...editForm, revealAt: event.target.value })} />
               </label>
-              <label className="admin-span-2">Tiêu đề<input maxLength={200} value={editForm.title} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} /></label>
-              <label className="admin-span-2">Nội dung<textarea required maxLength={5000} value={editForm.content} onChange={(event) => setEditForm({ ...editForm, content: event.target.value })} /></label>
-              <div className="admin-form-actions admin-span-2">
-                <button className="admin-primary" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu chỉnh sửa'}</button>
-                <button type="button" onClick={() => { setEditingLetter(null); setEditForm(null) }}>Hủy</button>
+              <label className="admin-field">Tiêu đề<input className="input-hand" maxLength={200} value={editForm.title} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} /></label>
+              <label className="admin-field admin-field--full">Nội dung<textarea className="input-hand" required maxLength={5000} rows={4} value={editForm.content} onChange={(event) => setEditForm({ ...editForm, content: event.target.value })} /></label>
+              <div className="admin-form__actions">
+                <button type="button" className="admin-btn" onClick={closeEdit}>Hủy</button>
+                <button className="admin-btn admin-btn--primary" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu chỉnh sửa'}</button>
               </div>
             </form>
           </section>
@@ -497,30 +549,32 @@ function LetterManager() {
               {selectedLetter.confirmDelete ? 'Xóa lời chúc' : (selectedLetter.title || 'Nội dung lời chúc')}
             </h3>
             <p className="admin-letter-full">{selectedLetter.content}</p>
-            {selectedLetter.image_url && <img className="admin-letter-image" src={selectedLetter.image_url} alt="Ảnh kèm lời chúc" />}
-            <small>
-              Người nhận: {selectedLetter.student_name} · Người gửi: {selectedLetter.is_anonymous || !selectedLetter.sender_name ? 'Ẩn danh' : selectedLetter.sender_name}
-            </small>
+            {selectedLetter.image_url && (
+              <Polaroid src={selectedLetter.image_url} alt="Ảnh kèm lời chúc" rotate={-1} tape="none" style={{ width: 'min(320px, 100%)', margin: '10px 0' }} />
+            )}
+            <p>
+              Người nhận: <b>{selectedLetter.student_name}</b> · Người gửi: {selectedLetter.is_anonymous || !selectedLetter.sender_name ? 'Ẩn danh' : selectedLetter.sender_name}
+              {' · '}Gửi {formatStamp(selectedLetter.created_at)}
+            </p>
             {!selectedLetter.confirmDelete && (
-              <div className="admin-modal-reactions">
-                <strong>Cảm xúc nhận được:</strong>
-                <ReactionSummary reactions={selectedLetter.reactions} />
-                {!Object.values(selectedLetter.reactions || {}).some(Boolean) && (
-                  <span className="admin-no-reactions">Chưa có cảm xúc nào</span>
-                )}
+              <div>
+                <span className="admin-hint" style={{ display: 'block', marginBottom: 6 }}>Cảm xúc nhận được</span>
+                {Object.values(selectedLetter.reactions || {}).some(Boolean)
+                  ? <ReactionSummary reactions={selectedLetter.reactions} />
+                  : <span className="admin-hint">Chưa có cảm xúc nào</span>}
               </div>
             )}
             <div className="admin-form-actions">
               {selectedLetter.confirmDelete ? (
-                <button type="button" className="danger" onClick={() => remove(selectedLetter.id)}>Xóa vĩnh viễn</button>
+                <button type="button" className="admin-btn admin-btn--primary" onClick={() => remove(selectedLetter.id)}>Xóa vĩnh viễn</button>
               ) : (
                 <>
-                  <button type="button" onClick={() => { startEdit(selectedLetter); setSelectedLetter(null) }}>Sửa</button>
-                  {selectedLetter.status !== 'approved' && <button type="button" className="approve" onClick={() => changeStatus(selectedLetter.id, 'approved')}>Duyệt</button>}
-                  {selectedLetter.status !== 'rejected' && <button type="button" onClick={() => changeStatus(selectedLetter.id, 'rejected')}>Từ chối</button>}
+                  <button type="button" className="admin-btn" onClick={() => { startEdit(selectedLetter); setSelectedLetter(null) }}>Sửa</button>
+                  {selectedLetter.status !== 'approved' && <button type="button" className="admin-btn admin-btn--moss" onClick={() => changeStatus(selectedLetter.id, 'approved')}>✓ Duyệt</button>}
+                  {selectedLetter.status !== 'rejected' && <button type="button" className="admin-btn" onClick={() => changeStatus(selectedLetter.id, 'rejected')}>Từ chối</button>}
                 </>
               )}
-              <button type="button" onClick={() => setSelectedLetter(null)}>Đóng</button>
+              <button type="button" className="admin-btn" onClick={() => setSelectedLetter(null)}>Đóng</button>
             </div>
           </section>
         </div>

@@ -40,8 +40,15 @@ function sanitizeInput(data, requireName = false) {
   return Object.fromEntries(Object.entries(clean).filter(([, value]) => value !== undefined));
 }
 
+// Các cột đếm từ subquery về dạng chuỗi/BigInt tùy driver — ép về number,
+// và chỉ khi có mặt (getStudent không kèm đếm thì không bịa ra số 0)
+const COUNT_FIELDS = ['view_count', 'gallery_count', 'letter_count', 'pending_letter_count'];
+
 function presentStudent(row) {
   const { access_code: accessCode, normalized_name: _normalizedName, ...student } = row;
+  for (const field of COUNT_FIELDS) {
+    if (student[field] !== undefined && student[field] !== null) student[field] = Number(student[field]);
+  }
   return { ...student, giftPath: `/gift/${accessCode}` };
 }
 
@@ -109,11 +116,17 @@ async function assertNoDuplicateVisibleName(fullName, excludeId = null) {
   }
 }
 
+// Bảng admin cần số ảnh, số lời chúc (đã duyệt / chờ duyệt) và lượt xem của
+// từng người; subquery tương quan là đủ cho quy mô một lớp (vài chục dòng)
 async function listStudents() {
   const [rows] = await pool.execute(
-    `SELECT id, full_name, nickname, avatar_url, intro_message, class_name,
-      seat_row, seat_col, is_active, access_code, member_type, created_at, updated_at
-     FROM students ORDER BY full_name ASC`,
+    `SELECT s.id, s.full_name, s.nickname, s.avatar_url, s.intro_message, s.class_name,
+      s.seat_row, s.seat_col, s.is_active, s.access_code, s.member_type, s.view_count,
+      s.created_at, s.updated_at,
+      (SELECT COUNT(*) FROM gallery g WHERE g.student_id = s.id) AS gallery_count,
+      (SELECT COUNT(*) FROM letters l WHERE l.student_id = s.id AND l.status = 'approved') AS letter_count,
+      (SELECT COUNT(*) FROM letters l WHERE l.student_id = s.id AND l.status = 'pending') AS pending_letter_count
+     FROM students s ORDER BY s.full_name ASC`,
   );
   return rows.map(presentStudent);
 }
@@ -121,7 +134,7 @@ async function listStudents() {
 async function getStudent(id) {
   const [rows] = await pool.execute(
     `SELECT id, full_name, nickname, avatar_url, intro_message, class_name,
-      seat_row, seat_col, is_active, access_code, member_type, created_at, updated_at
+      seat_row, seat_col, is_active, access_code, member_type, view_count, created_at, updated_at
      FROM students WHERE id = ? LIMIT 1`,
     [id],
   );

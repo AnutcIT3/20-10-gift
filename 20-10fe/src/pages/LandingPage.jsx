@@ -1,13 +1,84 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import giftRepository from '../api/giftRepository'
-import SeatLetterReveal from '../components/SeatLetterReveal'
 import GiftReveal from '../components/GiftReveal'
+import Petals from '../components/paper/Petals'
+import Envelope from '../components/paper/Envelope'
+import Stamp from '../components/paper/Stamp'
+import Postmark from '../components/paper/Postmark'
+import Polaroid from '../components/paper/Polaroid'
 import useDialogA11y from '../hooks/useDialogA11y'
+import { EVENT_YEAR, formatStamp } from '../lib/event'
+import { seatLabel } from '../lib/seat'
 import '../styles/landing.css'
+
+const EMPTY_WISH = {
+  isAnonymous: false,
+  senderName: '',
+  receiverName: '',
+  receiverType: 'class',
+  title: '',
+  content: '',
+  revealAt: '',
+}
+const MATCH_ROTATIONS = [-1, 0.8, -0.5]
+
+function computeRevealLimits() {
+  const now = Date.now()
+  return {
+    min: new Date(now + 5 * 60 * 1000).toISOString().slice(0, 16),
+    max: new Date(now + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+  }
+}
+
+// "20/10 · 00:00" từ giá trị datetime-local — hiện trên chip hẹn giờ
+function formatReveal(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} · ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function matchSubline(match) {
+  const parts = []
+  if (match.nickname && match.nickname !== match.displayName) parts.push(`"${match.nickname}"`)
+  const seat = seatLabel(match.seatRow, match.seatCol)
+  if (seat) parts.push(seat)
+  return parts.join(' · ')
+}
+
+// Danh sách trùng tên: card trắng nghiêng xen kẽ, avatar kiểu tem
+function MatchList({ matches, onPick, disabled = false }) {
+  return (
+    <div className="match-list" aria-live="polite">
+      {matches.map((match, index) => {
+        const subline = matchSubline(match)
+        return (
+          <button
+            type="button"
+            key={match.giftPath}
+            className="match-card"
+            style={{ '--rot': `${MATCH_ROTATIONS[index % MATCH_ROTATIONS.length]}deg`, '--delay': `${index * 0.1}s` }}
+            disabled={disabled}
+            onClick={() => onPick(match)}
+          >
+            <span className="match-card__avatar" aria-hidden="true">
+              {match.avatarUrl ? <img src={match.avatarUrl} alt="" /> : match.displayName.charAt(0)}
+            </span>
+            <span className="match-card__text">
+              <b>{match.displayName}</b>
+              {subline && <small>{subline}</small>}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 function LandingPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   // Hỏi "là ai" TRƯỚC khi nhập tên: khách trùng tên với thành viên lớp sẽ
   // không bao giờ bị tra danh sách rồi mở nhầm trang cá nhân của bạn ấy
   const [visitorRole, setVisitorRole] = useState(null) // 'classmate' | 'guest' | null
@@ -22,25 +93,26 @@ function LandingPage() {
   const [revealName, setRevealName] = useState('')
   const [revealStudent, setRevealStudent] = useState(null)
 
-  const [wishOpen, setWishOpen] = useState(false)
-  const [wishForm, setWishForm] = useState({
-    isAnonymous: false,
-    senderName: '',
-    receiverName: '',
-    receiverType: 'class',
-    title: '',
-    content: '',
-    revealAt: '',
-  })
+  // Link "gửi lời chúc" từ màn khóa 20/10 mở thẳng modal (/?wish=1)
+  const [wishOpen, setWishOpen] = useState(() => searchParams.get('wish') === '1')
+  const [wishForm, setWishForm] = useState(EMPTY_WISH)
   const [wishImage, setWishImage] = useState(null)
   const [wishImagePreview, setWishImagePreview] = useState('')
   const [wishMatches, setWishMatches] = useState([])
   const [wishMessage, setWishMessage] = useState('')
   const [wishError, setWishError] = useState('')
   const [wishSubmitting, setWishSubmitting] = useState(false)
-  const [seatRevealStudent, setSeatRevealStudent] = useState(null)
-  const [revealLimits, setRevealLimits] = useState({ min: '', max: '' })
-  const wishDialogRef = useDialogA11y(wishOpen, () => setWishOpen(false))
+  // Màn "Thư đã vào hộp!" thay nội dung modal sau khi gửi thành công
+  const [wishSent, setWishSent] = useState(null)
+  const [showReveal, setShowReveal] = useState(false)
+  const [revealLimits, setRevealLimits] = useState(computeRevealLimits)
+  const wishFileRef = useRef(null)
+
+  const closeWish = () => {
+    setWishOpen(false)
+    if (searchParams.has('wish')) setSearchParams({}, { replace: true })
+  }
+  const wishDialogRef = useDialogA11y(wishOpen, closeWish)
 
   const clearWishImage = () => {
     setWishImage(null)
@@ -48,6 +120,7 @@ function LandingPage() {
       if (current) URL.revokeObjectURL(current)
       return ''
     })
+    if (wishFileRef.current) wishFileRef.current.value = ''
   }
 
   const chooseWishImage = (file) => {
@@ -69,19 +142,17 @@ function LandingPage() {
   }
 
   const resetWish = () => {
-    setWishForm({ isAnonymous: false, senderName: '', receiverName: '', receiverType: 'class', title: '', content: '', revealAt: '' })
+    setWishForm(EMPTY_WISH)
     clearWishImage()
     setWishMatches([])
     setWishMessage('')
     setWishError('')
+    setWishSent(null)
+    setShowReveal(false)
   }
 
   const openWish = () => {
-    const now = Date.now()
-    setRevealLimits({
-      min: new Date(now + 5 * 60 * 1000).toISOString().slice(0, 16),
-      max: new Date(now + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
-    })
+    setRevealLimits(computeRevealLimits())
     resetWish()
     setWishOpen(true)
   }
@@ -94,12 +165,6 @@ function LandingPage() {
 
     try {
       studentData = accessCode ? await giftRepository.getGift(accessCode) : null
-      if (studentData?.seat_row || studentData?.seat_col || studentData?.seat) {
-        setSeatRevealStudent(studentData)
-        await new Promise((resolve) => {
-          setTimeout(resolve, 1700)
-        })
-      }
     } catch (err) {
       if (err?.status === 423) {
         // Trang quà đang khóa chờ 20/10 — bỏ hiệu ứng mở quà, đưa thẳng tới
@@ -108,13 +173,11 @@ function LandingPage() {
         return
       }
       // Vẫn mở quà nếu không tải được thông tin chỗ ngồi.
-    } finally {
-      setSeatRevealStudent(null)
     }
 
     setRevealName(displayName || studentData?.nickname || studentData?.full_name || '')
-    // Truyền student sang GiftPage qua router state để hero hiện ngay,
-    // không vứt đi dữ liệu vừa fetch rồi bắt người dùng chờ fetch lại
+    // Truyền student sang GiftReveal (sơ đồ lớp + thư bay từ đúng bàn) và sang
+    // GiftPage qua router state để hero hiện ngay, không fetch lại
     setRevealStudent(studentData)
     setRevealPath(giftPath)
   }
@@ -127,15 +190,13 @@ function LandingPage() {
     reveal_at: wishForm.revealAt || null,
   })
 
-  const finishWish = (extraNote = '') => {
+  const finishWish = ({ friend = false } = {}) => {
     setWishMatches([])
-    setWishMessage(
-      (wishForm.revealAt
-        ? `Đã gửi lời chúc bí mật — sẽ hiện đúng lúc ${new Date(wishForm.revealAt).toLocaleString('vi-VN')}.`
-        : 'Đã gửi lời chúc. Lời chúc sẽ xuất hiện sau khi admin duyệt.') + extraNote,
-    )
-    setWishForm({ isAnonymous: false, senderName: '', receiverName: '', receiverType: 'class', title: '', content: '', revealAt: '' })
+    setWishMessage('')
+    setWishSent({ revealAt: wishForm.revealAt || null, friend })
+    setWishForm(EMPTY_WISH)
     clearWishImage()
+    setShowReveal(false)
   }
 
   const sendWishToGiftPath = async (giftPath) => {
@@ -174,7 +235,7 @@ function LandingPage() {
           { ...wishLetterData(), receiver_name: receiverName },
           wishImage,
         )
-        finishWish(' Người nhận có thể tìm tên mình ở trang chủ (mục "khách ghé thăm") để xem.')
+        finishWish({ friend: true })
         return
       }
 
@@ -185,14 +246,22 @@ function LandingPage() {
         setWishMessage('Có nhiều bạn trùng tên. Hãy chọn đúng người nhận lời chúc.')
       } else {
         // Response không có giftPath lẫn matches (mock trả null, backend đổi shape)
-        setWishError('Không tìm thấy người nhận trong danh sách. Nếu người nhận không thuộc lớp, hãy chọn "Bạn ngoài lớp".')
+        setWishError('Không tìm thấy người nhận trong danh sách. Nếu người nhận không thuộc lớp, hãy chọn "Ngoài lớp".')
       }
     } catch (err) {
-      if (err.status === 404) setWishError('Không tìm thấy người nhận trong danh sách. Nếu người nhận không thuộc lớp, hãy chọn "Bạn ngoài lớp".')
+      if (err.status === 404) setWishError('Không tìm thấy người nhận trong danh sách. Nếu người nhận không thuộc lớp, hãy chọn "Ngoài lớp".')
       else setWishError(err.message || 'Không gửi được lời chúc.')
     } finally {
       setWishSubmitting(false)
     }
+  }
+
+  const pickWishMatch = async (match) => {
+    setWishSubmitting(true)
+    setWishError('')
+    try { await sendWishToGiftPath(match.giftPath) }
+    catch (err) { setWishError(err.message || 'Không gửi được lời chúc.') }
+    finally { setWishSubmitting(false) }
   }
 
   const chooseRole = (role) => {
@@ -246,121 +315,256 @@ function LandingPage() {
     } finally { setLoading(false) }
   }
 
-  // Show reveal animation
-  if (revealPath) {
-    return (
-      <GiftReveal
-        recipientName={revealName}
-        onComplete={() => navigate(revealPath, revealStudent ? { state: { student: revealStudent } } : undefined)}
-      />
-    )
-  }
+  const isGuest = visitorRole === 'guest'
+  const sentAt = new Date()
 
   return (
-    <main className="landing-page">
-      <SeatLetterReveal student={seatRevealStudent} />
-      <section className="landing-card">
-        <p className="landing-date">20 · 10</p>
-        <h1>Một món quà nhỏ<br />dành riêng cho bạn</h1>
-        <p className="landing-intro">Nhập tên để mở không gian lưu bút và những lời chúc từ lớp mình.</p>
-        {!visitorRole ? (
-          <div className="landing-role-choice">
-            <p>Trước tiên, cho tụi mình biết bạn là ai nhé:</p>
-            <button type="button" onClick={() => chooseRole('classmate')}>🧑‍🎓 Mình là thành viên trong lớp</button>
-            <button type="button" onClick={() => chooseRole('guest')}>🌸 Mình là khách ghé thăm</button>
-          </div>
-        ) : (
-          <>
-            <form className="landing-search" onSubmit={submit}>
-              <label htmlFor="student-name">Tên của bạn</label>
-              <p id="student-name-help" className="landing-help">
-                {visitorRole === 'guest'
+    <main className="landing page-paper">
+      <Petals count={3} />
+      {/* Overlay mở quà phủ lên trang chủ (mờ đi phía sau): sơ đồ lớp → thư bay
+          từ bàn → phong bì mở → chuyển sang trang quà */}
+      {revealPath && (
+        <GiftReveal
+          student={revealStudent}
+          recipientName={revealName}
+          onComplete={() => navigate(revealPath, revealStudent ? { state: { student: revealStudent } } : undefined)}
+        />
+      )}
+      <div className="landing__grid">
+        <div className="landing__envelope">
+          <Envelope open={Boolean(visitorRole)} sealWiggle />
+        </div>
+        <div className="landing__content">
+          {!visitorRole ? (
+            <>
+              <p className="kicker">20 · 10 · {EVENT_YEAR}</p>
+              <h1 className="landing__title">Một món quà nhỏ dành riêng cho bạn</h1>
+              <p className="landing__intro">Nhập tên để mở không gian lưu bút và những lời chúc từ lớp mình.</p>
+              <p className="landing__ask">Trước tiên, cho tụi mình biết bạn là ai nhé:</p>
+              <div className="landing__roles">
+                <button type="button" className="btn-stamp" style={{ '--rot': '-1deg' }} onClick={() => chooseRole('classmate')}>
+                  <span className="btn-stamp__icon" aria-hidden="true">✎</span>Mình là thành viên trong lớp
+                </button>
+                <button type="button" className="btn-stamp btn-stamp--moss" style={{ '--rot': '1deg' }} onClick={() => chooseRole('guest')}>
+                  <span className="btn-stamp__icon" aria-hidden="true">✿</span>Mình là khách ghé thăm
+                </button>
+              </div>
+            </>
+          ) : matches.length > 0 ? (
+            <>
+              <button type="button" className="btn-dashed" onClick={() => { setMatches([]); setMessage('') }}>← Chọn lại</button>
+              <h1 className="landing__title landing__title--step">Có mấy bạn tên <span className="landing__name">{name.trim()}</span></h1>
+              <p className="landing__intro">{message || 'Bạn là ai trong số này? Chọn đúng người để mở quà.'}</p>
+              <MatchList matches={matches} onPick={(match) => openGiftWithReveal(match.giftPath, match.displayName)} />
+              <p className="landing__note">
+                Không thấy tên mình? <button type="button" className="landing__link" onClick={() => setMatches([])}>Nhập lại tên đầy đủ</button>
+              </p>
+            </>
+          ) : (
+            <>
+              <button type="button" className="btn-dashed" onClick={() => chooseRole(null)}>
+                ← Chọn lại · {isGuest ? 'khách ghé thăm' : 'thành viên trong lớp'}
+              </button>
+              <h1 className="landing__title landing__title--step">Tên của bạn là gì?</h1>
+              <p id="student-name-help" className="landing__intro">
+                {isGuest
                   ? 'Nhập tên của bạn để nhận một lời chúc 20/10 dành riêng cho bạn.'
                   : 'Nhập họ tên hoặc tên thường gọi của bạn trong lớp.'}
               </p>
-              <div><input id="student-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={visitorRole === 'guest' ? 'Ví dụ: Minh Thư' : 'Ví dụ: Nguyễn Thúy Vy'} autoComplete="name" aria-describedby="student-name-help" /><button disabled={loading} aria-busy={loading}>{loading ? 'Đang tìm...' : visitorRole === 'guest' ? 'Nhận lời chúc' : 'Mở quà'}</button></div>
-            </form>
-            <button type="button" className="landing-role-back" onClick={() => chooseRole(null)}>← Chọn lại</button>
-          </>
-        )}
-        <div className="landing-secondary-actions">
-          <button type="button" onClick={openWish}>Gửi lời chúc</button>
+              <form className="landing__form" onSubmit={submit}>
+                <label className="field-hand" htmlFor="student-name">
+                  Tên:
+                  <input
+                    id="student-name"
+                    className="input-hand"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder={isGuest ? 'Ví dụ: Minh Thư' : 'Ví dụ: Nguyễn Thúy Vy'}
+                    autoComplete="name"
+                    aria-describedby="student-name-help"
+                  />
+                </label>
+                <button className="btn-primary" disabled={loading} aria-busy={loading}>
+                  {loading ? 'Đang tìm…' : isGuest ? 'Nhận lời chúc' : 'Mở quà'}
+                </button>
+              </form>
+              {error && <p className="alert-note landing__alert" role="alert">{error}</p>}
+              <p className="landing__note">
+                {isGuest
+                  ? 'Là thành viên trong lớp? Chọn lại "thành viên trong lớp" để mở đúng trang quà của bạn.'
+                  : 'Khách trùng tên với bạn trong lớp? Chọn lại "khách ghé thăm" để không mở nhầm trang.'}
+              </p>
+            </>
+          )}
+          <button type="button" className="landing__wish" onClick={openWish}>
+            <span className="link-dashed">✉ Mình muốn gửi lời chúc cho một bạn</span>
+          </button>
         </div>
-        {error && <p className="landing-alert" role="alert">{error}</p>}
-        {matches.length > 0 && <div className="landing-matches" aria-live="polite"><p>{message}</p>{matches.map((match) => <button key={match.giftPath} onClick={() => openGiftWithReveal(match.giftPath, match.displayName)}>
-          {match.avatarUrl ? <img src={match.avatarUrl} alt="" /> : <span>{match.displayName.charAt(0)}</span>}
-          <span><strong>{match.displayName}</strong>{match.nickname && <small>{match.nickname}</small>}</span>
-        </button>)}</div>}
-      </section>
+      </div>
+
       {wishOpen && (
-        <div className="wish-modal-backdrop" role="presentation" onClick={() => setWishOpen(false)}>
-          <section ref={wishDialogRef} className="wish-modal" role="dialog" aria-modal="true" aria-labelledby="wish-modal-title" onClick={(event) => event.stopPropagation()}>
-            <button type="button" className="wish-modal-close" onClick={() => setWishOpen(false)} aria-label="Đóng">×</button>
-            <h2 id="wish-modal-title">Gửi lời chúc</h2>
-            <form className="wish-form" onSubmit={submitWish}>
-              <fieldset>
-                <legend>Trạng thái</legend>
-                <label><input type="radio" name="wish-visibility" checked={!wishForm.isAnonymous} onChange={() => setWishForm({ ...wishForm, isAnonymous: false })} /> Không ẩn danh</label>
-                <label><input type="radio" name="wish-visibility" checked={wishForm.isAnonymous} onChange={() => setWishForm({ ...wishForm, isAnonymous: true, senderName: '' })} /> Ẩn danh</label>
-              </fieldset>
-              {!wishForm.isAnonymous && <label>Tên của bạn<input value={wishForm.senderName} maxLength={100} onChange={(event) => setWishForm({ ...wishForm, senderName: event.target.value })} placeholder="Ví dụ: Nguyễn Văn A" /></label>}
-              <fieldset>
-                <legend>Người nhận là</legend>
-                <label><input type="radio" name="wish-receiver-type" checked={wishForm.receiverType === 'class'} onChange={() => setWishForm({ ...wishForm, receiverType: 'class' })} /> 🧑‍🎓 Thành viên trong lớp</label>
-                <label><input type="radio" name="wish-receiver-type" checked={wishForm.receiverType === 'friend'} onChange={() => setWishForm({ ...wishForm, receiverType: 'friend' })} /> 🌸 Bạn ngoài lớp</label>
-              </fieldset>
-              <label>Tên người nhận<input value={wishForm.receiverName} maxLength={100} onChange={(event) => setWishForm({ ...wishForm, receiverName: event.target.value })} placeholder={wishForm.receiverType === 'friend' ? 'Ví dụ: Minh Thư (bạn khác lớp)' : 'Ví dụ: Phương Anh'} /></label>
-              {wishForm.receiverType === 'friend' && (
-                <p className="wish-hint">Hệ thống sẽ tạo trang lời chúc riêng cho người này — họ tìm tên mình ở trang chủ (mục "khách ghé thăm") là thấy.</p>
-              )}
-              <label>
-                Tiêu đề <span className="wish-optional">(tuỳ chọn)</span>
-                <input
-                  value={wishForm.title}
-                  maxLength={200}
-                  onChange={(event) => setWishForm({ ...wishForm, title: event.target.value })}
-                  placeholder="Ví dụ: Gửi người bạn đặc biệt..."
-                />
-              </label>
-              <label>Lời chúc<textarea value={wishForm.content} maxLength={5000} onChange={(event) => setWishForm({ ...wishForm, content: event.target.value })} placeholder="Bạn hãy nhập lời chúc của bạn vào đây..." rows={5} /></label>
-              <label>
-                ⏰ Hiện lúc <span className="wish-optional">(tùy chọn — để trống = hiện ngay khi duyệt)</span>
-                <input
-                  type="datetime-local"
-                  value={wishForm.revealAt}
-                  min={revealLimits.min}
-                  max={revealLimits.max}
-                  onChange={(e) => setWishForm({ ...wishForm, revealAt: e.target.value })}
-                />
-              </label>
-              <label>
-                📷 Ảnh kèm lời chúc <span className="wish-optional">(tùy chọn, tối đa 5 MB)</span>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/gif,image/webp"
-                  onChange={(e) => chooseWishImage(e.target.files?.[0] || null)}
-                />
-              </label>
-              {wishImagePreview && (
-                <div className="wish-image-preview">
-                  <img src={wishImagePreview} alt="Ảnh sẽ gửi kèm" />
-                  <button type="button" onClick={clearWishImage}>Bỏ ảnh</button>
+        <div className="wish-backdrop" role="presentation" onClick={closeWish}>
+          <section
+            ref={wishDialogRef}
+            className={wishSent ? 'wish-modal wish-modal--success' : 'wish-modal letter-paper letter-paper--form'}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wish-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button type="button" className="wish-close" onClick={closeWish} aria-label="Đóng">×</button>
+            {wishSent ? (
+              <div className="wish-success">
+                <div className="wish-success__envelope">
+                  <Envelope logo={false} sealAnimate sealDelay={0.3}>
+                    <Stamp variant="date" size="sm" rotate={6} animate delay={0.6} className="wish-success__stamp" />
+                    <Postmark
+                      moss
+                      size={84}
+                      rotate={-14}
+                      animate
+                      delay={0.9}
+                      lines={['ĐÃ', { big: 'GỬI' }, formatStamp(sentAt, { time: false }).slice(0, 5)]}
+                      className="wish-success__postmark"
+                    />
+                  </Envelope>
                 </div>
-              )}
-              {wishError && <p className="landing-alert" role="alert">{wishError}</p>}
-              {wishMessage && <p className="wish-success" role="status">{wishMessage}</p>}
-              {wishMatches.length > 0 && <div className="landing-matches wish-matches">{wishMatches.map((match) => <button type="button" key={match.giftPath} onClick={async () => {
-                setWishSubmitting(true)
-                setWishError('')
-                try { await sendWishToGiftPath(match.giftPath) }
-                catch (err) { setWishError(err.message || 'Không gửi được lời chúc.') }
-                finally { setWishSubmitting(false) }
-              }}>
-                {match.avatarUrl ? <img src={match.avatarUrl} alt="" /> : <span>{match.displayName.charAt(0)}</span>}
-                <span><strong>{match.displayName}</strong>{match.nickname && <small>{match.nickname}</small>}</span>
-              </button>)}</div>}
-              <button className="wish-submit" disabled={wishSubmitting}>{wishSubmitting ? 'Đang gửi...' : 'Xong'}</button>
-            </form>
+                <h2 id="wish-modal-title">Thư đã vào hộp!</h2>
+                <p role="status">
+                  {wishSent.revealAt
+                    ? <>Lời chúc bí mật sẽ hiện đúng lúc <b>{formatReveal(wishSent.revealAt).split(' · ').reverse().join(' · ')}</b>, sau khi admin duyệt.</>
+                    : 'Lời chúc sẽ xuất hiện trên trang quà sau khi admin duyệt.'}
+                  {wishSent.friend && ' Người nhận tìm tên mình ở trang chủ (mục "khách ghé thăm") là thấy.'}
+                </p>
+                <div className="wish-success__actions">
+                  <button type="button" className="btn-primary" onClick={resetWish}>Gửi thêm một lời chúc</button>
+                  <button type="button" className="landing__wish" onClick={closeWish}><span className="link-dashed">Về trang chủ</span></button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <Stamp variant="date" rotate={5} className="wish-stamp" />
+                <h2 id="wish-modal-title">Gửi lời chúc</h2>
+                <form className="wish-form" onSubmit={submitWish}>
+                  <div className="wish-row">
+                    <span className="wish-row__label">Mình là</span>
+                    {wishForm.isAnonymous
+                      ? <span className="wish-row__anon">một người bạn ẩn danh</span>
+                      : (
+                        <input
+                          className="input-hand wish-row__input"
+                          value={wishForm.senderName}
+                          maxLength={100}
+                          onChange={(event) => setWishForm({ ...wishForm, senderName: event.target.value })}
+                          placeholder="Ví dụ: Nguyễn Văn A"
+                          aria-label="Tên của bạn"
+                        />
+                      )}
+                    <label className="wish-check">
+                      <input
+                        type="checkbox"
+                        checked={wishForm.isAnonymous}
+                        onChange={(event) => setWishForm({ ...wishForm, isAnonymous: event.target.checked, senderName: event.target.checked ? '' : wishForm.senderName })}
+                      />
+                      Ẩn danh
+                    </label>
+                  </div>
+                  <div className="wish-row">
+                    <span className="wish-row__label">Gửi tới</span>
+                    <input
+                      className="input-hand wish-row__input"
+                      value={wishForm.receiverName}
+                      maxLength={100}
+                      onChange={(event) => setWishForm({ ...wishForm, receiverName: event.target.value })}
+                      placeholder={wishForm.receiverType === 'friend' ? 'Ví dụ: Minh Thư (bạn khác lớp)' : 'Ví dụ: Phương Anh'}
+                      aria-label="Tên người nhận"
+                    />
+                    <span className="wish-toggle" role="radiogroup" aria-label="Người nhận là">
+                      <button type="button" role="radio" aria-checked={wishForm.receiverType === 'class'} onClick={() => setWishForm({ ...wishForm, receiverType: 'class' })}>Trong lớp</button>
+                      <button type="button" role="radio" aria-checked={wishForm.receiverType === 'friend'} onClick={() => setWishForm({ ...wishForm, receiverType: 'friend' })}>Ngoài lớp</button>
+                    </span>
+                  </div>
+                  {wishForm.receiverType === 'friend' && (
+                    <p className="wish-hint">Hệ thống sẽ tạo trang lời chúc riêng cho người này — họ tìm tên mình ở trang chủ (mục "khách ghé thăm") là thấy.</p>
+                  )}
+                  <div className="wish-row">
+                    <span className="wish-row__label">Tiêu đề</span>
+                    <input
+                      className="input-hand wish-row__input"
+                      value={wishForm.title}
+                      maxLength={200}
+                      onChange={(event) => setWishForm({ ...wishForm, title: event.target.value })}
+                      placeholder="Ví dụ: Gửi người bạn đặc biệt..."
+                      aria-label="Tiêu đề"
+                    />
+                    <i className="wish-row__note">tuỳ chọn</i>
+                  </div>
+                  <textarea
+                    className="input-hand wish-textarea"
+                    value={wishForm.content}
+                    maxLength={5000}
+                    rows={4}
+                    onChange={(event) => setWishForm({ ...wishForm, content: event.target.value })}
+                    placeholder="Bạn hãy viết lời chúc của bạn vào đây..."
+                    aria-label="Lời chúc"
+                  />
+                  <div className="wish-chips">
+                    <button
+                      type="button"
+                      className={`btn-dashed${wishForm.revealAt ? ' is-active' : ''}`}
+                      aria-expanded={showReveal}
+                      onClick={() => setShowReveal((open) => !open)}
+                    >
+                      ⏰ {wishForm.revealAt ? formatReveal(wishForm.revealAt) : <>Hẹn giờ hiện lời chúc <i>tuỳ chọn</i></>}
+                    </button>
+                    <button type="button" className={`btn-dashed${wishImage ? ' is-active' : ''}`} onClick={() => wishFileRef.current?.click()}>
+                      📷 {wishImage ? 'Đổi ảnh' : <>Kèm ảnh <i>≤ 5 MB</i></>}
+                    </button>
+                    <input
+                      ref={wishFileRef}
+                      type="file"
+                      hidden
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      onChange={(e) => chooseWishImage(e.target.files?.[0] || null)}
+                    />
+                  </div>
+                  {showReveal && (
+                    <label className="wish-reveal">
+                      Hiện lúc
+                      <input
+                        type="datetime-local"
+                        value={wishForm.revealAt}
+                        min={revealLimits.min}
+                        max={revealLimits.max}
+                        onChange={(e) => setWishForm({ ...wishForm, revealAt: e.target.value })}
+                      />
+                      {wishForm.revealAt && (
+                        <button type="button" className="btn-dashed" onClick={() => setWishForm({ ...wishForm, revealAt: '' })}>Bỏ hẹn giờ</button>
+                      )}
+                    </label>
+                  )}
+                  {wishImagePreview && (
+                    <div className="wish-image-preview">
+                      <Polaroid src={wishImagePreview} alt="Ảnh sẽ gửi kèm" small rotate={-3} tape="none" />
+                      <button type="button" className="btn-dashed" onClick={clearWishImage}>Bỏ ảnh</button>
+                    </div>
+                  )}
+                  {wishError && <p className="alert-note wish-alert" role="alert">{wishError}</p>}
+                  {wishMatches.length > 0 && (
+                    <div className="wish-matches">
+                      <p className="wish-matches__intro">{wishMessage}</p>
+                      <MatchList matches={wishMatches} onPick={pickWishMatch} disabled={wishSubmitting} />
+                    </div>
+                  )}
+                  <div className="wish-submit-row">
+                    <span className="wish-submit-note">Lời chúc sẽ hiện sau khi admin duyệt</span>
+                    <button className="btn-stamp btn-stamp--fill wish-submit" disabled={wishSubmitting}>
+                      {wishSubmitting ? 'Đang gửi…' : 'Dán tem & gửi ✉'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
           </section>
         </div>
       )}

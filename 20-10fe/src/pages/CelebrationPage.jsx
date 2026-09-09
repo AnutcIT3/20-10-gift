@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import giftRepository from '../api/giftRepository'
+import Petals from '../components/paper/Petals'
+import Postmark from '../components/paper/Postmark'
+import Stamp from '../components/paper/Stamp'
+import { CLASS_NAME, EVENT_YEAR } from '../lib/event'
 import '../styles/celebration.css'
 
 // Fallback khi API lỗi — khớp nội dung tĩnh phía backend
@@ -45,38 +49,74 @@ function CelebrationPage() {
 
   const currentResult =
     result?.requestName === name && result?.audience === audience ? result : null
+  const hasGreeting = Boolean(currentResult && !currentResult.locked)
 
-  return <main className="celebration-page"><section className="celebration-card">
-    <div className="celebration-flowers">🌷 ✨ 🌸</div>
-    <p className="celebration-label">Một lời chúc bất ngờ dành cho</p><h1>{name}</h1>
-    {!audience ? (
-      <div className="celebration-choice">
-        <p>Cho tụi mình biết một chút để lời chúc đúng ý hơn nhé:</p>
-        <button type="button" onClick={() => chooseAudience('classmate')}>
-          🧑‍🎓 Mình là thành viên trong lớp
-        </button>
-        <button type="button" onClick={() => chooseAudience('visitor')}>
-          🌸 Mình là khách ghé thăm
-        </button>
-      </div>
-    ) : (
-      <div aria-live="polite">
-        {!currentResult && <p className="celebration-loading">Đang chuẩn bị một lời chúc cho bạn...</p>}
-        {currentResult?.locked && (
-          <p className="celebration-message">
-            🎁 Chưa đến ngày 20/10 — lời chúc đang được gói lại chờ đúng ngày. Vui lòng quay lại sau nhé! 💝
-          </p>
+  return (
+    <main className="celebrate page-paper">
+      <Petals count={2} />
+      {/* Bưu thiếp nghiêng trái lúc hỏi, nghiêng phải khi đã có lời chúc */}
+      <section className={`postcard${audience ? ' postcard--flip' : ''}`}>
+        <span className="tape tape--center" style={{ '--tape-rot': audience ? '-2deg' : '2deg' }} aria-hidden="true" />
+        <div className="postcard__head">
+          <div>
+            <p className="postcard__label">Một lời chúc bất ngờ dành cho</p>
+            <h1 className="postcard__name">{name}</h1>
+          </div>
+          <div className="postcard__marks">
+            {hasGreeting && (
+              <Postmark
+                size={84}
+                rotate={-10}
+                animate
+                delay={0.5}
+                lines={[CLASS_NAME, { big: '20.10' }, String(EVENT_YEAR)]}
+                className="postcard__postmark"
+              />
+            )}
+            <Stamp variant="logo" inline rotate={4} className="postcard__logo" />
+          </div>
+        </div>
+
+        {!audience ? (
+          <>
+            <p className="postcard__ask">Cho tụi mình biết một chút để lời chúc đúng ý hơn nhé:</p>
+            <div className="postcard__choices">
+              <button type="button" className="btn-stamp" onClick={() => chooseAudience('classmate')}>
+                <span className="btn-stamp__icon" aria-hidden="true">✎</span>Mình là thành viên trong lớp
+              </button>
+              <button type="button" className="btn-stamp btn-stamp--moss" onClick={() => chooseAudience('visitor')}>
+                <span className="btn-stamp__icon" aria-hidden="true">✿</span>Mình là khách ghé thăm
+              </button>
+            </div>
+            <div className="postcard__foot postcard__foot--right">
+              <Link className="link-dashed" to="/">Về trang chủ</Link>
+            </div>
+          </>
+        ) : (
+          <div aria-live="polite">
+            {!currentResult && <p className="postcard__loading">Đang chuẩn bị một lời chúc cho bạn…</p>}
+            {currentResult?.locked && (
+              <p className="postcard__message">
+                🎁 Chưa đến ngày 20/10 — lời chúc đang được gói lại chờ đúng ngày. Vui lòng quay lại sau nhé! 💝
+              </p>
+            )}
+            {hasGreeting && <p className="postcard__message">{currentResult.greeting}</p>}
+            <div className="postcard__foot">
+              {hasGreeting
+                ? <span className="postcard__sign">— Tập thể lớp {CLASS_NAME}</span>
+                : <span />}
+              <div className="postcard__foot-actions">
+                {hasGreeting && (
+                  <button type="button" className="btn-dashed" onClick={() => setAudience(null)}>Chọn lại</button>
+                )}
+                <Link className="btn-ink" to="/">Về trang chủ</Link>
+              </div>
+            </div>
+          </div>
         )}
-        {currentResult && !currentResult.locked && <p className="celebration-message">{currentResult.greeting}</p>}
-        {currentResult && !currentResult.locked && (
-          <button type="button" className="celebration-switch" onClick={() => setAudience(null)}>
-            Chọn lại
-          </button>
-        )}
-      </div>
-    )}
-    <Link className="celebration-home-link" to="/">Về trang chủ</Link>
-  </section></main>
+      </section>
+    </main>
+  )
 }
 
 export default CelebrationPage

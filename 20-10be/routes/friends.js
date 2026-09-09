@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { asyncHandler } = require('../utils/response');
 const friendController = require('../controllers/friendController');
 const honeypot = require('../middleware/honeypot');
-const { publicLimiter } = require('../middleware/rateLimit');
+const { friendLetterLimiter } = require('../middleware/rateLimit');
 const { uploadImage, uploadErrorHandler } = require('../config/cloudinary');
 
 const router = Router();
@@ -14,7 +14,7 @@ const router = Router();
 // Cố ý KHÔNG gắn giftLockGuard: khóa chờ 20/10 chỉ chặn XEM, không chặn GỬI.
 router.post(
   '/letters',
-  publicLimiter,
+  friendLetterLimiter,
   uploadImage.single('image'),
   uploadErrorHandler,
   honeypot,

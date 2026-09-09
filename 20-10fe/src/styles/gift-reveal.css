@@ -1,205 +1,176 @@
 /* ===========================================
-   Gift Reveal — Mở hộp quà animation
+   Mở quà (1g + 2b): sơ đồ lớp → thư bay từ bàn → phong bì mở, thư trồi lên
    =========================================== */
-
-/* ── Overlay ── */
-.gift-reveal-overlay {
+.reveal {
   position: fixed;
   inset: 0;
   z-index: 9999;
   display: grid;
   place-items: center;
-  background: radial-gradient(circle at 50% 40%, #fff6f8 0%, #f3e9f7 50%, #e6e6fa 100%);
-  transition: opacity 0.65s ease;
+  overflow: hidden;
+  padding: 20px;
+  background: rgba(61, 47, 40, .55);
 }
 
-.gift-reveal-done {
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* ── Canvas (confetti layer) ── */
-.gift-reveal-canvas {
+/* Nền giấy sáng dần lên khi phong bì bắt đầu mở */
+.reveal::before {
+  content: '';
   position: absolute;
   inset: 0;
-  pointer-events: none;
-}
-
-/* ── Box wrapper ── */
-.gift-reveal-box-wrap {
-  position: relative;
-  width: 160px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  filter: drop-shadow(0 16px 40px rgba(146, 117, 189, 0.28));
-}
-
-/* enter: fade + scale in */
-.gift-reveal-box-enter {
-  animation: giftBoxEnter 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-/* shake phase */
-.gift-reveal-box-shake {
-  animation: giftBoxShake 0.7s ease-in-out both;
-}
-
-/* pop phase: box jumps */
-.gift-reveal-box-pop {
-  animation: giftBoxPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-.gift-reveal-box-done {
-  animation: giftBoxPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-@keyframes giftBoxEnter {
-  from { opacity: 0; transform: scale(0.5) translateY(40px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-@keyframes giftBoxShake {
-  0%, 100% { transform: rotate(0deg) scale(1); }
-  15%       { transform: rotate(-6deg) scale(1.04); }
-  30%       { transform: rotate(6deg) scale(1.04); }
-  45%       { transform: rotate(-4deg) scale(1.02); }
-  60%       { transform: rotate(4deg) scale(1.02); }
-  75%       { transform: rotate(-2deg); }
-}
-
-@keyframes giftBoxPop {
-  from { transform: scale(1); }
-  50%  { transform: scale(1.12); }
-  to   { transform: scale(1.05); }
-}
-
-/* ── Lid ── */
-.gift-reveal-lid {
-  position: relative;
-  width: 172px;
-  height: 44px;
-  background: linear-gradient(135deg, #dc8fa7, #9275bd);
-  border-radius: 10px 10px 0 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transform-origin: center bottom;
-  z-index: 2;
-  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
-              opacity 0.3s ease;
-}
-
-.gift-reveal-lid-pop,
-.gift-reveal-lid-done {
-  transform: translateY(-90px) rotate(-18deg);
+  background: radial-gradient(circle at 50% 35%, #fbf6ee, #f3e4d2 60%, #e6d5bf);
   opacity: 0;
+  transition: opacity .6s ease;
 }
 
-/* Ribbon on lid */
-.gift-reveal-ribbon-h {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  transform: translateX(-50%);
-  width: 20px;
-  background: rgba(255, 255, 255, 0.35);
-  border-radius: 4px;
+.reveal--open::before {
+  opacity: 1;
 }
 
-/* ── Bow ── */
-.gift-reveal-bow {
-  position: absolute;
-  top: -20px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 2px;
-}
-
-.gift-reveal-bow-left,
-.gift-reveal-bow-right {
-  width: 28px;
-  height: 20px;
-  background: linear-gradient(135deg, #e8a0bf, #a678ce);
-  border-radius: 50% 50% 0 50%;
-  box-shadow: inset 0 2px 6px rgba(0,0,0,0.12);
-}
-
-.gift-reveal-bow-right {
-  border-radius: 50% 50% 50% 0;
-}
-
-/* ── Box body ── */
-.gift-reveal-body {
-  position: relative;
-  width: 160px;
-  height: 120px;
-  background: linear-gradient(160deg, #fff0f5 0%, #ece6f8 100%);
-  border: 2px solid rgba(220, 143, 167, 0.4);
-  border-top: none;
-  border-radius: 0 0 14px 14px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-}
-
-/* Vertical ribbon on body */
-.gift-reveal-ribbon-v {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 20px;
-  background: linear-gradient(135deg, rgba(220,143,167,0.5), rgba(146,117,189,0.5));
-}
-
-.gift-reveal-stars {
-  font-size: 36px;
-  animation: starsSpin 1s ease-in-out infinite alternate;
+.reveal .seat-reveal {
   position: relative;
   z-index: 1;
 }
 
-@keyframes starsSpin {
-  from { transform: scale(0.85) rotate(-8deg); }
-  to   { transform: scale(1.15) rotate(8deg); }
-}
-
-/* ── Label ── */
-.gift-reveal-label {
+.reveal__envelope {
   position: absolute;
-  bottom: clamp(60px, 14vh, 120px);
   left: 50%;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  color: #6b4f6b;
-  font-size: clamp(16px, 4vw, 22px);
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  animation: labelFadeIn 0.5s ease both;
-  text-shadow: 0 1px 8px rgba(255,255,255,0.9);
+  top: 50%;
+  z-index: 2;
+  width: 320px;
+  height: 210px;
+  margin: -105px 0 0 -160px;
+  perspective: 900px;
+  transform-origin: center;
 }
 
-@keyframes labelFadeIn {
-  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* Thứ tự lớp (trước → sau): niêm phong 5 · cánh/túi 3 · thư 2 · nắp 4→1 · thân 0.
+   Thư nằm TRONG phong bì: bị cánh + túi che, trên thân. Nắp mở xong lùi xuống
+   sau thư (z 1) nên thư trồi lên phía trước nắp thay vì bị nắp che. */
+.reveal__body {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--cream);
+  box-shadow: 0 24px 50px rgba(61, 47, 40, .25);
 }
 
-/* ── Reduced motion ── */
-@media (prefers-reduced-motion: reduce) {
-  .gift-reveal-box-enter,
-  .gift-reveal-box-shake,
-  .gift-reveal-box-pop,
-  .gift-reveal-box-done,
-  .gift-reveal-stars {
-    animation: none !important;
-  }
-  .gift-reveal-lid-pop,
-  .gift-reveal-lid-done {
-    opacity: 0;
-    transform: none;
-  }
+.reveal__flap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 4;
+  height: 0;
+  border-left: 160px solid transparent;
+  border-right: 160px solid transparent;
+  border-top: 120px solid var(--peach);
+  transform-origin: top;
+  filter: drop-shadow(0 6px 10px rgba(61, 47, 40, .2));
+}
+
+.is-open .reveal__flap {
+  animation: revealFlap 1s cubic-bezier(.4, 0, .2, 1) .2s both;
+}
+
+/* z-index nhảy bậc đúng lúc nắp dựng đứng (50%) nên mắt không thấy đổi lớp */
+@keyframes revealFlap {
+  0% { transform: rotateX(0); z-index: 4; }
+  49.9% { z-index: 4; }
+  50% { z-index: 1; }
+  100% { transform: rotateX(-170deg); z-index: 1; }
+}
+
+.reveal__letter {
+  position: absolute;
+  left: 30px;
+  right: 30px;
+  top: 14px;
+  z-index: 2;
+  height: 150px;
+  padding: 22px 20px;
+  overflow: hidden;
+  background: var(--letter) repeating-linear-gradient(transparent 0 27px, var(--rule) 27px 28px);
+  box-shadow: 0 14px 30px rgba(61, 47, 40, .2);
+  font: 22px/28px var(--font-write);
+  color: var(--ink);
+}
+
+.reveal__letter span {
+  font-size: 26px;
+  color: var(--clay);
+}
+
+.is-open .reveal__letter {
+  animation: revealRise 1.3s cubic-bezier(.2, .8, .2, 1) 1s both;
+}
+
+@keyframes revealRise {
+  from { transform: translateY(0); }
+  to { transform: translateY(-150px); }
+}
+
+.reveal__wing {
+  position: absolute;
+  top: 0;
+  z-index: 3;
+  height: 0;
+  border-bottom: 210px solid var(--beige-2);
+}
+
+.reveal__wing--left {
+  left: 0;
+  border-right: 160px solid transparent;
+}
+
+.reveal__wing--right {
+  right: 0;
+  border-bottom-color: var(--beige);
+  border-left: 160px solid transparent;
+}
+
+.reveal__pocket {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  height: 0;
+  border-left: 160px solid transparent;
+  border-right: 160px solid transparent;
+  border-bottom: 110px solid #f3e4d2;
+}
+
+/* left tính sẵn thay cho translateX để keyframe sealPop (scale) không ghi đè */
+.reveal__seal {
+  position: absolute;
+  left: calc(50% - 32px);
+  top: 95px;
+  z-index: 5;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #c97a5a, var(--clay) 60%, var(--clay-dark));
+  box-shadow: 0 6px 14px rgba(61, 47, 40, .35);
+  font: 22px var(--font-hand);
+  color: var(--peach-soft);
+}
+
+.is-open .reveal__seal {
+  animation: sealPop .5s ease both;
+}
+
+.reveal__label {
+  position: absolute;
+  bottom: clamp(48px, 12vh, 84px);
+  left: 0;
+  right: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 0 20px;
+  font: 30px var(--font-hand);
+  color: var(--ink-2);
+  text-align: center;
+  animation: fadeUp .6s ease 1.6s both;
 }

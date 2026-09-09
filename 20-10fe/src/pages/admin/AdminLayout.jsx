@@ -1,12 +1,29 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { adminApi, adminAuth } from '../../api/adminApi'
+import { CLASS_NAME } from '../../lib/event'
 import '../../styles/admin.css'
 
 function AdminLayout() {
   const navigate = useNavigate()
   const observedRevision = useRef(null)
   const [outletKey, setOutletKey] = useState(0)
+  // Sidebar: số lời chúc chờ duyệt (badge) và trạng thái khóa trang quà
+  const [sidebar, setSidebar] = useState({ pending: null, locked: null })
+  const [lockSaving, setLockSaving] = useState(false)
+  const [lockError, setLockError] = useState('')
+
+  const loadSidebar = useCallback(async () => {
+    try {
+      const [stats, settings] = await Promise.all([adminApi.getStats(), adminApi.getSettings()])
+      setSidebar({
+        pending: Number(stats?.letters?.pending ?? 0),
+        locked: Boolean(settings?.gift_pages_locked),
+      })
+    } catch {
+      // Giữ giá trị cũ — badge/khóa lệch vài giây không đáng chặn thao tác
+    }
+  }, [])
 
   useEffect(() => {
     let stopped = false
@@ -28,6 +45,7 @@ function AdminLayout() {
           // đã adopt revision từ mutation của chính mình sẽ bị bỏ qua
           observedRevision.current = revision
           setOutletKey((key) => key + 1)
+          loadSidebar()
         }
       } catch {
         // A temporary network failure should not interrupt the current admin task.
@@ -37,6 +55,8 @@ function AdminLayout() {
     }
 
     pollRevision()
+    // setTimeout 0 để setState không chạy đồng bộ trong effect (react-hooks v7)
+    const initialSidebar = setTimeout(loadSidebar, 0)
     const interval = setInterval(pollRevision, 5000)
     const handleVisibility = () => {
       // Quay lại tab thì poll ngay để bắt kịp thay đổi trong lúc vắng mặt
@@ -52,37 +72,87 @@ function AdminLayout() {
       if (observedRevision.current === null || revision === observedRevision.current + 1) {
         observedRevision.current = revision
       }
+      loadSidebar()
     }
     document.addEventListener('visibilitychange', handleVisibility)
     window.addEventListener('gift-admin-revision', handleSelfRevision)
     return () => {
       stopped = true
+      clearTimeout(initialSidebar)
       clearInterval(interval)
       document.removeEventListener('visibilitychange', handleVisibility)
       window.removeEventListener('gift-admin-revision', handleSelfRevision)
     }
-  }, [])
+  }, [loadSidebar])
+
+  const toggleLock = async () => {
+    if (sidebar.locked === null || lockSaving) return
+    setLockSaving(true)
+    setLockError('')
+    try {
+      const updated = await adminApi.updateSettings({ gift_pages_locked: !sidebar.locked })
+      setSidebar((current) => ({ ...current, locked: Boolean(updated?.gift_pages_locked) }))
+    } catch (err) {
+      setLockError(err.message)
+    } finally {
+      setLockSaving(false)
+    }
+  }
 
   const logout = () => {
     adminAuth.clear()
     navigate('/', { replace: true })
   }
+
+  const locked = sidebar.locked
   return (
     <div className="admin-shell">
       <aside className="admin-sidebar">
-        <div><p className="admin-kicker">20/10 Gift</p><h1>Quản trị</h1></div>
+        <div className="admin-brand">
+          <img src="/logoclass.jpg" alt="" />
+          <div>
+            <p>Quản trị · 20/10</p>
+            <h1>Lớp {CLASS_NAME}</h1>
+          </div>
+        </div>
         {/* Thứ tự theo tần suất dùng: 2 trang dùng nhiều nhất (Lời chúc, Thư viện
             ảnh) phải nằm trong số tab hiện sẵn trên màn hình hẹp */}
         <nav aria-label="Điều hướng quản trị">
           <NavLink end to="/admin">Tổng quan</NavLink>
-          <NavLink to="/admin/letters">Lời chúc</NavLink>
+          <NavLink to="/admin/letters">
+            Lời chúc
+            {sidebar.pending > 0 && <span className="admin-nav-badge" aria-label={`${sidebar.pending} lời chúc chờ duyệt`}>{sidebar.pending}</span>}
+          </NavLink>
           <NavLink to="/admin/gallery">Thư viện ảnh</NavLink>
           <NavLink to="/admin/students">Học sinh</NavLink>
           <NavLink to="/admin/seating">Sơ đồ lớp</NavLink>
         </nav>
+        {/* Khóa/mở trang quà: giữ bất ngờ tới đúng ngày 20/10 — gửi lời chúc vẫn mở */}
+        <div className="admin-lock">
+          <div className="admin-lock__row">
+            <span>Trang quà</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={Boolean(locked)}
+              aria-label={locked ? 'Đang khóa trang quà — bấm để mở' : 'Trang quà đang mở — bấm để khóa chờ 20/10'}
+              className={`admin-toggle${locked ? ' is-locked' : ''}`}
+              disabled={locked === null || lockSaving}
+              onClick={toggleLock}
+            />
+          </div>
+          <p>
+            {locked === null
+              ? 'Đang kiểm tra trạng thái…'
+              : locked
+                ? <>Đang <b>KHÓA</b> chờ 20/10. Gửi lời chúc vẫn hoạt động.</>
+                : <>Đang <b>MỞ</b> — mọi người xem được trang quà. Bật khóa để giữ bất ngờ.</>}
+          </p>
+        </div>
         <button type="button" className="admin-logout" onClick={logout}>Đăng xuất</button>
       </aside>
       <main className="admin-main"><Outlet key={outletKey} /></main>
+      {lockError && <p key={lockError} className="admin-alert error" role="alert">{lockError}</p>}
     </div>
   )
 }

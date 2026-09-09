@@ -22,7 +22,7 @@ async function resolve(name, scope = 'class') {
   // người dùng tìm ("vy", "thuy vy"), vừa chặn dò quét access code bằng cặp
   // ký tự bất kỳ qua LIKE '%..%'.
   const [rows] = await pool.execute(
-    'SELECT full_name, nickname, avatar_url, access_code FROM students WHERE (normalized_name LIKE ? OR normalized_name LIKE ?) AND is_active = TRUE AND member_type = ? ORDER BY full_name ASC LIMIT 10',
+    'SELECT full_name, nickname, avatar_url, access_code, seat_row, seat_col FROM students WHERE (normalized_name LIKE ? OR normalized_name LIKE ?) AND is_active = TRUE AND member_type = ? ORDER BY full_name ASC LIMIT 10',
     [`${escaped}%`, `% ${escaped}%`, memberType],
   );
 
@@ -37,11 +37,15 @@ async function resolve(name, scope = 'class') {
     return { giftPath: `/gift/${resultRows[0].access_code}` };
   }
 
+  // Kèm chỗ ngồi để danh sách trùng tên gợi ý "bàn 3 · dãy phải" — người dùng
+  // nhận ra mình nhanh hơn là chỉ nhìn tên
   const matches = resultRows.slice(0, 10).map((r) => ({
     displayName: r.full_name,
     nickname: r.nickname || '',
     avatarUrl: r.avatar_url || '',
     giftPath: `/gift/${r.access_code}`,
+    seatRow: r.seat_row ?? null,
+    seatCol: r.seat_col ?? null,
   }));
 
   return {

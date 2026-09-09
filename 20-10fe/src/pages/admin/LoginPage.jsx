@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { adminApi, adminAuth } from '../../api/adminApi'
+import Petals from '../../components/paper/Petals'
+import { CLASS_NAME } from '../../lib/event'
 import '../../styles/admin.css'
 
 function LoginPage() {
@@ -28,20 +30,30 @@ function LoginPage() {
   }
 
   return (
-    <main className="admin-login-page">
-      <form className="admin-login-card" onSubmit={submit}>
-        <p className="admin-kicker">20/10 Gift</p>
+    <main className="admin-login page-paper">
+      <Petals count={2} />
+      <form className="admin-login__card letter-paper" onSubmit={submit}>
+        <div className="admin-login__brand">
+          <img src="/logoclass.jpg" alt="" />
+          <span>LỚP {CLASS_NAME}</span>
+        </div>
         <h1>Đăng nhập quản trị</h1>
-        <label htmlFor="admin-username">Tên đăng nhập</label>
-        <input id="admin-username" autoComplete="username" required value={form.username}
-          onChange={(event) => setForm({ ...form, username: event.target.value })} />
-        <label htmlFor="admin-password">Mật khẩu</label>
-        <input id="admin-password" type="password" autoComplete="current-password" required value={form.password}
-          onChange={(event) => setForm({ ...form, password: event.target.value })} />
+        <label htmlFor="admin-username">
+          Tên đăng nhập
+          <input id="admin-username" className="input-hand" autoComplete="username" required value={form.username}
+            onChange={(event) => setForm({ ...form, username: event.target.value })} />
+        </label>
+        <label htmlFor="admin-password">
+          Mật khẩu
+          <input id="admin-password" className="input-hand" type="password" autoComplete="current-password" required value={form.password}
+            onChange={(event) => setForm({ ...form, password: event.target.value })} />
+        </label>
         {error && <p className="admin-alert error">{error}</p>}
-        <button type="submit" className="admin-primary" disabled={loading}>
-          {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+        <button type="submit" className="btn-primary" disabled={loading}>
+          {loading ? 'Đang đăng nhập…' : 'Đăng nhập'}
         </button>
+        {/* Lối ra cho người lỡ bấm "Quản trị" mà không phải admin */}
+        <Link to="/" className="link-dashed admin-login__home">← Về trang chủ</Link>
       </form>
     </main>
   )

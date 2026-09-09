@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { adminApi } from '../../api/adminApi'
 import useDialogA11y from '../../hooks/useDialogA11y'
+import Polaroid from '../../components/paper/Polaroid'
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024
 const MAX_FILES = 20
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+const ROTATIONS = [-1.5, 1, -1, 1.5, -1, 2]
 
 function formatBytes(bytes) {
   if (!bytes) return '0 KB'
@@ -17,7 +19,7 @@ function GalleryManager() {
   const location = useLocation()
   const navigate = useNavigate()
   const [students, setStudents] = useState([])
-  // Nhận studentId từ query (?studentId=X, nút "Ảnh" bên trang Học sinh);
+  // Nhận studentId từ query (?studentId=X, mục "Ảnh" bên trang Học sinh);
   // không tự chọn mặc định học sinh đầu tiên để tránh upload nhầm người
   const [studentId, setStudentId] = useState(
     () => new URLSearchParams(location.search).get('studentId') || '',
@@ -28,29 +30,39 @@ function GalleryManager() {
   const [caption, setCaption] = useState('')
   const [dragging, setDragging] = useState(false)
   const [draggedIndex, setDraggedIndex] = useState(null)
+  const [overIndex, setOverIndex] = useState(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [confirmImage, setConfirmImage] = useState(null)
+  const [avatarEditing, setAvatarEditing] = useState(false)
+  const [avatarDraft, setAvatarDraft] = useState('')
+  const [avatarSaving, setAvatarSaving] = useState(false)
+  const fileInputRef = useRef(null)
 
   const previewItems = useMemo(() => files.map((file) => ({
     file,
     url: URL.createObjectURL(file),
   })), [files])
 
-  const selectedStudentName = useMemo(
-    () => students.find((student) => String(student.id) === String(studentId))?.full_name || '',
+  const selectedStudent = useMemo(
+    () => students.find((student) => String(student.id) === String(studentId)) || null,
     [students, studentId],
   )
+  const selectedStudentName = selectedStudent?.full_name || ''
 
   useEffect(() => () => {
     previewItems.forEach((item) => URL.revokeObjectURL(item.url))
   }, [previewItems])
 
-  useEffect(() => {
+  const loadStudents = useCallback(() => (
     adminApi.listStudents().then(setStudents).catch((err) => setError(err.message))
-  }, [])
+  ), [])
+
+  useEffect(() => {
+    loadStudents()
+  }, [loadStudents])
 
   // URL là nguồn sự thật cho học sinh đang chọn (như LetterManager): dropdown
   // chỉ navigate, effect này đọc lại — không còn hai nguồn ghi đè lẫn nhau
@@ -119,10 +131,14 @@ function GalleryManager() {
     setFiles(nextFiles)
   }
 
+  const clearQueue = () => {
+    setFiles([])
+    setCaption('')
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
   const upload = async (event) => {
     event.preventDefault()
-    // React trả currentTarget về null sau khi handler đồng bộ kết thúc — phải giữ lại trước await
-    const form = event.currentTarget
     if (!files.length || !studentId) return
     const data = new FormData()
     data.append('student_id', studentId); data.append('caption', caption)
@@ -131,7 +147,8 @@ function GalleryManager() {
     try {
       const uploaded = await adminApi.uploadImage(data)
       const uploadedImages = Array.isArray(uploaded) ? uploaded : [uploaded]
-      setFiles([]); setCaption(''); form.reset(); setMessage(`Đã tải lên ${uploadedImages.length} ảnh.`)
+      clearQueue()
+      setMessage(`Đã tải lên ${uploadedImages.length} ảnh.`)
       if (uploadedImages.length) {
         setImages((current) => [
           ...current,
@@ -143,14 +160,9 @@ function GalleryManager() {
         }))
       }
       await loadGallery({ preserveSuccess: true })
+      loadStudents()
     } catch (err) { setError(`Không thể tải ảnh lên: ${err.message}`) }
     finally { setUploading(false) }
-  }
-
-  const move = async (index, direction) => {
-    const target = index + direction
-    if (target < 0 || target >= images.length) return
-    await reorderFromTo(index, target)
   }
 
   const reorderFromTo = async (from, to) => {
@@ -162,6 +174,12 @@ function GalleryManager() {
     try {
       await adminApi.reorderGallery(reordered.map((image, order) => ({ id: image.id, display_order: order })))
     } catch (err) { setError(err.message); await loadGallery() }
+  }
+
+  const move = async (index, direction) => {
+    const target = index + direction
+    if (target < 0 || target >= images.length) return
+    await reorderFromTo(index, target)
   }
 
   // Clear trước khi set để toast remount và chạy lại animation cho mỗi thông báo
@@ -181,15 +199,50 @@ function GalleryManager() {
     if (!image) return
     setMessage('')
     setError('')
-    try { await adminApi.deleteImage(image.id); await loadGallery(); setMessage('Đã xóa ảnh.') }
+    try { await adminApi.deleteImage(image.id); await loadGallery(); loadStudents(); setMessage('Đã xóa ảnh.') }
     catch (err) { setError(err.message) }
   }
 
+  // Ảnh đại diện là một URL (không có API upload riêng) — sửa tại chỗ
+  const startAvatarEdit = () => {
+    setAvatarDraft(selectedStudent?.avatar_url || '')
+    setAvatarEditing(true)
+  }
+
+  const saveAvatar = async (event) => {
+    event.preventDefault()
+    if (!selectedStudent) return
+    setAvatarSaving(true)
+    setMessage('')
+    setError('')
+    try {
+      await adminApi.updateStudent(selectedStudent.id, { avatar_url: avatarDraft.trim() || null })
+      setAvatarEditing(false)
+      setMessage(avatarDraft.trim() ? 'Đã đổi ảnh đại diện.' : 'Đã bỏ ảnh đại diện.')
+      await loadStudents()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setAvatarSaving(false)
+    }
+  }
+
+  const initial = (selectedStudent?.nickname || selectedStudent?.full_name || '?').trim().charAt(0).toUpperCase()
+
   return (
     <section>
-      <header className="admin-page-header"><div><p className="admin-kicker">Thư viện ảnh</p><h2>Quản lý thư viện ảnh</h2></div></header>
-      <div className="admin-panel">
-        <label>Chọn học sinh<select
+      <header className="admin-page-header">
+        <div>
+          <p className="admin-kicker">Thư viện ảnh</p>
+          <h2>
+            {selectedStudentName
+              ? <>Album của <span className="accent">{selectedStudentName}</span></>
+              : 'Album lớp'}
+          </h2>
+        </div>
+        <select
+          className="admin-select admin-select--hand"
+          aria-label="Chọn học sinh"
           value={studentId}
           onChange={(e) => {
             const value = e.target.value
@@ -197,60 +250,145 @@ function GalleryManager() {
           }}
         >
           <option value="">— Chọn học sinh —</option>
-          {students.map((student) => <option key={student.id} value={student.id}>{student.full_name}</option>)}
-        </select></label>
-      </div>
-      <form className="admin-panel admin-upload" onSubmit={upload}>
-        <label
-          className={`admin-dropzone ${dragging ? 'dragging' : ''}`}
-          onDragOver={(event) => { event.preventDefault(); setDragging(true) }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(event) => {
-            event.preventDefault()
-            setDragging(false)
-            chooseFiles(event.dataTransfer.files)
-          }}
-        >
-          Ảnh
-          <input type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp" onChange={(e) => chooseFiles(e.target.files)} />
-          <span>Kéo thả tối đa {MAX_FILES} ảnh vào đây hoặc bấm để chọn.</span>
-        </label>
-        <label>Chú thích<input value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={500} /></label>
-        {previewItems.length > 0 && <div className="admin-upload-preview multi">{previewItems.slice(0, 4).map((item) => <div key={`${item.file.name}-${item.file.size}`}><img src={item.url} alt="Preview ảnh upload" /><p>{item.file.name} · {formatBytes(item.file.size)}</p></div>)}{previewItems.length > 4 && <p>+{previewItems.length - 4} ảnh khác</p>}</div>}
-        <button type="submit" className="admin-primary" disabled={uploading || !files.length || !studentId}>
-          {uploading
-            ? 'Đang tải lên...'
-            : `Tải ${files.length || ''} ảnh lên${selectedStudentName ? ` cho ${selectedStudentName}` : ''}`}
-        </button>
-      </form>
-      {message && <p key={message} className="admin-alert success" role="status">{message}</p>}{error && <p key={error} className="admin-alert error" role="alert">{error}</p>}
-      {!studentId ? <div className="admin-empty">Chọn một học sinh để xem và tải ảnh.</div>
-        : loading && !images.length ? <p>Đang tải...</p> : images.length ? <div className="admin-gallery-grid">
-        {images.map((image, index) => <article
-          key={image.id}
-          className="admin-gallery-card"
-          draggable
-          onDragStart={() => setDraggedIndex(index)}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={() => {
-            if (draggedIndex !== null) reorderFromTo(draggedIndex, index)
-            setDraggedIndex(null)
-          }}
-          onDragEnd={() => setDraggedIndex(null)}
-        >
-          <img src={image.image_url} alt={image.caption || ''} />
-          <label>Chú thích<input value={captions[image.id] || ''} onChange={(e) => setCaptions({ ...captions, [image.id]: e.target.value })} maxLength={500} /></label>
-          <div><button type="button" disabled={index === 0} onClick={() => move(index, -1)}>←</button><button type="button" disabled={index === images.length - 1} onClick={() => move(index, 1)}>→</button><button type="button" onClick={() => saveCaption(image)}>Lưu chú thích</button><button type="button" className="danger" onClick={() => setConfirmImage(image)}>Xóa</button></div>
-        </article>)}
-      </div> : <div className="admin-empty">Học sinh này chưa có ảnh.</div>}
+          {students.map((student) => (
+            <option key={student.id} value={student.id}>
+              {student.full_name}{student.gallery_count !== undefined ? ` · ${student.gallery_count} ảnh` : ''}
+            </option>
+          ))}
+        </select>
+      </header>
+
+      {message && <p key={message} className="admin-alert success" role="status">{message}</p>}
+      {error && <p key={error} className="admin-alert error" role="alert">{error}</p>}
+
+      {!studentId ? (
+        <div className="admin-empty">Chọn một học sinh để xem và tải ảnh.</div>
+      ) : (
+        <>
+          <form className="gallery-top" onSubmit={upload}>
+            <div>
+              <label
+                className={`admin-dropzone${dragging ? ' dragging' : ''}`}
+                onDragOver={(event) => { event.preventDefault(); setDragging(true) }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  setDragging(false)
+                  chooseFiles(event.dataTransfer.files)
+                }}
+              >
+                Kéo ảnh vào đây hoặc <u>chọn từ máy</u>
+                <small>JPG · PNG · GIF · WebP · tối đa 5 MB/ảnh · tối đa {MAX_FILES} ảnh cùng lúc</small>
+                <input ref={fileInputRef} type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp" onChange={(e) => chooseFiles(e.target.files)} />
+              </label>
+              {previewItems.length > 0 && (
+                <div className="upload-queue">
+                  <div className="upload-queue__previews">
+                    {previewItems.slice(0, 4).map((item, index) => (
+                      <Polaroid
+                        key={`${item.file.name}-${item.file.size}`}
+                        src={item.url}
+                        alt={`Ảnh sắp tải lên ${item.file.name}`}
+                        caption={formatBytes(item.file.size)}
+                        small
+                        rotate={ROTATIONS[index % ROTATIONS.length]}
+                        tape="none"
+                      />
+                    ))}
+                    {previewItems.length > 4 && <span className="admin-hint" style={{ alignSelf: 'center' }}>+{previewItems.length - 4} ảnh khác</span>}
+                  </div>
+                  <label className="admin-field upload-queue__caption">
+                    Chú thích chung (tùy chọn)
+                    <input className="input-hand" value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={500} placeholder="Ví dụ: Đi chơi biển hè năm ấy" />
+                  </label>
+                  <button type="submit" className="admin-btn admin-btn--primary" disabled={uploading}>
+                    {uploading ? 'Đang tải lên…' : `Tải ${files.length} ảnh lên`}
+                  </button>
+                  <button type="button" className="admin-btn" onClick={clearQueue} disabled={uploading}>Bỏ</button>
+                </div>
+              )}
+            </div>
+            <div className="admin-card avatar-box">
+              <b>Ảnh đại diện</b>
+              <div className="avatar-box__row">
+                <span className="avatar-stamp" aria-hidden="true">
+                  {selectedStudent?.avatar_url ? <img src={selectedStudent.avatar_url} alt="" /> : initial}
+                </span>
+                {!avatarEditing && (
+                  <button type="button" className="admin-btn admin-btn--sm" onClick={startAvatarEdit}>Đổi ảnh</button>
+                )}
+              </div>
+              {avatarEditing && (
+                <div style={{ marginTop: 10 }}>
+                  <label className="admin-field">
+                    URL ảnh đại diện (để trống = bỏ ảnh)
+                    <input className="input-hand" value={avatarDraft} onChange={(e) => setAvatarDraft(e.target.value)} maxLength={500} placeholder="https://…" />
+                  </label>
+                  <div className="admin-inline" style={{ marginTop: 8 }}>
+                    <button type="button" className="admin-btn admin-btn--sm admin-btn--primary" onClick={saveAvatar} disabled={avatarSaving}>{avatarSaving ? 'Đang lưu…' : 'Lưu'}</button>
+                    <button type="button" className="admin-btn admin-btn--sm" onClick={() => setAvatarEditing(false)} disabled={avatarSaving}>Hủy</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </form>
+
+          {loading && !images.length ? <p className="admin-loading">Đang tải…</p> : images.length ? (
+            <>
+              <p className="admin-hint">Kéo polaroid để đổi thứ tự — thứ tự này là thứ tự hiện trên trang quà.</p>
+              <div className="gallery-admin">
+                {images.map((image, index) => (
+                  <article
+                    key={image.id}
+                    className={`gallery-admin__card${draggedIndex === index ? ' is-dragging' : ''}${overIndex === index && draggedIndex !== null && draggedIndex !== index ? ' is-over' : ''}`}
+                    style={{ '--rot': `${ROTATIONS[index % ROTATIONS.length]}deg` }}
+                    draggable
+                    onDragStart={() => setDraggedIndex(index)}
+                    onDragOver={(event) => { event.preventDefault(); if (overIndex !== index) setOverIndex(index) }}
+                    onDragLeave={() => setOverIndex((current) => (current === index ? null : current))}
+                    onDrop={() => {
+                      if (draggedIndex !== null) reorderFromTo(draggedIndex, index)
+                      setDraggedIndex(null)
+                      setOverIndex(null)
+                    }}
+                    onDragEnd={() => { setDraggedIndex(null); setOverIndex(null) }}
+                  >
+                    <span className="gallery-admin__order" aria-hidden="true">⠿ {draggedIndex === index ? 'đang kéo' : index + 1}</span>
+                    <img className="gallery-admin__img" src={image.image_url} alt={image.caption || ''} loading="lazy" />
+                    <input
+                      className="gallery-admin__caption"
+                      value={captions[image.id] || ''}
+                      onChange={(e) => setCaptions({ ...captions, [image.id]: e.target.value })}
+                      maxLength={500}
+                      placeholder="Chú thích…"
+                      aria-label={`Chú thích ảnh ${index + 1}`}
+                    />
+                    <div className="gallery-admin__actions">
+                      <div className="gallery-admin__move">
+                        <button type="button" className="admin-btn admin-btn--sm" disabled={index === 0} onClick={() => move(index, -1)} aria-label="Chuyển lên trước">←</button>
+                        <button type="button" className="admin-btn admin-btn--sm" disabled={index === images.length - 1} onClick={() => move(index, 1)} aria-label="Chuyển ra sau">→</button>
+                      </div>
+                      <button type="button" className="admin-btn admin-btn--sm" onClick={() => saveCaption(image)}>Lưu chú thích</button>
+                      <button type="button" className="admin-btn admin-btn--sm admin-btn--ghost" onClick={() => setConfirmImage(image)}>Xóa</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="admin-empty">Học sinh này chưa có ảnh — kéo ảnh vào ô phía trên để bắt đầu album.</div>
+          )}
+        </>
+      )}
+
       {confirmImage && (
         <div className="admin-modal-backdrop" role="presentation" onClick={() => setConfirmImage(null)}>
           <section ref={confirmDialogRef} className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="delete-image-title" onClick={(event) => event.stopPropagation()}>
             <h3 id="delete-image-title">Xóa ảnh</h3>
             <p>Ảnh này sẽ bị xóa vĩnh viễn khỏi thư viện.</p>
             <div className="admin-form-actions">
-              <button type="button" className="danger" onClick={remove}>Xóa ảnh</button>
-              <button type="button" onClick={() => setConfirmImage(null)}>Hủy</button>
+              <button type="button" className="admin-btn admin-btn--primary" onClick={remove}>Xóa ảnh</button>
+              <button type="button" className="admin-btn" onClick={() => setConfirmImage(null)}>Hủy</button>
             </div>
           </section>
         </div>
