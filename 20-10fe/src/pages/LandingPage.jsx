@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import giftRepository from '../api/giftRepository'
-import SeatLetterReveal from '../components/SeatLetterReveal'
 import GiftReveal from '../components/GiftReveal'
 import Petals from '../components/paper/Petals'
 import Envelope from '../components/paper/Envelope'
@@ -106,7 +105,6 @@ function LandingPage() {
   // Màn "Thư đã vào hộp!" thay nội dung modal sau khi gửi thành công
   const [wishSent, setWishSent] = useState(null)
   const [showReveal, setShowReveal] = useState(false)
-  const [seatRevealStudent, setSeatRevealStudent] = useState(null)
   const [revealLimits, setRevealLimits] = useState(computeRevealLimits)
   const wishFileRef = useRef(null)
 
@@ -167,12 +165,6 @@ function LandingPage() {
 
     try {
       studentData = accessCode ? await giftRepository.getGift(accessCode) : null
-      if (studentData?.seat_row || studentData?.seat_col || studentData?.seat) {
-        setSeatRevealStudent(studentData)
-        await new Promise((resolve) => {
-          setTimeout(resolve, 1700)
-        })
-      }
     } catch (err) {
       if (err?.status === 423) {
         // Trang quà đang khóa chờ 20/10 — bỏ hiệu ứng mở quà, đưa thẳng tới
@@ -181,13 +173,11 @@ function LandingPage() {
         return
       }
       // Vẫn mở quà nếu không tải được thông tin chỗ ngồi.
-    } finally {
-      setSeatRevealStudent(null)
     }
 
     setRevealName(displayName || studentData?.nickname || studentData?.full_name || '')
-    // Truyền student sang GiftPage qua router state để hero hiện ngay,
-    // không vứt đi dữ liệu vừa fetch rồi bắt người dùng chờ fetch lại
+    // Truyền student sang GiftReveal (sơ đồ lớp + thư bay từ đúng bàn) và sang
+    // GiftPage qua router state để hero hiện ngay, không fetch lại
     setRevealStudent(studentData)
     setRevealPath(giftPath)
   }
@@ -325,23 +315,21 @@ function LandingPage() {
     } finally { setLoading(false) }
   }
 
-  // Show reveal animation
-  if (revealPath) {
-    return (
-      <GiftReveal
-        recipientName={revealName}
-        onComplete={() => navigate(revealPath, revealStudent ? { state: { student: revealStudent } } : undefined)}
-      />
-    )
-  }
-
   const isGuest = visitorRole === 'guest'
   const sentAt = new Date()
 
   return (
     <main className="landing page-paper">
       <Petals count={3} />
-      <SeatLetterReveal student={seatRevealStudent} />
+      {/* Overlay mở quà phủ lên trang chủ (mờ đi phía sau): sơ đồ lớp → thư bay
+          từ bàn → phong bì mở → chuyển sang trang quà */}
+      {revealPath && (
+        <GiftReveal
+          student={revealStudent}
+          recipientName={revealName}
+          onComplete={() => navigate(revealPath, revealStudent ? { state: { student: revealStudent } } : undefined)}
+        />
+      )}
       <div className="landing__grid">
         <div className="landing__envelope">
           <Envelope open={Boolean(visitorRole)} sealWiggle />

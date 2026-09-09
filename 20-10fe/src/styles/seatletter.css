@@ -1,16 +1,6 @@
 /* ===========================================
-   Thư bay từ bàn của bạn (2b) — chạy 1.7 s trước khi mở phong bì
+   Sơ đồ lớp lúc mở quà (2b) — nằm trong overlay của GiftReveal
    =========================================== */
-.seat-reveal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(61, 47, 40, .55);
-}
-
 .seat-reveal {
   width: min(480px, 100%);
   padding: 22px;
@@ -18,6 +8,19 @@
   box-shadow: 0 26px 60px rgba(0, 0, 0, .35);
   text-align: center;
   animation: fadeUp .4s ease both;
+}
+
+/* Thư bắt đầu bay: sơ đồ mờ dần, phong bì mini nhường chỗ cho phong bì lớn */
+.seat-reveal.is-leaving {
+  animation: seatLeave .55s ease both;
+}
+
+.seat-reveal.is-leaving .seat-letter {
+  opacity: 0;
+}
+
+@keyframes seatLeave {
+  to { opacity: 0; transform: scale(.97); }
 }
 
 .seat-reveal__top {
@@ -77,9 +80,15 @@
   border: 2px solid var(--clay);
   background: var(--peach-soft);
   box-shadow: 0 0 0 5px rgba(168, 95, 63, .18);
+  animation: seatGlow 1.2s ease-in-out .4s infinite alternate;
 }
 
-/* Không dùng translate(-50%,-50%) để keyframe rise (translateY) không ghi đè */
+@keyframes seatGlow {
+  to { box-shadow: 0 0 0 9px rgba(168, 95, 63, .28); }
+}
+
+/* Phong bì mini nhô lên khỏi bàn rồi lơ lửng chờ bay — không dùng translate
+   để căn giữa vì keyframe transform sẽ ghi đè */
 .seat-letter {
   position: absolute;
   left: calc(50% - 17px);
@@ -89,7 +98,13 @@
   border: 1.5px solid var(--clay);
   background: var(--letter);
   box-shadow: 0 8px 18px rgba(61, 47, 40, .25);
-  animation: rise 1.3s ease-out .4s both;
+  animation: seatLetterPop .6s cubic-bezier(.2, .8, .2, 1) .35s both;
+}
+
+@keyframes seatLetterPop {
+  0% { transform: translateY(8px) scale(.6); opacity: 0; }
+  60% { transform: translateY(-16px) scale(1.06); opacity: 1; }
+  100% { transform: translateY(-12px) scale(1); opacity: 1; }
 }
 
 .seat-letter__flap {

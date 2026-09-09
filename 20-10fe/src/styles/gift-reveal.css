@@ -1,5 +1,5 @@
 /* ===========================================
-   Hiệu ứng mở quà (1g) — phong bì mở, thư bay lên
+   Mở quà (1g + 2b): sơ đồ lớp → thư bay từ bàn → phong bì mở, thư trồi lên
    =========================================== */
 .reveal {
   position: fixed;
@@ -8,29 +8,91 @@
   display: grid;
   place-items: center;
   overflow: hidden;
+  padding: 20px;
+  background: rgba(61, 47, 40, .55);
+}
+
+/* Nền giấy sáng dần lên khi phong bì bắt đầu mở */
+.reveal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
   background: radial-gradient(circle at 50% 35%, #fbf6ee, #f3e4d2 60%, #e6d5bf);
+  opacity: 0;
+  transition: opacity .6s ease;
+}
+
+.reveal--open::before {
+  opacity: 1;
+}
+
+.reveal .seat-reveal {
+  position: relative;
+  z-index: 1;
 }
 
 .reveal__envelope {
-  position: relative;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
   width: 320px;
   height: 210px;
+  margin: -105px 0 0 -160px;
   perspective: 900px;
+  transform-origin: center;
+}
+
+/* Thứ tự lớp (trước → sau): niêm phong 5 · cánh/túi 3 · thư 2 · nắp 4→1 · thân 0.
+   Thư nằm TRONG phong bì: bị cánh + túi che, trên thân. Nắp mở xong lùi xuống
+   sau thư (z 1) nên thư trồi lên phía trước nắp thay vì bị nắp che. */
+.reveal__body {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--cream);
+  box-shadow: 0 24px 50px rgba(61, 47, 40, .25);
+}
+
+.reveal__flap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 4;
+  height: 0;
+  border-left: 160px solid transparent;
+  border-right: 160px solid transparent;
+  border-top: 120px solid var(--peach);
+  transform-origin: top;
+  filter: drop-shadow(0 6px 10px rgba(61, 47, 40, .2));
+}
+
+.is-open .reveal__flap {
+  animation: revealFlap 1s cubic-bezier(.4, 0, .2, 1) .2s both;
+}
+
+/* z-index nhảy bậc đúng lúc nắp dựng đứng (50%) nên mắt không thấy đổi lớp */
+@keyframes revealFlap {
+  0% { transform: rotateX(0); z-index: 4; }
+  49.9% { z-index: 4; }
+  50% { z-index: 1; }
+  100% { transform: rotateX(-170deg); z-index: 1; }
 }
 
 .reveal__letter {
   position: absolute;
   left: 30px;
   right: 30px;
-  top: -70px;
-  bottom: 40px;
+  top: 14px;
+  z-index: 2;
+  height: 150px;
   padding: 22px 20px;
   overflow: hidden;
   background: var(--letter) repeating-linear-gradient(transparent 0 27px, var(--rule) 27px 28px);
   box-shadow: 0 14px 30px rgba(61, 47, 40, .2);
   font: 22px/28px var(--font-write);
   color: var(--ink);
-  animation: rise 1.4s cubic-bezier(.2, .8, .2, 1) .9s both;
 }
 
 .reveal__letter span {
@@ -38,16 +100,19 @@
   color: var(--clay);
 }
 
-.reveal__body {
-  position: absolute;
-  inset: 0;
-  background: var(--cream);
-  box-shadow: 0 24px 50px rgba(61, 47, 40, .25);
+.is-open .reveal__letter {
+  animation: revealRise 1.3s cubic-bezier(.2, .8, .2, 1) 1s both;
+}
+
+@keyframes revealRise {
+  from { transform: translateY(0); }
+  to { transform: translateY(-150px); }
 }
 
 .reveal__wing {
   position: absolute;
   top: 0;
+  z-index: 3;
   height: 0;
   border-bottom: 210px solid var(--beige-2);
 }
@@ -68,24 +133,11 @@
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: 3;
   height: 0;
   border-left: 160px solid transparent;
   border-right: 160px solid transparent;
   border-bottom: 110px solid #f3e4d2;
-}
-
-.reveal__flap {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 0;
-  border-left: 160px solid transparent;
-  border-right: 160px solid transparent;
-  border-top: 120px solid var(--peach);
-  transform-origin: top;
-  filter: drop-shadow(0 6px 10px rgba(61, 47, 40, .2));
-  animation: flap 1s cubic-bezier(.4, 0, .2, 1) .2s both;
 }
 
 /* left tính sẵn thay cho translateX để keyframe sealPop (scale) không ghi đè */
@@ -93,6 +145,7 @@
   position: absolute;
   left: calc(50% - 32px);
   top: 95px;
+  z-index: 5;
   width: 64px;
   height: 64px;
   display: grid;
@@ -102,6 +155,9 @@
   box-shadow: 0 6px 14px rgba(61, 47, 40, .35);
   font: 22px var(--font-hand);
   color: var(--peach-soft);
+}
+
+.is-open .reveal__seal {
   animation: sealPop .5s ease both;
 }
 
@@ -110,16 +166,11 @@
   bottom: clamp(48px, 12vh, 84px);
   left: 0;
   right: 0;
+  z-index: 2;
   margin: 0;
   padding: 0 20px;
   font: 30px var(--font-hand);
   color: var(--ink-2);
   text-align: center;
   animation: fadeUp .6s ease 1.6s both;
-}
-
-@media (max-width: 380px) {
-  .reveal__envelope {
-    transform: scale(.85);
-  }
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { adminApi, adminAuth } from '../../api/adminApi'
 import Petals from '../../components/paper/Petals'
 import { CLASS_NAME } from '../../lib/event'
@@ -35,7 +35,7 @@ function LoginPage() {
       <form className="admin-login__card letter-paper" onSubmit={submit}>
         <div className="admin-login__brand">
           <img src="/logoclass.jpg" alt="" />
-          <span>BƯU ĐIỆN LỚP {CLASS_NAME}</span>
+          <span>BƯU ĐIỆN {CLASS_NAME}</span>
         </div>
         <h1>Đăng nhập quản trị</h1>
         <label htmlFor="admin-username">
@@ -52,6 +52,8 @@ function LoginPage() {
         <button type="submit" className="btn-primary" disabled={loading}>
           {loading ? 'Đang đăng nhập…' : 'Đăng nhập'}
         </button>
+        {/* Lối ra cho người lỡ bấm "Quản trị" mà không phải admin */}
+        <Link to="/" className="link-dashed admin-login__home">← Về trang chủ</Link>
       </form>
     </main>
   )
