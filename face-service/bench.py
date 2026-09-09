@@ -86,6 +86,7 @@ def align_all(people, det_size=640, ctx_id=-1):
                         'img_w': int(img.shape[1]), 'img_h': int(img.shape[0]),
                         'faces_found': len(faces),
                         'face_px': int(min(x2 - x1, y2 - y1)),
+                        'bbox': [int(x1), int(y1), int(x2), int(y2)],
                         'det_score': round(float(face.det_score), 3),
                         'blur': round(float(cv2.Laplacian(gray, cv2.CV_64F).var()), 1),
                         'brightness': round(float(gray.mean()), 1),
