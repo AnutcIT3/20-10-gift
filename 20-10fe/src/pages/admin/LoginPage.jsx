@@ -35,7 +35,7 @@ function LoginPage() {
       <form className="admin-login__card letter-paper" onSubmit={submit}>
         <div className="admin-login__brand">
           <img src="/logoclass.jpg" alt="" />
-          <span>BƯU ĐIỆN {CLASS_NAME}</span>
+          <span>LỚP {CLASS_NAME}</span>
         </div>
         <h1>Đăng nhập quản trị</h1>
         <label htmlFor="admin-username">

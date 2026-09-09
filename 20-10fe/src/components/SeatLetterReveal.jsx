@@ -53,7 +53,7 @@ function SeatLetterReveal({ student, leaving = false }) {
   return (
     <section className={`seat-reveal${leaving ? ' is-leaving' : ''}`}>
       <div className="seat-reveal__top">
-        <span className="seat-reveal__class">Bưu điện {CLASS_NAME}</span>
+        <span className="seat-reveal__class">Lớp {CLASS_NAME}</span>
         <div className="seat-reveal__board">BẢNG</div>
         <div
           className={`seat-desk seat-desk--teacher${isSpecialSeat ? ' is-active' : ''}`}

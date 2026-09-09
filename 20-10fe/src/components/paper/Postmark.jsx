@@ -1,7 +1,7 @@
 import { Fragment } from 'react'
 import { CLASS_NAME, EVENT_YEAR } from '../../lib/event'
 
-const DEFAULT_LINES = ['BƯU ĐIỆN', CLASS_NAME, { big: '20.10' }, String(EVENT_YEAR)]
+const DEFAULT_LINES = ['LỚP', CLASS_NAME, { big: '20.10' }, String(EVENT_YEAR)]
 
 // Dấu bưu điện tròn: 3–4 dòng chữ Itim, nghiêng nhẹ; `animate` chạy stampIn
 function Postmark({

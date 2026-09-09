@@ -2,8 +2,8 @@
 export const CLASS_NAME = '12A1'
 export const EVENT_YEAR = new Date().getFullYear()
 export const EVENT_LABEL = `20.10.${EVENT_YEAR}`
-// "Bưu điện 12A1" — khớp dấu bưu điện và tên khu admin, không phải "Lớp 12A1"
-export const CLASS_LABEL = `Bưu điện ${CLASS_NAME} · ${EVENT_LABEL}`
+// "Lớp 12A1" — nhãn lớp dùng chung cho header/footer trang quà (không dùng "Bưu điện")
+export const CLASS_LABEL = `Lớp ${CLASS_NAME} · ${EVENT_LABEL}`
 
 // 00:00 ngày 20/10 gần nhất còn ở phía trước (giờ máy người xem)
 export function nextEventDate(now = new Date()) {

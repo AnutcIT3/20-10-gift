@@ -111,8 +111,8 @@ function AdminLayout() {
         <div className="admin-brand">
           <img src="/logoclass.jpg" alt="" />
           <div>
-            <p>{CLASS_NAME} · 20/10</p>
-            <h1>Bưu điện lớp</h1>
+            <p>Quản trị · 20/10</p>
+            <h1>Lớp {CLASS_NAME}</h1>
           </div>
         </div>
         {/* Thứ tự theo tần suất dùng: 2 trang dùng nhiều nhất (Lời chúc, Thư viện
