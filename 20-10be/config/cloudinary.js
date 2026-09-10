@@ -9,6 +9,38 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+// Chỉ lỗi 400 của Cloudinary mới là lỗi của TẤM ẢNH. 401/403/404 là sai
+// thông tin tài khoản trong .env, 420/429 là bị giới hạn tốc độ: bảo admin
+// "bỏ ảnh này" khi đó chỉ khiến họ xóa dần cả album mà lỗi vẫn y nguyên.
+// uploadErrorHandler trả thẳng message này (không qua errorHandler chung),
+// nên câu chữ còn nguyên cả ở chế độ production.
+function describeUploadError(error, originalname) {
+  const code = Number(error.http_code);
+  const detail = error.message || 'không rõ';
+  if (code === 400) {
+    return Object.assign(
+      new Error(`Ảnh "${originalname}" không hợp lệ hoặc bị hỏng (${detail}). Hãy bỏ ảnh này khỏi hàng đợi rồi tải lại.`),
+      { statusCode: 400 },
+    );
+  }
+  if (code === 401 || code === 403 || code === 404) {
+    return Object.assign(
+      new Error(`Cloudinary từ chối tài khoản (${detail}). Kiểm tra CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET trong 20-10be/.env — ảnh của bạn không có lỗi.`),
+      { statusCode: 502 },
+    );
+  }
+  if (code === 420 || code === 429) {
+    return Object.assign(
+      new Error(`Cloudinary đang giới hạn tốc độ (${detail}). Đợi một phút rồi bấm tải lại — ảnh của bạn không có lỗi.`),
+      { statusCode: 429 },
+    );
+  }
+  return Object.assign(
+    new Error(`Không gửi được ảnh "${originalname}" lên Cloudinary (${detail}). Kiểm tra mạng rồi bấm tải lại.`),
+    { statusCode: 502 },
+  );
+}
+
 function createStorage(resourceType, allowedFormats) {
   return {
     _handleFile(req, file, callback) {
@@ -18,13 +50,7 @@ function createStorage(resourceType, allowedFormats) {
         allowed_formats: allowedFormats,
       }, (error, result) => {
         if (error) {
-          // Multer hủy cả lô khi một file lỗi; nếu thông báo không nêu tên file
-          // thì admin không biết bỏ tấm nào và bấm lại sẽ lỗi y hệt
-          const code = Number(error.http_code);
-          return callback(Object.assign(
-            new Error(`Ảnh "${file.originalname}" không hợp lệ hoặc bị hỏng (${error.message}). Hãy bỏ ảnh này khỏi hàng đợi rồi tải lại.`),
-            { statusCode: code >= 400 && code < 500 ? 400 : 502 },
-          ));
+          return callback(describeUploadError(error, file.originalname));
         }
         return callback(null, {
           path: result.secure_url,
@@ -90,5 +116,5 @@ const uploadImage = multer({
 });
 
 module.exports = {
-  cloudinary, uploadImage, uploadErrorHandler,
+  cloudinary, uploadImage, uploadErrorHandler, describeUploadError,
 };

@@ -122,6 +122,9 @@ function GalleryManager() {
   // Tấm nào lỗi thì loại riêng tấm đó và nói rõ vì sao; các tấm còn lại vẫn
   // vào hàng đợi — kéo 15 ảnh mà mất cả lô vì một tấm 6 MB là quá đau
   const chooseFiles = (fileList) => {
+    // Đang tải thì bỏ qua: vòng tải dùng bản sao hàng đợi lúc bấm, xong sẽ xóa
+    // hàng đợi — ảnh thả vào giữa chừng sẽ biến mất mà không ai hay
+    if (uploading) return
     setMessage('')
     const picked = Array.from(fileList || [])
     if (!picked.length) {
@@ -303,6 +306,10 @@ function GalleryManager() {
           className="admin-select admin-select--hand"
           aria-label="Chọn học sinh"
           value={studentId}
+          // Khóa khi đang tải: ảnh vẫn lên album của bạn cũ, nhưng lưới sẽ
+          // chèn chúng vào album của bạn vừa chọn cho tới khi tải lại trang
+          disabled={uploading}
+          title={uploading ? 'Đang tải ảnh — đợi xong rồi hãy đổi học sinh' : undefined}
           onChange={(e) => {
             const value = e.target.value
             navigate(value ? `/admin/gallery?studentId=${value}` : '/admin/gallery', { replace: true })
@@ -342,6 +349,7 @@ function GalleryManager() {
                   ref={fileInputRef}
                   type="file"
                   multiple
+                  disabled={uploading}
                   accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif,.heic,.heif"
                   onChange={(e) => chooseFiles(e.target.files)}
                 />
