@@ -1,8 +1,133 @@
-# face-service — Giai đoạn 1: chọn model
+# face-service
 
-Thư mục này phục vụ bước "đo trước, làm sau" trong [FACE_PLAN.md](../FACE_PLAN.md):
+Dịch vụ trích đặc trưng khuôn mặt cho Face ID, chạy nội bộ trên
+`127.0.0.1:5002`. Nó chỉ làm một việc: nhận ảnh → trả về các khuôn mặt kèm vector
+512 chiều và chỉ số chất lượng. So khớp với hồ sơ, ngưỡng, rate limit, công tắc
+bật/tắt… nằm ở backend Node (`20-10be`), nơi đã có database và cấu hình. Nhờ vậy
+service không cần mật khẩu database, không giữ trạng thái, và một lỗi ở đây chỉ
+làm thẻ Face ID tự ẩn chứ không làm sập web.
+
+Thư mục này còn chứa bộ benchmark chọn model (giai đoạn 1, xem phần cuối) và
+kết quả đo trong [RESULTS.md](RESULTS.md): chọn **ArcFace w600k_r50**, đăng ký
+kiểu `mean`, ngưỡng τ = 0,45 kèm margin ≥ 0,10.
+
+## Cài đặt
+
+Cần Python 3.11. `setup-local.bat` ở thư mục gốc tự làm bước này nếu máy có
+`py -3.11`; làm tay thì:
+
+```
+cd face-service
+py -3.11 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+`onnxruntime` bản CPU là đủ (20 ms/ảnh với model đã chọn). Model `buffalo_l`
+được insightface tải về `~/.insightface/models/` ở lần chạy đầu — cần mạng một
+lần. `.venv/` và `models/` đều nằm trong `.gitignore`.
+
+## Chạy service
+
+```
+face-service\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 5002
+```
+
+Bình thường không cần gõ lệnh này: `start-dev.bat` mở nó trong cửa sổ thứ ba
+khi thấy `.venv`, còn `start-public.bat` chạy ẩn và chờ `/health` tối đa 60 giây
+trước khi mở tunnel. Chỉ bind `127.0.0.1`, nghĩa là chỉ backend Node trên cùng
+máy gọi được; không bao giờ mở ra mạng.
+
+Biến môi trường tùy chọn: `FACE_MAX_UPLOAD_BYTES` (mặc định 8 MB),
+`FACE_MAX_FACES` (mặc định 5), `FACE_GPU=1` để dùng GPU (cần
+`onnxruntime-gpu>=1.27` với RTX 50).
+
+### `GET /health`
+
+```json
+{
+  "status": "ok",
+  "model": "arcface_r50",
+  "model_label": "ArcFace w600k_r50 (buffalo_l)",
+  "provider": "CPUExecutionProvider",
+  "load_ms": 1800,
+  "uptime_s": 120,
+  "embedding_dim": 512,
+  "requests": 0, "no_face": 0, "errors": 0, "avg_ms": null
+}
+```
+
+Backend Node coi service "sống" khi `status` là `ok` và `model` trùng với
+`FACE_MODEL` (`arcface_r50`). Các bộ đếm chỉ là số, không có gì về nội dung ảnh.
+
+### `POST /embed`
+
+- Body `multipart/form-data`, một file ở field `image` (JPEG/PNG/WebP).
+- Query `max_faces` 1–20 (mặc định 5): số khuôn mặt tối đa trả về, to nhất
+  trước. Backend gọi `max_faces=2` khi quét (để phát hiện "nhiều người trong
+  khung") và `max_faces=3` khi đăng ký.
+- Query `embedding=false` nếu chỉ cần chỉ số chất lượng.
+
+Trả về:
+
+```json
+{
+  "faces": [
+    {
+      "index": 0,
+      "bbox": [x1, y1, x2, y2],
+      "face_px": 180,
+      "det_score": 0.91,
+      "brightness": 120,
+      "blur": 85,
+      "embedding": [ /* 512 số thực, đã chuẩn hóa L2 */ ]
+    }
+  ],
+  "image": { "width": 480, "height": 360 },
+  "elapsed_ms": 24
+}
+```
+
+| Trường | Ý nghĩa |
+|---|---|
+| `face_px` | cạnh ngắn của khung mặt tính theo ảnh gốc — backend đòi ≥ 80 |
+| `brightness` | độ sáng trung bình vùng mặt 0–255 — backend đòi ≥ 40 |
+| `blur` | độ nét (phương sai Laplacian), càng cao càng nét — backend đòi ≥ 40 |
+| `embedding` | vector đơn vị, nên cosine giữa hai vector bằng tích vô hướng |
+
+`faces` rỗng khi không thấy mặt. Lỗi: `400` khi ảnh không đọc được, `413` khi
+quá `FACE_MAX_UPLOAD_BYTES`, `500` khi model xử lý thất bại (service không chết).
+Ảnh chỉ sống trong request; log chỉ ghi số (KB, số mặt, cỡ mặt, ms).
+
+## Đăng ký hồ sơ
+
+Hồ sơ là **một vector trung bình** cho mỗi bạn (đã chuẩn hóa lại), lưu trong
+bảng `face_profiles` của backend — không lưu ảnh. Việc này do script Node làm,
+chạy trong `20-10be` khi service đang bật:
+
+```
+npm run face:enroll                          # quét bench/photos/<Họ và tên>/, khớp tên với database
+npm run face:enroll -- --dry-run             # chỉ in bảng "thư mục -> học sinh", không ghi gì
+npm run face:enroll -- --student 5 --images a.jpg b.jpg   # một bạn, ảnh bất kỳ
+```
+
+Chế độ mặc định khớp tên thư mục với `full_name` (bỏ hoa/thường, dấu cách thừa;
+thư mục `test` bị bỏ qua) và báo `CHƯA KHỚP` cho thư mục không tìm thấy. Ảnh
+không có mặt bị bỏ qua kèm cảnh báo; ảnh có nhiều mặt thì lấy mặt giống mặt
+trung bình của các ảnh còn lại. Đăng ký lại sẽ thay hồ sơ cũ của bạn đó. Bảng
+`face_profiles` không nằm trong snapshot backup/restore, nên đổi máy thì chạy
+lại lệnh này.
+
+Sau khi đăng ký, vào admin gạt công tắc **✨ Face ID** — thẻ trên trang chủ chỉ
+hiện khi công tắc bật, `/health` trả lời và có ít nhất một hồ sơ.
+
+---
+
+# Giai đoạn 1: chọn model (benchmark)
+
+Phần dưới đây phục vụ bước "đo trước, làm sau" trong [FACE_PLAN.md](../FACE_PLAN.md):
 so sánh vài model nhận diện khuôn mặt trên **chính ảnh lớp mình**, rồi mới quyết
-định có làm tính năng Face ID hay không.
+định có làm tính năng Face ID hay không. Kết quả đã chốt trong `RESULTS.md`;
+giữ lại để đo lại khi có thêm ảnh điện thoại thật hoặc đủ 22 bạn.
 
 ## Thả ảnh vào đâu
 
