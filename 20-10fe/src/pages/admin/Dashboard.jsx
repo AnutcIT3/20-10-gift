@@ -8,6 +8,13 @@ const EMOJI_MAP = {
 }
 const AUTO_REFRESH_MS = 30_000
 const INBOX_PREVIEW = 3
+// Thẻ Face ID: nhãn cho từng con số trong stats.face, theo thứ tự hiện chip
+const FACE_CHIPS = [
+  ['matched', 'Nhận ra'],
+  ['rejected', 'Từ chối'],
+  ['confirmedYes', 'Đúng là mình'],
+  ['confirmedNo', 'Không phải mình'],
+]
 
 function greetingByHour(date = new Date()) {
   const hour = date.getHours()
@@ -133,6 +140,12 @@ function Dashboard() {
   const reactions = Object.entries(stats?.reactions?.byEmoji || {})
     .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1])
+  // Face ID chỉ ghi con số (match/reject + câu trả lời "đúng là mình"), không
+  // ảnh. stats.face vắng khi backend chưa có bảng log; 0 lượt cũng coi là trống
+  // như hai thẻ bên cạnh — confirmed chỉ đếm trên các lượt match/reject nên
+  // matched + rejected là tổng
+  const face = stats?.face
+  const faceTotal = face ? Number(face.matched || 0) + Number(face.rejected || 0) : 0
 
   return (
     <section>
@@ -272,6 +285,22 @@ function Dashboard() {
                 ))}
               </div>
             )}
+          </section>
+
+          <section className="admin-card admin-card--pad" aria-labelledby="face-title">
+            <h3 id="face-title">✨ Face ID</h3>
+            {loading && !stats ? <p className="admin-loading">Đang tải…</p> : !face || faceTotal === 0 ? (
+              <p className="admin-hint" style={{ margin: 0 }}>Chưa có lượt nào.</p>
+            ) : (
+              <div className="dash-chips">
+                {FACE_CHIPS.map(([key, label], index) => (
+                  <span key={key} className={`dash-chip${index === 0 ? ' dash-chip--top' : ''}`}>
+                    {label} <b>{face[key] ?? 0}</b>
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="admin-hint" style={{ margin: '12px 0 0' }}>Số liệu chỉ là con số, không lưu ảnh.</p>
           </section>
         </div>
       </div>

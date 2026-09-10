@@ -12,10 +12,13 @@ function AdminLayout() {
   // hàng đợi ảnh đang chờ tải, chú thích đang gõ, form đang sửa — trong một
   // buổi tải 100 ảnh, chỉ cần một bạn gửi lời chúc là mất sạch. Để admin bấm.
   const [stale, setStale] = useState(false)
-  // Sidebar: số lời chúc chờ duyệt (badge) và trạng thái khóa trang quà
-  const [sidebar, setSidebar] = useState({ pending: null, locked: null })
+  // Sidebar: số lời chúc chờ duyệt (badge), trạng thái khóa trang quà và công
+  // tắc Face ID (null = chưa biết, chưa cho bấm)
+  const [sidebar, setSidebar] = useState({ pending: null, locked: null, faceEnabled: null })
   const [lockSaving, setLockSaving] = useState(false)
   const [lockError, setLockError] = useState('')
+  const [faceSaving, setFaceSaving] = useState(false)
+  const [faceError, setFaceError] = useState('')
 
   const loadSidebar = useCallback(async () => {
     try {
@@ -23,6 +26,7 @@ function AdminLayout() {
       setSidebar({
         pending: Number(stats?.letters?.pending ?? 0),
         locked: Boolean(settings?.gift_pages_locked),
+        faceEnabled: Boolean(settings?.face_enabled),
       })
     } catch {
       // Giữ giá trị cũ — badge/khóa lệch vài giây không đáng chặn thao tác
@@ -104,12 +108,30 @@ function AdminLayout() {
     }
   }
 
+  // Công tắc Face ID: tắt là trang chủ tự ẩn thẻ ✨ (qua /api/face/status) mà
+  // không cần restart. Mirror toggleLock nhưng cờ riêng — hai công tắc độc lập,
+  // đang lưu cái này không được khóa cái kia.
+  const toggleFace = async () => {
+    if (sidebar.faceEnabled === null || faceSaving) return
+    setFaceSaving(true)
+    setFaceError('')
+    try {
+      const updated = await adminApi.updateSettings({ face_enabled: !sidebar.faceEnabled })
+      setSidebar((current) => ({ ...current, faceEnabled: Boolean(updated?.face_enabled) }))
+    } catch (err) {
+      setFaceError(err.message)
+    } finally {
+      setFaceSaving(false)
+    }
+  }
+
   const logout = () => {
     adminAuth.clear()
     navigate('/', { replace: true })
   }
 
   const locked = sidebar.locked
+  const faceEnabled = sidebar.faceEnabled
   return (
     <div className="admin-shell">
       <aside className="admin-sidebar">
@@ -132,7 +154,8 @@ function AdminLayout() {
           <NavLink to="/admin/students">Học sinh</NavLink>
           <NavLink to="/admin/seating">Sơ đồ lớp</NavLink>
         </nav>
-        {/* Khóa/mở trang quà: giữ bất ngờ tới đúng ngày 20/10 — gửi lời chúc vẫn mở */}
+        {/* Hai công tắc: khóa/mở trang quà (giữ bất ngờ tới đúng ngày 20/10 —
+            gửi lời chúc vẫn mở) và Face ID (thẻ ✨ cạnh ô gõ tên trên trang chủ) */}
         <div className="admin-lock">
           <div className="admin-lock__row">
             <span>Trang quà</span>
@@ -152,6 +175,26 @@ function AdminLayout() {
               : locked
                 ? <>Đang <b>KHÓA</b> chờ 20/10. Gửi lời chúc vẫn hoạt động.</>
                 : <>Đang <b>MỞ</b> — mọi người xem được trang quà. Bật khóa để giữ bất ngờ.</>}
+          </p>
+          {/* BẬT dùng is-on (giữ nền rêu), không mượn is-locked màu đất của khóa */}
+          <div className="admin-lock__row">
+            <span>✨ Face ID</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={Boolean(faceEnabled)}
+              aria-label={faceEnabled ? 'Face ID đang bật — bấm để tắt' : 'Face ID đang tắt — bấm để bật'}
+              className={`admin-toggle${faceEnabled ? ' is-on' : ''}`}
+              disabled={faceEnabled === null || faceSaving}
+              onClick={toggleFace}
+            />
+          </div>
+          <p>
+            {faceEnabled === null
+              ? 'Đang kiểm tra trạng thái…'
+              : faceEnabled
+                ? <>Face ID đang <b>BẬT</b> — thẻ ✨ hiện cạnh ô gõ tên.</>
+                : <>Face ID đang <b>TẮT</b> — thẻ tự ẩn trên trang chủ.</>}
           </p>
         </div>
         <button type="button" className="admin-logout" onClick={logout}>Đăng xuất</button>
@@ -173,6 +216,7 @@ function AdminLayout() {
         <Outlet key={outletKey} />
       </main>
       {lockError && <p key={lockError} className="admin-alert error" role="alert">{lockError}</p>}
+      {faceError && <p key={faceError} className="admin-alert error" role="alert">{faceError}</p>}
     </div>
   )
 }

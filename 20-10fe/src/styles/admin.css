@@ -139,6 +139,18 @@
   transform: translateX(20px);
 }
 
+/* Công tắc Face ID: BẬT giữ nền rêu (is-locked màu đất là "khóa", không mượn),
+   chỉ đẩy nút sang phải */
+.admin-toggle.is-on::after {
+  transform: translateX(20px);
+}
+
+/* Hai công tắc chung một khối: gạch đứt mảnh tách Face ID khỏi khóa trang quà */
+.admin-lock p + .admin-lock__row {
+  padding-top: 8px;
+  border-top: 1px dashed #4d3d35;
+}
+
 .admin-lock p {
   margin: 0;
   font-size: 12.5px;
@@ -1707,15 +1719,24 @@
     overflow-x: auto;
   }
 
+  /* Hai công tắc đứng cạnh nhau khi đủ chỗ (≥130px mỗi cột), máy hẹp tự xếp dọc */
   .admin-lock {
     grid-row: 3;
     grid-column: 1 / -1;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 8px 14px;
     margin-top: 0;
     padding: 10px 12px;
   }
 
   .admin-lock p {
     display: none;
+  }
+
+  /* Chú thích đã ẩn nên gạch ngăn không còn ý nghĩa */
+  .admin-lock p + .admin-lock__row {
+    padding-top: 0;
+    border-top: 0;
   }
 
   .admin-main {
