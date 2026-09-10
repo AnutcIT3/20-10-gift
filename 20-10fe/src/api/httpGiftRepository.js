@@ -65,23 +65,41 @@ async function faceStatus() {
 }
 
 // Một khung hình camera (Blob JPEG ≤ 480 px) → quyết định của server.
-// signal để hủy khi đóng modal; timeout ngắn hơn mặc định vì vòng quét gửi
-// liên tục, một khung treo không được chặn các khung sau
-async function matchFace(blob, { signal, timeout = 6000 } = {}) {
+// signal để hủy khi đóng modal. timeout phải dài hơn lúc backend chờ
+// face-service (8 giây, khi cả lớp quét cùng lúc khung phải xếp hàng) — hết
+// giờ ở trình duyệt trước thì lượt quét dừng oan với câu "Face ID nghỉ".
+// scan/t (mã lượt quét, ms từ lúc camera chạy) để admin xem lại lượt đó.
+async function matchFace(blob, { signal, timeout = 10000, scan, t } = {}) {
   const form = new FormData()
   form.append('frame', blob, 'frame.jpg')
+  if (scan) form.append('scan', scan)
+  if (Number.isFinite(t)) form.append('t', String(Math.round(t)))
   const response = await api.post('/api/face/match', form, { signal, timeout })
   return response.data.data
 }
 
-// Người dùng trả lời "đúng là mình" / "không phải" — chỉ gửi số, không ảnh
-async function faceConfirm(matchId, confirmed) {
-  const response = await api.post('/api/face/confirm', { matchId, confirmed })
+// Lượt quét kết thúc thế nào: { outcome, matchId?, durationMs, darkFrames }.
+// Có thể được gửi đúng lúc trang đang đóng, nên dùng fetch keepalive (sống
+// tiếp sau khi trang đã đi) thay vì axios — XHR bị hủy cùng trang.
+async function faceScanEnd(token, data) {
+  const response = await fetch(`${api.defaults.baseURL}/api/face/scans/${token}/end`, {
+    method: 'POST',
+    keepalive: true,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!response.ok) throw Object.assign(new Error(`Không gửi được kết quả quét (${response.status})`), { status: response.status })
+  return (await response.json()).data
+}
+
+// Gõ tên mở quà ngay sau các lượt quét chưa thành: ghép tên vào các lượt đó
+async function faceScanClaim(tokens, accessCode) {
+  const response = await api.post('/api/face/scans/claim', { tokens, accessCode })
   return response.data.data
 }
 
 export default {
   resolveStudent, getGift, getGiftContent, getGallery, getLetters,
   createLetter, createFriendLetter, generateGreeting,
-  faceStatus, matchFace, faceConfirm,
+  faceStatus, matchFace, faceScanEnd, faceScanClaim,
 }

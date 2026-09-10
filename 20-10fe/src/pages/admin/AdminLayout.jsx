@@ -153,6 +153,7 @@ function AdminLayout() {
           <NavLink to="/admin/gallery">Thư viện ảnh</NavLink>
           <NavLink to="/admin/students">Học sinh</NavLink>
           <NavLink to="/admin/seating">Sơ đồ lớp</NavLink>
+          <NavLink to="/admin/face">Face ID</NavLink>
         </nav>
         {/* Hai công tắc: khóa/mở trang quà (giữ bất ngờ tới đúng ngày 20/10 —
             gửi lời chúc vẫn mở) và Face ID (thẻ ✨ cạnh ô gõ tên trên trang chủ) */}

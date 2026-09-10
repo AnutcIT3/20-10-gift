@@ -137,6 +137,13 @@ export function stopKindFor(err) {
   return null
 }
 
+// Mã lượt quét: 32 ký tự hex ngẫu nhiên (backend kiểm /^[a-f0-9]{32}$/) — chỉ
+// để gom các khung hình của một lần camera chạy, không gắn với máy hay người
+export function makeScanToken(random = globalThis.crypto) {
+  const bytes = random.getRandomValues(new Uint8Array(16))
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
 export function remainingSeconds(startedAt, now, timeoutMs = SCAN_TIMEOUT_MS) {
   return Math.max(0, Math.ceil((startedAt + timeoutMs - now) / 1000))
 }

@@ -56,7 +56,7 @@ test('dashboard stats normalizes aggregate values and reaction totals', async ()
     [[{ count: '5' }]],
     [[{ id: 20, full_name: 'Hùng', view_count: 10 }]],
     [[{ emoji_key: 'love', cnt: '3' }, { emoji_key: 'think', cnt: '1' }]],
-    [[{ matched: '4', rejected: '2', confirmedYes: '3', confirmedNo: null }]],
+    [[{ scans: '9', confirmed: '5', denied: null }]],
   ];
   const seen = [];
   pool.execute = async (sql) => { seen.push(sql); return results.shift(); };
@@ -70,18 +70,19 @@ test('dashboard stats normalizes aggregate values and reaction totals', async ()
     assert.deepEqual(result.letters, { pending: 1, approved: 4, rejected: 0, scheduled: 0 });
     assert.deepEqual(result.reactions, { byEmoji: { love: 3, think: 1 }, total: 4 });
     assert.equal(result.gallery.studentsWithoutImages, 19);
-    assert.deepEqual(result.face, { matched: 4, rejected: 2, confirmedYes: 3, confirmedNo: 0 });
-    assert.match(seen[7], /FROM face_match_log/);
+    // Đếm theo lượt quét: 9 lượt, 5 nhận đúng, 0 nhầm → 4 chưa thành
+    assert.deepEqual(result.face, { scans: 9, confirmed: 5, denied: 0, failed: 4 });
+    assert.match(seen[7], /FROM face_scans/);
   } finally {
     pool.execute = original;
   }
 });
 
-test('dashboard stats still load before migration 017 created face_match_log', async () => {
+test('dashboard stats still load before migration 018 created face_scans', async () => {
   const original = pool.execute;
   pool.execute = async (sql) => {
-    if (sql.includes('FROM face_match_log')) {
-      throw Object.assign(new Error("Table 'gift.face_match_log' doesn't exist"), { code: 'ER_NO_SUCH_TABLE' });
+    if (sql.includes('FROM face_scans')) {
+      throw Object.assign(new Error("Table 'gift.face_scans' doesn't exist"), { code: 'ER_NO_SUCH_TABLE' });
     }
     if (sql.includes('FROM letter_reactions')) return [[]];
     if (sql.includes('ORDER BY view_count')) return [[]];
@@ -101,7 +102,7 @@ test('dashboard stats still load before migration 017 created face_match_log', a
 test('dashboard stats do not hide real database failures behind the Face ID fallback', async () => {
   const original = pool.execute;
   pool.execute = async (sql) => {
-    if (sql.includes('FROM face_match_log')) {
+    if (sql.includes('FROM face_scans')) {
       throw Object.assign(new Error('Lost connection'), { code: 'PROTOCOL_CONNECTION_LOST' });
     }
     if (sql.includes('FROM letter_reactions')) return [[]];

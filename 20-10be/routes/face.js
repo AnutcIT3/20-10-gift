@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const multer = require('multer');
 const { asyncHandler } = require('../utils/response');
-const { faceMatchLimiter } = require('../middleware/rateLimit');
+const { faceMatchLimiter, faceEventLimiter } = require('../middleware/rateLimit');
 const { uploadErrorHandler } = require('../config/cloudinary');
 const { FACE_FRAME_MAX_BYTES } = require('../config/constants');
 const faceController = require('../controllers/faceController');
@@ -37,5 +37,10 @@ router.post(
 );
 
 router.post('/confirm', asyncHandler(faceController.confirm));
+
+// Lịch sử cho admin: trình duyệt báo lượt quét kết thúc thế nào, và ghép tên
+// khi người dùng gõ tên mở quà ngay sau lượt chưa thành. Chỉ JSON nhỏ, không ảnh.
+router.post('/scans/claim', faceEventLimiter, asyncHandler(faceController.claimScans));
+router.post('/scans/:token/end', faceEventLimiter, asyncHandler(faceController.endScan));
 
 module.exports = router;

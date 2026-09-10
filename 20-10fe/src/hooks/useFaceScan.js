@@ -10,6 +10,7 @@ import {
   STOP_TITLES,
   TICK_MS,
   isTooDark,
+  makeScanToken,
   meanLuma,
   remainingSeconds,
   stopKindFor,
@@ -18,6 +19,7 @@ import {
 
 const METER_SIZE = 32                 // canvas đo sáng 32×32, lấy luma vùng giữa 16×16
 const HAVE_CURRENT_DATA = 2           // video.readyState đủ để vẽ được một khung
+const MAX_CLAIM_TOKENS = 10           // khớp giới hạn ghép tên của backend
 
 const IDLE = Object.freeze({
   status: 'idle',      // 'idle' | 'starting' | 'scanning' | 'confirm' | 'stopped'
@@ -57,14 +59,47 @@ function captureFrame(video, canvas) {
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.8))
 }
 
+// Một lượt quét = một lần camera chạy (mở modal, "Quét lại", "Không phải mình").
+// Mã lượt đi kèm mọi khung hình để admin xem lại lượt đó — chỉ con số, không ảnh.
+function newScan() {
+  return {
+    token: makeScanToken(),
+    startedAt: 0,        // lúc camera chạy; 0 = camera chưa lên
+    darkFrames: 0,       // nhịp tự bỏ vì quá tối, không gửi lên server
+    concludedMs: null,   // ms tới lúc máy hỏi "Có phải cậu là…?"
+    matchId: null,       // khung hình được đem ra hỏi
+    ended: false,
+  }
+}
+
+// Báo lượt quét kết thúc thế nào — đúng một lần mỗi lượt. Lượt chưa thành giữ
+// lại mã để ghép tên nếu ngay sau đó người dùng mở quà. Lỗi mạng bỏ qua: đây
+// chỉ là lịch sử, không được chen vào đường tới trang quà.
+function reportScanEnd(scan, unclaimed, outcome) {
+  if (!scan || scan.ended) return
+  scan.ended = true
+  if (outcome !== 'confirmed') {
+    unclaimed.push(scan.token)
+    if (unclaimed.length > MAX_CLAIM_TOKENS) unclaimed.shift()
+  }
+  const durationMs = scan.concludedMs ?? (scan.startedAt ? Date.now() - scan.startedAt : null)
+  giftRepository.faceScanEnd(scan.token, {
+    outcome,
+    durationMs,
+    darkFrames: scan.darkFrames,
+    ...(scan.matchId ? { matchId: scan.matchId } : {}),
+  }).catch(() => {})
+}
+
 /**
  * Máy quét Face ID: mở camera, mỗi TICK_MS đo sáng rồi gửi một khung lên
  * /api/face/match (không bao giờ chồng request), đếm phiếu cho tới khi hai
  * khung liên tiếp cùng chỉ một người → dừng camera, đưa ứng viên ra hỏi.
  *
  * Trả về `open/close` (hook tự giữ cờ active để reset trạng thái đúng lúc mở),
- * `accept/deny/retry` cho màn xác nhận, và `videoRef` gắn vào <video>.
- * Stream, interval, AbortController, phiếu bầu nằm trong ref — không phải state.
+ * `accept/deny/retry` cho màn xác nhận, `claim` để ghép tên vào các lượt chưa
+ * thành khi quà được mở, và `videoRef` gắn vào <video>.
+ * Stream, interval, AbortController, phiếu bầu, lượt quét nằm trong ref — không phải state.
  * Camera được nhả khi: đóng modal, Esc (qua close), rời tab, đổi vai trò, unmount.
  */
 function useFaceScan() {
@@ -84,12 +119,18 @@ function useFaceScan() {
   const inFlightRef = useRef(false)
   const meterCanvasRef = useRef(null)
   const frameCanvasRef = useRef(null)
+  const scanRef = useRef(null)
+  // Mã các lượt chưa thành trong lần mở trang này, chờ ghép tên
+  const unclaimedRef = useRef([])
 
   useEffect(() => {
     if (!active) return undefined
     let done = false          // phiên này đã nhả camera (kết luận, dừng, hoặc dọn dẹp)
     let startedAt = Date.now()
     votesRef.current = INITIAL_VOTES
+    const scan = newScan()
+    scanRef.current = scan
+    const unclaimed = unclaimedRef.current
 
     const release = () => {
       done = true
@@ -110,20 +151,26 @@ function useFaceScan() {
     const finish = (kind) => {
       if (done) return
       release()
+      reportScanEnd(scan, unclaimed, kind)
       setState((current) => ({ ...current, status: 'stopped', kind, message: STOP_MESSAGES[kind], candidate: null }))
     }
 
+    // Chưa khép lượt ở đây: lượt kết thúc khi người dùng trả lời câu hỏi
     const conclude = (candidate) => {
       if (done) return
       release()
+      scan.concludedMs = Date.now() - startedAt
+      scan.matchId = candidate.matchId
       setState((current) => ({ ...current, status: 'confirm', candidate, hint: '' }))
     }
 
-    const send = async (blob) => {
+    const send = async (blob, t) => {
       const controller = new AbortController()
       controllerRef.current = controller
       try {
-        const result = await giftRepository.matchFace(blob, { signal: controller.signal, timeout: 6000 })
+        const result = await giftRepository.matchFace(blob, {
+          signal: controller.signal, scan: scan.token, t,
+        })
         if (done) return
         const { votes, hint, conclusion, giveUp } = tallyVotes(votesRef.current, result, excludedRef.current)
         votesRef.current = votes
@@ -144,7 +191,8 @@ function useFaceScan() {
 
     const tick = () => {
       if (done) return
-      const left = remainingSeconds(startedAt, Date.now())
+      const now = Date.now()
+      const left = remainingSeconds(startedAt, now)
       if (left <= 0) { finish('timeout'); return }
       setState((current) => (current.secondsLeft === left ? current : { ...current, secondsLeft: left }))
       // Không bao giờ chồng request: còn khung đang bay thì bỏ qua nhịp này
@@ -154,6 +202,7 @@ function useFaceScan() {
 
       meterCanvasRef.current ||= makeCanvas(METER_SIZE, METER_SIZE)
       if (isTooDark(measureLuma(video, meterCanvasRef.current))) {
+        scan.darkFrames += 1
         setHint(HINTS.darkLocal)
         return
       }
@@ -162,7 +211,7 @@ function useFaceScan() {
       frameCanvasRef.current ||= makeCanvas(MAX_FRAME_WIDTH, MAX_FRAME_WIDTH)
       captureFrame(video, frameCanvasRef.current).then((blob) => {
         if (done || !blob) { inFlightRef.current = false; return undefined }
-        return send(blob)
+        return send(blob, now - startedAt)
       })
     }
 
@@ -184,6 +233,7 @@ function useFaceScan() {
         video.play?.()?.catch?.(() => {})
       }
       startedAt = Date.now()
+      scan.startedAt = startedAt
       setState((current) => ({ ...current, status: 'scanning', hint: HINTS.scanning, secondsLeft: SCAN_TIMEOUT_MS / 1000 }))
       intervalRef.current = setInterval(tick, TICK_MS)
     }
@@ -192,12 +242,22 @@ function useFaceScan() {
     const onVisibility = () => {
       if (document.hidden) finish('hidden')
     }
+    // Đóng tab / rời trang khi lượt chưa có kết quả (kể cả đang ở câu hỏi
+    // "Có phải cậu là…?"): báo "đóng" — faceScanEnd dùng keepalive nên kịp gửi
+    const onPageHide = () => {
+      if (scan.startedAt) reportScanEnd(scan, unclaimed, 'closed')
+    }
     document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', onPageHide)
     start()
 
     return () => {
       document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pagehide', onPageHide)
       release()
+      // Đóng modal, đổi vai trò, rời trang chủ khi lượt chưa có kết quả. Camera
+      // chưa kịp lên thì chưa có gì để ghi — đó cũng là lần chạy thử của StrictMode
+      if (scan.startedAt) reportScanEnd(scan, unclaimed, 'closed')
     }
   }, [active, session])
 
@@ -215,24 +275,32 @@ function useFaceScan() {
     setSession((current) => current + 1)
   }
 
-  // "Đúng là mình": báo server (không chờ), đóng modal, trả ứng viên để trang
+  // "Đúng là mình": khép lượt (không chờ), đóng modal, trả ứng viên để trang
   // chủ chạy openGiftWithReveal
   const accept = () => {
     const { candidate } = state
     if (!candidate) return null
-    giftRepository.faceConfirm(candidate.matchId, true).catch(() => {})
+    reportScanEnd(scanRef.current, unclaimedRef.current, 'confirmed')
     setActive(false)
     return candidate
   }
 
-  // "Không phải mình": báo server, loại người đó khỏi lượt quét tiếp, quét lại
+  // "Không phải mình": khép lượt, loại người đó khỏi lượt quét tiếp, quét lại
   const deny = () => {
     const { candidate } = state
     if (candidate) {
       excludedRef.current = [...excludedRef.current, candidate.studentId]
-      giftRepository.faceConfirm(candidate.matchId, false).catch(() => {})
+      reportScanEnd(scanRef.current, unclaimedRef.current, 'denied')
     }
     restart()
+  }
+
+  // Quà vừa được mở (gõ tên, hay Face ID sau vài lượt hỏng): ghép người đó vào
+  // các lượt chưa thành trong lần mở trang này — admin biết ai hay bị nhận
+  // không ra. Backend chỉ nhận lượt trong 30 phút gần nhất.
+  const claim = (accessCode) => {
+    const tokens = unclaimedRef.current.splice(0)
+    if (tokens.length && accessCode) giftRepository.faceScanClaim(tokens, accessCode).catch(() => {})
   }
 
   return {
@@ -251,6 +319,7 @@ function useFaceScan() {
     accept,
     deny,
     retry: restart,
+    claim,
   }
 }
 

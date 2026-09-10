@@ -10,7 +10,10 @@ async function match(req, res) {
     return sendError(res, 'Thiếu khung hình (trường "frame")', 400);
   }
   try {
-    return sendSuccess(res, await faceService.matchFrame(req.file.buffer, req.file.mimetype));
+    // scan/t là trường chữ đi cùng khung hình trong multipart: mã lượt quét và
+    // thời điểm của khung trong lượt — thiếu hay sai thì chỉ không vào lịch sử
+    const context = { scan: req.body?.scan, t: req.body?.t, userAgent: req.get('user-agent') };
+    return sendSuccess(res, await faceService.matchFrame(req.file.buffer, req.file.mimetype, context));
   } catch (error) {
     // 503 đi thẳng qua sendError: errorHandler production thay thông điệp ≥ 500
     // bằng câu chung, mà frontend cần đúng câu "Face ID tạm nghỉ" để hiện
@@ -27,4 +30,21 @@ async function confirm(req, res) {
   return sendSuccess(res, await faceService.confirmMatch(matchId, confirmed));
 }
 
-module.exports = { status, match, confirm };
+async function endScan(req, res) {
+  if (!faceService.isScanToken(req.params.token)) {
+    return sendError(res, 'Mã lượt quét không hợp lệ', 400);
+  }
+  return sendSuccess(res, await faceService.endScan(req.params.token, req.body || {}, req.get('user-agent')));
+}
+
+async function claimScans(req, res) {
+  const { tokens, accessCode } = req.body || {};
+  if (!Array.isArray(tokens) || typeof accessCode !== 'string') {
+    return sendError(res, 'Cần tokens (mảng mã lượt quét) và accessCode', 400);
+  }
+  return sendSuccess(res, await faceService.claimScans(tokens, accessCode));
+}
+
+module.exports = {
+  status, match, confirm, endScan, claimScans,
+};

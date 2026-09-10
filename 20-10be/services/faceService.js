@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const settingsService = require('./settingsService');
+const { describeUserAgent } = require('../utils/userAgent');
 const {
   FACE_SERVICE_URL,
   FACE_MODEL,
@@ -16,6 +17,17 @@ const {
 const EMBEDDING_DIM = 512;
 const EMBEDDING_BYTES = EMBEDDING_DIM * 4;
 const HEALTH_TIMEOUT_MS = 2000;
+// Lượt quét: mã 32 ký tự hex do trình duyệt tạo; kết quả khép lượt lại
+const SCAN_TOKEN_RE = /^[a-f0-9]{32}$/;
+const SCAN_OUTCOMES = new Set([
+  'confirmed', 'denied', 'unrecognized', 'timeout', 'hidden', 'camera', 'offline', 'limited', 'closed',
+]);
+// Hai kết quả gắn với câu hỏi "Có phải cậu là…?" nên bắt buộc kèm matchId
+const ANSWER_OUTCOMES = new Set(['confirmed', 'denied']);
+const MAX_CLAIM_TOKENS = 10;
+// Ghép tên chỉ cho lượt vừa quét xong, không cho gắn tên vào lượt cũ tùy ý
+const CLAIM_WINDOW_MINUTES = 30;
+const MAX_MEDIUMINT = 16777215;
 // Câu này đi thẳng qua sendError ở controller: errorHandler production thay
 // mọi thông điệp ≥ 500 bằng câu chung, mà frontend cần đúng câu này để hiện
 const UNAVAILABLE_MESSAGE = 'Face ID tạm nghỉ, gõ tên giúp mình nhé 🌷';
@@ -90,13 +102,14 @@ function round4(value) {
 
 // candidates: [{ studentId, score }] — điểm cao nhất của mỗi bạn.
 // Khớp khi top1 ≥ τ VÀ cách biệt top1 − top2 ≥ margin; thư viện chỉ có một
-// bạn thì cách biệt lấy bằng chính top1 (không có ai để so).
+// bạn thì cách biệt lấy bằng chính top1 (không có ai để so). candidateId là
+// top1 kể cả khi từ chối — chỉ để ghi nhật ký cho admin, không trả về client.
 function decide(candidates, options = {}) {
   const tau = options.tau ?? FACE_TAU;
   const minMargin = options.margin ?? FACE_MARGIN;
   const sorted = [...candidates].sort((a, b) => b.score - a.score);
   if (!sorted.length) {
-    return { decision: 'reject', studentId: null, score: 0, margin: 0 };
+    return { decision: 'reject', studentId: null, candidateId: null, score: 0, margin: 0 };
   }
   const [top1, top2] = sorted;
   const margin = top2 ? top1.score - top2.score : top1.score;
@@ -104,6 +117,7 @@ function decide(candidates, options = {}) {
   return {
     decision: matched ? 'match' : 'reject',
     studentId: matched ? top1.studentId : null,
+    candidateId: top1.studentId,
     score: top1.score,
     margin,
   };
@@ -255,12 +269,74 @@ async function getStatus() {
   }
 }
 
-function clampSmallInt(value) {
-  if (!Number.isFinite(value)) return null;
-  return Math.min(65535, Math.max(0, Math.round(value)));
+function clampUnsigned(value, max) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  return Math.min(max, Math.max(0, Math.round(number)));
 }
 
-async function matchFrame(buffer, mimetype) {
+function clampSmallInt(value) {
+  return clampUnsigned(value, 65535);
+}
+
+function detScore(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  return Math.round(Math.min(9.999, Math.max(0, number)) * 1000) / 1000;
+}
+
+function isScanToken(value) {
+  return typeof value === 'string' && SCAN_TOKEN_RE.test(value);
+}
+
+// Khung đầu tiên hay tín hiệu kết thúc đều có thể tới trước: bên nào tới trước
+// tạo dòng. Đọc trước để các khung sau không phải ghi (INSERT trùng khóa vẫn
+// đốt một số AUTO_INCREMENT); hai request cùng tạo một lúc thì LAST_INSERT_ID(id)
+// đưa id của dòng đã có vào insertId.
+async function ensureScan(token, userAgent) {
+  const [rows] = await pool.execute('SELECT id FROM face_scans WHERE token = ? LIMIT 1', [token]);
+  if (rows.length) return Number(rows[0].id);
+  const { device, browser } = describeUserAgent(userAgent);
+  const [result] = await pool.execute(
+    `INSERT INTO face_scans (token, device, browser) VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
+    [token, device, browser],
+  );
+  return Number(result.insertId);
+}
+
+// Một dòng nhật ký cho một khung hình — toàn con số và chuỗi quyết định ngắn,
+// không pixel, không vector. frame.primary là mặt lớn nhất (vắng khi no_face).
+async function logFrame(frame) {
+  const primary = frame.primary || {};
+  const [result] = await pool.execute(
+    `INSERT INTO face_match_log
+       (scan_id, student_id, candidate_id, decision, reason, score, margin, faces,
+        face_px, brightness, blur, det_score, elapsed_ms, t_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      frame.scanId ?? null,
+      frame.studentId ?? null,
+      frame.candidateId ?? null,
+      frame.decision,
+      frame.reason ?? null,
+      frame.score ?? null,
+      frame.margin ?? null,
+      clampUnsigned(frame.faces, 255),
+      clampSmallInt(primary.face_px),
+      clampSmallInt(primary.brightness),
+      clampSmallInt(primary.blur),
+      detScore(primary.det_score),
+      clampSmallInt(frame.elapsedMs),
+      clampUnsigned(frame.tMs, MAX_MEDIUMINT),
+    ],
+  );
+  return Number(result.insertId);
+}
+
+// context: { scan (mã lượt quét), t (ms từ lúc camera chạy), userAgent }
+async function matchFrame(buffer, mimetype, context = {}) {
   const started = Date.now();
   if (!(await settingsService.isFaceEnabled())) throw unavailable();
   const health = await checkHealth();
@@ -271,10 +347,23 @@ async function matchFrame(buffer, mimetype) {
   // max_faces=2 là đủ để biết "có hơn một người trong khung" mà không tốn
   // công trích vector cho cả nhóm
   const payload = await embedImage(buffer, mimetype, 2);
-  const gated = gate(payload.faces);
-  if (gated) return gated;
-
   const [primary] = payload.faces;
+  // Khung thuộc một lượt quét thì ghi cả khi bị cổng chất lượng chặn: admin
+  // cần biết lượt đó hỏng vì tối, xa hay nhòe. Không kèm mã lượt thì như cũ —
+  // chỉ ghi khung đã chấm điểm.
+  const scanId = isScanToken(context.scan) ? await ensureScan(context.scan, context.userAgent) : null;
+  const frame = { scanId, primary, faces: payload.faces.length, tMs: context.t };
+
+  const gated = gate(payload.faces);
+  if (gated) {
+    if (scanId) {
+      await logFrame({
+        ...frame, decision: gated.decision, reason: gated.reason, elapsedMs: Date.now() - started,
+      });
+    }
+    return gated;
+  }
+
   if (!Array.isArray(primary.embedding) || primary.embedding.length !== EMBEDDING_DIM) {
     throw unavailable();
   }
@@ -288,20 +377,15 @@ async function matchFrame(buffer, mimetype) {
   const margin = round4(verdict.margin);
 
   // Chỉ ghi số: quyết định, điểm, chất lượng khung — không ảnh, không vector
-  const [result] = await pool.execute(
-    `INSERT INTO face_match_log (student_id, decision, score, margin, face_px, brightness, elapsed_ms)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [
-      verdict.studentId,
-      verdict.decision,
-      score,
-      margin,
-      clampSmallInt(Number(primary.face_px)),
-      clampSmallInt(Number(primary.brightness)),
-      clampSmallInt(Date.now() - started),
-    ],
-  );
-  const matchId = Number(result.insertId);
+  const matchId = await logFrame({
+    ...frame,
+    decision: verdict.decision,
+    studentId: verdict.studentId,
+    candidateId: verdict.candidateId,
+    score,
+    margin,
+    elapsedMs: Date.now() - started,
+  });
 
   if (verdict.decision !== 'match') {
     // Người lạ hay khung khó đều chỉ nhận về con số — không bao giờ lộ tên
@@ -337,10 +421,80 @@ async function confirmMatch(matchId, confirmed) {
   return { ok: true };
 }
 
+// Khép một lượt quét: body { outcome, matchId?, durationMs?, darkFrames? }.
+// "Đúng là mình"/"Không phải mình" đi kèm matchId của câu hỏi — phải là khung
+// "match" của chính lượt này thì mới gắn tên người máy đã hỏi. Chỉ tín hiệu
+// ĐẦU TIÊN có hiệu lực: "đóng modal" tới muộn không ghi đè "Đúng là mình".
+async function endScan(token, body = {}, userAgent = '') {
+  const { outcome } = body;
+  if (!SCAN_OUTCOMES.has(outcome)) throw httpError('Kết quả lượt quét không hợp lệ', 400);
+  const matchId = Number.isInteger(body.matchId) && body.matchId > 0 ? body.matchId : null;
+  if (ANSWER_OUTCOMES.has(outcome) && !matchId) {
+    throw httpError('Câu trả lời "đúng là mình / không phải" cần kèm matchId', 400);
+  }
+
+  const scanId = await ensureScan(token, userAgent);
+  let suggestedId = null;
+  if (matchId) {
+    const [rows] = await pool.execute(
+      `SELECT student_id FROM face_match_log
+       WHERE id = ? AND scan_id = ? AND decision = 'match' LIMIT 1`,
+      [matchId, scanId],
+    );
+    suggestedId = rows[0]?.student_id ?? null;
+  }
+
+  const [result] = await pool.execute(
+    `UPDATE face_scans
+     SET outcome = ?, suggested_student_id = ?, duration_ms = ?, dark_frames = ?, ended_at = CURRENT_TIMESTAMP
+     WHERE id = ? AND outcome IS NULL`,
+    [
+      outcome,
+      suggestedId,
+      clampUnsigned(body.durationMs, MAX_MEDIUMINT),
+      clampSmallInt(body.darkFrames) ?? 0,
+      scanId,
+    ],
+  );
+  // Câu trả lời cũng điền vào dòng nhật ký của khung được hỏi, như /confirm
+  if (result.affectedRows > 0 && suggestedId && ANSWER_OUTCOMES.has(outcome)) {
+    await confirmMatch(matchId, outcome === 'confirmed');
+  }
+  return { ok: true };
+}
+
+// Gõ tên mở quà ngay sau những lượt quét chưa thành: ghép tên người đó vào các
+// lượt ấy để admin biết ai hay bị nhận không ra. Luôn trả ok — không dùng được
+// để dò mã quà nào có thật.
+async function claimScans(tokens, accessCode) {
+  const valid = [...new Set((Array.isArray(tokens) ? tokens : []).filter(isScanToken))]
+    .slice(0, MAX_CLAIM_TOKENS);
+  if (!valid.length || typeof accessCode !== 'string' || !accessCode) return { ok: true };
+
+  const [students] = await pool.execute(
+    `SELECT id FROM students
+     WHERE access_code = ? AND is_active = TRUE AND member_type = 'class' LIMIT 1`,
+    [accessCode],
+  );
+  const studentId = students[0]?.id;
+  if (!studentId) return { ok: true };
+
+  await pool.execute(
+    `UPDATE face_scans SET claimed_student_id = ?
+     WHERE token IN (${valid.map(() => '?').join(', ')})
+       AND claimed_student_id IS NULL
+       AND (outcome IS NULL OR outcome <> 'confirmed')
+       AND started_at >= CURRENT_TIMESTAMP - INTERVAL ${CLAIM_WINDOW_MINUTES} MINUTE`,
+    [studentId, ...valid],
+  );
+  return { ok: true };
+}
+
 module.exports = {
   EMBEDDING_DIM,
   EMBEDDING_BYTES,
   UNAVAILABLE_MESSAGE,
+  SCAN_OUTCOMES,
   encodeEmbedding,
   decodeEmbedding,
   dot,
@@ -348,6 +502,7 @@ module.exports = {
   meanVector,
   decide,
   gate,
+  isScanToken,
   checkHealth,
   embedImage,
   loadGallery,
@@ -355,4 +510,6 @@ module.exports = {
   getStatus,
   matchFrame,
   confirmMatch,
+  endScan,
+  claimScans,
 };

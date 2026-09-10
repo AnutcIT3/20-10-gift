@@ -139,7 +139,12 @@ async function matchFace() {
   throw Object.assign(new Error('Face ID tạm nghỉ'), { status: 503 })
 }
 
-async function faceConfirm() {
+async function faceScanEnd() {
+  await delay(100)
+  return { ok: true }
+}
+
+async function faceScanClaim() {
   await delay(100)
   return { ok: true }
 }
@@ -155,7 +160,8 @@ const mockGiftRepository = {
   generateGreeting,
   faceStatus,
   matchFace,
-  faceConfirm,
+  faceScanEnd,
+  faceScanClaim,
 }
 
 export default mockGiftRepository

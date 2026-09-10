@@ -1911,3 +1911,341 @@
   font: 13px/1.4 var(--font-body);
   color: var(--muted);
 }
+
+/* ── Lịch sử Face ID: mỗi lượt quét một dòng, mở ra thấy từng khung hình ── */
+/* Bảng khung hình rộng tự cuộn trong khung của nó; không cho nó nới cột lưới
+   (cột 1fr mặc định không co nhỏ hơn nội dung) */
+.face-history .dash-grid > * {
+  min-width: 0;
+}
+
+.face-filter-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--beige-2);
+  background: var(--paper);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.face-scans {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.face-scan {
+  border-bottom: 1px solid var(--beige-2);
+  border-left: 4px solid transparent;
+}
+
+.face-scan.is-ok { border-left-color: var(--moss); }
+.face-scan.is-bad { border-left-color: var(--clay); }
+.face-scan.is-warn { border-left-color: var(--peach); }
+.face-scan.is-live { border-left-color: var(--moss-soft); }
+
+.face-scan__head {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "when who badge"
+    "when meta meta"
+    "when issue issue";
+  gap: 2px 12px;
+  align-items: baseline;
+  width: 100%;
+  padding: 12px 18px 12px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.face-scan__head:hover {
+  background: #fffaf3;
+}
+
+.face-scan__head[aria-expanded="true"] {
+  background: var(--paper);
+}
+
+.face-scan__when {
+  grid-area: when;
+  font: 13px var(--font-body);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.face-scan__who {
+  grid-area: who;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+}
+
+.face-scan__who b {
+  font: 20px var(--font-write);
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.face-scan__who b.is-unknown {
+  font-style: italic;
+  color: var(--muted);
+}
+
+.face-scan__who small {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.face-scan__meta {
+  grid-area: meta;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.face-scan__issue {
+  grid-area: issue;
+  font-size: 13.5px;
+  color: var(--clay-dark);
+}
+
+.face-badge {
+  grid-area: badge;
+  justify-self: end;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--beige-2);
+  color: var(--muted);
+  font: 13px/22px var(--font-hand);
+  white-space: nowrap;
+}
+
+.face-badge.is-ok { background: var(--moss-soft); color: #3f5236; }
+.face-badge.is-bad { background: var(--clay); color: #fff; }
+.face-badge.is-warn { background: var(--peach-soft); color: var(--clay-dark); }
+.face-badge.is-live { background: #fff; box-shadow: inset 0 0 0 1.5px var(--moss); color: var(--moss-ink); }
+
+.face-scan__detail {
+  margin: 0;
+  padding: 4px 18px 16px 136px;
+  background: var(--paper);
+}
+
+.face-scan__tip {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--moss);
+  background: #fff;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+/* Dải khung hình: mỗi ô một khung theo thứ tự thời gian, màu theo kết quả */
+.face-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 0 0 10px;
+}
+
+.face-strip__cell,
+.face-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--beige);
+}
+
+.face-dot {
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+
+.face-strip__cell.is-ok,
+.face-dot.is-ok { background: var(--moss); }
+.face-strip__cell.is-bad,
+.face-dot.is-bad { background: var(--clay); }
+.face-strip__cell.is-warn,
+.face-dot.is-warn { background: var(--peach); }
+.face-strip__cell.is-muted,
+.face-dot.is-muted { background: var(--line); }
+
+.face-frames-wrap {
+  max-width: 100%;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--beige-2);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.face-frames {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.face-frames th {
+  position: sticky;
+  top: 0;
+  padding: 6px 10px;
+  background: var(--beige-2);
+  color: var(--muted);
+  font: 13px var(--font-hand);
+  text-align: left;
+}
+
+.face-frames td {
+  padding: 5px 10px;
+  border-top: 1px solid var(--beige-2);
+  color: var(--ink-2);
+}
+
+.face-frames td.is-low { color: var(--clay); font-weight: 600; }
+.face-frames td.is-pass { color: var(--moss-ink); font-weight: 600; }
+
+.face-legend {
+  margin: 10px 0 0;
+}
+
+.face-more {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: center;
+  cursor: pointer;
+}
+
+.face-issues {
+  list-style: none;
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+}
+
+.face-issue__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 5px;
+  font-size: 14px;
+}
+
+.face-issue__row b {
+  font: 18px var(--font-hand);
+  font-weight: 400;
+  color: var(--clay);
+}
+
+.face-issue small {
+  display: block;
+  margin-top: 5px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.face-members {
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  max-height: 560px;
+  margin: 0 -8px;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.face-member {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.face-member:hover { background: #fffaf3; }
+.face-member.is-active { background: var(--peach-soft); }
+
+.face-member__avatar.stu-avatar {
+  width: 34px;
+  height: 34px;
+  padding: 2px;
+  font-size: 15px;
+}
+
+.face-member__text {
+  min-width: 0;
+}
+
+.face-member__text b {
+  display: block;
+  overflow: hidden;
+  font: 17px var(--font-write);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.face-member__text small {
+  display: block;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.face-member__text small.is-clay { color: var(--clay); }
+
+.face-member__nums {
+  display: flex;
+  gap: 8px;
+  font: 14px var(--font-hand);
+  color: var(--line);
+  white-space: nowrap;
+}
+
+.face-member__nums .is-ok { color: var(--moss-ink); }
+.face-member__nums .is-warn { color: var(--clay); }
+.face-member__nums .is-bad { color: var(--clay-dark); }
+
+@media (max-width: 780px) {
+  .face-scan__head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "who badge"
+      "when when"
+      "meta meta"
+      "issue issue";
+    padding: 12px 14px;
+  }
+
+  .face-scan__detail {
+    padding: 4px 14px 14px;
+  }
+}

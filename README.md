@@ -95,7 +95,9 @@ Ba phần ghép lại:
   một ảnh và trả về vector 512 chiều kèm chỉ số chất lượng; không biết database,
   không giữ trạng thái, không ghi ảnh ra đĩa. Chi tiết trong `face-service/README.md`.
 - Backend Node — giữ hồ sơ khuôn mặt trong bảng `face_profiles`, so khớp, áp
-  ngưỡng, rate limit riêng (350 request / 15 phút / IP) và công tắc `face_enabled`.
+  ngưỡng, rate limit riêng (10000 khung / 15 phút / IP — trang chỉ dùng trong
+  lớp nên đây chỉ là cái phanh cho máy kẹt vòng lặp; khung hình không bị tính vào
+  hạn mức chung của API) và công tắc `face_enabled`.
 - Frontend — thẻ **✨ Face ID** cạnh ô gõ tên trên trang chủ, mở khung quét
   camera; hai khung liên tiếp cùng nhận ra một người thì hỏi "Có phải cậu là …?"
   rồi mới mở trang quà.
@@ -112,7 +114,8 @@ Bật tính năng lần đầu:
 2. Chạy `start-dev.bat`; cửa sổ thứ ba là face-service. Kiểm tra
    `http://127.0.0.1:5002/health` trả `status: "ok"` và `model: "arcface_r50"`.
 3. Tạo bảng một lần: trong `20-10be` chạy `npm run migrate` (migration 017 tạo
-   `face_profiles`, `face_match_log` và công tắc `face_enabled` mặc định tắt).
+   `face_profiles`, `face_match_log` và công tắc `face_enabled` mặc định tắt;
+   migration 018 tạo `face_scans` cho trang Lịch sử Face ID).
    `start-dev.bat` không tự chạy migrate; `start-public.bat` và `setup-local.bat` thì có.
 4. Đăng ký hồ sơ: đặt ảnh vào `bench/photos/<Họ và tên đúng như database>/`
    (thư mục này nằm ngoài Git) rồi trong `20-10be` chạy `npm run face:enroll`.
@@ -124,11 +127,22 @@ Bật tính năng lần đầu:
    `app_settings`, mặc định tắt). Tắt công tắc là thẻ biến mất ngay trên trang
    chủ, không cần restart.
 
-Riêng tư: từng khung hình chỉ dùng để so khớp ngay lúc đó rồi bỏ; server chỉ ghi
-số (điểm, margin, cỡ mặt, độ sáng, câu trả lời "đúng là mình / không phải") vào
-`face_match_log` để Dashboard đếm. `face_profiles` và `face_match_log` **không**
-nằm trong snapshot `backup:shared`/`restore`, nên sinh trắc không bao giờ lên Git;
+Riêng tư: từng khung hình chỉ dùng để so khớp ngay lúc đó rồi bỏ — không ảnh,
+không video nào được lưu, và trang quét nói đúng như vậy. Server chỉ ghi số vào
+`face_match_log` (điểm, margin, cỡ mặt, độ sáng, độ nét, người giống nhất, câu trả
+lời "đúng là mình / không phải"), gom theo lượt quét trong `face_scans` (một lần
+mở camera: kết quả, thời gian, loại máy/trình duyệt, và tên người đó nếu họ gõ tên
+mở quà ngay sau lượt chưa thành). `face_profiles`, `face_match_log` và `face_scans`
+**không** nằm trong snapshot `backup:shared`/`restore`, nên không bao giờ lên Git;
 đổi máy thì đăng ký lại bằng `npm run face:enroll`.
+
+Lịch sử quét: admin → **Face ID**. Mỗi lượt có kết quả (nhận đúng, nhầm người,
+không nhận ra, hết giờ, lỗi camera…), nguyên nhân máy chẩn đoán kèm gợi ý sửa, và
+bấm vào thì thấy từng khung hình với con số của nó — tối, xa, nhòe hay "rõ mặt
+nhưng không khớp ai" hiện ra ở đó thay cho ảnh chụp. Cột **Theo thành viên** chỉ
+ra ai chưa có hồ sơ, ai hay phải gõ tên, ai hay bị máy nhận nhầm. Nút **Xoá lịch
+sử** xoá sạch các lượt (hồ sơ Face ID giữ nguyên) — nên xoá các lượt chạy thử
+trước ngày 20/10.
 
 Thẻ không hiện? Kiểm tra theo thứ tự: `/health` của face-service, công tắc
 `face_enabled`, số `profiles` trong `GET /api/face/status`, và trang có đang mở
@@ -309,8 +323,10 @@ Public:
 - `POST /api/gifts/:accessCode/letters`
 - `POST /api/greetings/generate`
 - `GET /api/face/status` — `{ enabled, model, profiles }`; trang chủ dựa vào đây để hiện/ẩn thẻ Face ID, không bao giờ lỗi (mọi sự cố → `enabled: false`)
-- `POST /api/face/match` — multipart, một file `frame` (JPEG/PNG/WebP ≤ 1 MB); trả `decision` là `match` (kèm `matchId`, `giftPath`, `displayName`, `score`, `margin`), `reject`, `no_face`, `low_quality` (`reason`: `small`/`dark`/`blurry`) hoặc `many_faces`; 503 khi Face ID tắt hoặc service không trả lời, 429 khi quá 350 request/15 phút
-- `POST /api/face/confirm` — JSON `{ matchId, confirmed }`, ghi câu trả lời "đúng là mình / không phải" vào `face_match_log` (chỉ số, không ảnh)
+- `POST /api/face/match` — multipart, một file `frame` (JPEG/PNG/WebP ≤ 1 MB), tùy chọn `scan` (mã lượt quét 32 ký tự hex) và `t` (ms từ lúc camera chạy); trả `decision` là `match` (kèm `matchId`, `giftPath`, `displayName`, `score`, `margin`), `reject`, `no_face`, `low_quality` (`reason`: `small`/`dark`/`blurry`) hoặc `many_faces`; 503 khi Face ID tắt hoặc service không trả lời, 429 khi quá 10000 request/15 phút. Có `scan` thì mọi khung (kể cả bị cổng chất lượng chặn) được ghi số vào lượt đó
+- `POST /api/face/scans/:scan/end` — JSON `{ outcome, matchId?, durationMs?, darkFrames? }`, khép lượt quét (`confirmed`/`denied` bắt buộc kèm `matchId`); chỉ tín hiệu đầu tiên có hiệu lực
+- `POST /api/face/scans/claim` — JSON `{ tokens, accessCode }`, ghép người vừa mở quà vào các lượt chưa thành của họ trong 30 phút gần nhất; luôn trả `ok`
+- `POST /api/face/confirm` — JSON `{ matchId, confirmed }`, ghi câu trả lời "đúng là mình / không phải" vào `face_match_log` (chỉ số, không ảnh); bản frontend mới gửi câu trả lời qua `/scans/:scan/end`
 
 Admin — yêu cầu `Authorization: Bearer <token>`:
 
@@ -321,6 +337,9 @@ Admin — yêu cầu `Authorization: Bearer <token>`:
 - `/api/admin/letters`
 - `/api/letters/*`
 - `GET/PATCH /api/admin/settings` — khóa/mở trang quà chờ ngày 20/10 (`gift_pages_locked`) và bật/tắt Face ID (`face_enabled`); PATCH gửi một trong hai key
+- `GET /api/admin/face/summary` — tổng theo kết quả, thời gian nhận ra (trung vị), nguyên nhân các lượt chưa thành, từng thành viên lớp
+- `GET /api/admin/face/scans?filter=all|ok|fail&studentId=&before=&limit=` — lịch sử lượt quét, mới nhất trước
+- `GET /api/admin/face/scans/:id` — một lượt kèm từng khung hình; `DELETE /api/admin/face/scans` — xoá sạch lịch sử quét
 
 ## Scripts
 
@@ -351,6 +370,6 @@ Frontend:
 - Mọi tên được nhập đều nhận một lời chúc Gemini: người trong lớp xem trên GiftPage cá nhân, người ngoài danh sách xem trang chúc chung. Gemini key chỉ nằm ở backend để không lộ trên trình duyệt.
 - Tên ngoài danh sách được hỏi "thành viên trong lớp hay khách ghé thăm" trước khi hiện lời chúc — hai kiểu lời chúc khác nhau (`classmate` / `visitor`).
 - Admin có thể **khóa trang quà chờ ngày 20/10** bằng công tắc **Trang quà** ở sidebar admin: người mở trang quà thấy "Chưa đến ngày 20/10, vui lòng chờ thêm", nhưng gửi lời chúc vẫn hoạt động — gửi link cho các bạn nam chúc trước, đến ngày admin gạt công tắc để mở.
-- Công tắc **✨ Face ID** nằm ngay dưới công tắc Trang quà, mặc định tắt. Quét mặt vẫn chạy khi trang quà đang khóa (nhận ra rồi mới gặp màn "chưa đến ngày"), nên bật Face ID sớm để thử không làm lộ quà. Dashboard có thẻ ✨ Face ID đếm số lượt nhận ra / từ chối / xác nhận đúng / xác nhận sai.
+- Công tắc **✨ Face ID** nằm ngay dưới công tắc Trang quà, mặc định tắt. Quét mặt vẫn chạy khi trang quà đang khóa (nhận ra rồi mới gặp màn "chưa đến ngày"), nên bật Face ID sớm để thử không làm lộ quà. Dashboard có thẻ ✨ Face ID đếm số lượt quét nhận đúng / nhầm người / chưa thành, bấm vào để mở trang Lịch sử quét.
 - Xem `PLAN.md` và `IMPLEMENTATION.md` để biết thiết kế và API contract ban đầu.
 - Giao diện người dùng và admin theo handoff "Sổ lưu bút" (thư mục `design_handoff_luu_but_2010`): giấy kem, polaroid dán băng keo, thư kẻ dòng có tem. Font Itim / Lora / Patrick Hand tự lưu trữ trong `20-10fe/public/fonts` (giấy phép OFL) nên chạy offline và không cần nới CSP.

@@ -90,22 +90,25 @@ async function getDashboardStats() {
   const reactions = Object.fromEntries(reactionRows.map((r) => [r.emoji_key, Number(r.cnt)]));
   const totalReactions = reactionRows.reduce((s, r) => s + Number(r.cnt), 0);
 
-  // Face ID: chỉ đếm quyết định và câu trả lời "đúng là mình / không phải" —
-  // bảng này không có ảnh hay vector nên tổng hợp thoải mái. Máy chưa chạy
-  // migration 017 thì bảng chưa có: trả null thay vì làm sập cả trang Tổng quan.
+  // Face ID: đếm theo lượt quét (một lần mở camera) — nhận đúng, nhầm người,
+  // còn lại là chưa thành. Bảng chỉ có kết quả và con số, không ảnh hay vector.
+  // Máy chưa chạy migration 018 thì bảng chưa có: trả null thay vì làm sập cả
+  // trang Tổng quan.
   let faceRow = null;
   try {
     [[faceRow]] = await pool.execute(
       `SELECT
-         SUM(decision = 'match')  AS matched,
-         SUM(decision = 'reject') AS rejected,
-         SUM(confirmed = 1)       AS confirmedYes,
-         SUM(confirmed = 0)       AS confirmedNo
-       FROM face_match_log`,
+         COUNT(*)                   AS scans,
+         SUM(outcome = 'confirmed') AS confirmed,
+         SUM(outcome = 'denied')    AS denied
+       FROM face_scans`,
     );
   } catch (error) {
     if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
   }
+  const faceScans = Number(faceRow?.scans || 0);
+  const faceConfirmed = Number(faceRow?.confirmed || 0);
+  const faceDenied = Number(faceRow?.denied || 0);
 
   return {
     students: {
@@ -131,10 +134,10 @@ async function getDashboardStats() {
       total: totalReactions,
     },
     face: faceRow ? {
-      matched: Number(faceRow.matched || 0),
-      rejected: Number(faceRow.rejected || 0),
-      confirmedYes: Number(faceRow.confirmedYes || 0),
-      confirmedNo: Number(faceRow.confirmedNo || 0),
+      scans: faceScans,
+      confirmed: faceConfirmed,
+      denied: faceDenied,
+      failed: faceScans - faceConfirmed - faceDenied,
     } : null,
     topViewed,
   };

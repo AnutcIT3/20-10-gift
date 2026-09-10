@@ -129,6 +129,7 @@ function LandingPage() {
     accept: acceptFace,
     deny: denyFace,
     retry: retryFace,
+    claim: claimFaceScans,
   } = useFaceScan()
 
   // Link "gửi lời chúc" từ màn khóa 20/10 mở thẳng modal (/?wish=1)
@@ -229,6 +230,9 @@ function LandingPage() {
 
   const openGiftWithReveal = async (giftPath, displayName = '', via = '') => {
     const accessCode = accessCodeFromGiftPath(giftPath)
+    // Vừa quét Face ID chưa thành rồi mở được quà: báo cho lịch sử của admin
+    // biết các lượt đó là của ai (không có lượt nào thì không gửi gì)
+    claimFaceScans(accessCode)
     let studentData = null
 
     try {
@@ -745,7 +749,8 @@ function LandingPage() {
                   </p>
                 )}
                 <p className="wish-hint face-privacy">
-                  Video không được ghi lại — từng khung hình chỉ dùng để so khớp ngay lúc đó rồi bỏ.
+                  Không lưu ảnh hay video — mỗi khung hình so khớp xong là bỏ. Mình chỉ ghi lại
+                  vài con số (đủ sáng chưa, có nhận ra không) để Face ID ngày càng nhận đúng hơn.
                 </p>
               </>
             )}

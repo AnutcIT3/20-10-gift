@@ -8,12 +8,11 @@ const EMOJI_MAP = {
 }
 const AUTO_REFRESH_MS = 30_000
 const INBOX_PREVIEW = 3
-// Thẻ Face ID: nhãn cho từng con số trong stats.face, theo thứ tự hiện chip
+// Thẻ Face ID: nhãn cho từng con số (tính theo lượt quét) trong stats.face
 const FACE_CHIPS = [
-  ['matched', 'Nhận ra'],
-  ['rejected', 'Từ chối'],
-  ['confirmedYes', 'Đúng là mình'],
-  ['confirmedNo', 'Không phải mình'],
+  ['confirmed', 'Nhận đúng'],
+  ['denied', 'Nhầm người'],
+  ['failed', 'Chưa thành'],
 ]
 
 function greetingByHour(date = new Date()) {
@@ -140,12 +139,11 @@ function Dashboard() {
   const reactions = Object.entries(stats?.reactions?.byEmoji || {})
     .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1])
-  // Face ID chỉ ghi con số (match/reject + câu trả lời "đúng là mình"), không
-  // ảnh. stats.face vắng khi backend chưa có bảng log; 0 lượt cũng coi là trống
-  // như hai thẻ bên cạnh — confirmed chỉ đếm trên các lượt match/reject nên
-  // matched + rejected là tổng
+  // Face ID chỉ ghi kết quả và con số của từng lượt quét, không ảnh.
+  // stats.face vắng khi backend chưa có bảng lượt quét; 0 lượt cũng coi là
+  // trống như hai thẻ bên cạnh
   const face = stats?.face
-  const faceTotal = face ? Number(face.matched || 0) + Number(face.rejected || 0) : 0
+  const faceTotal = Number(face?.scans || 0)
 
   return (
     <section>
@@ -288,7 +286,7 @@ function Dashboard() {
           </section>
 
           <section className="admin-card admin-card--pad" aria-labelledby="face-title">
-            <h3 id="face-title">✨ Face ID</h3>
+            <h3 id="face-title">✨ Face ID{faceTotal > 0 ? ` · ${faceTotal} lượt` : ''}</h3>
             {loading && !stats ? <p className="admin-loading">Đang tải…</p> : !face || faceTotal === 0 ? (
               <p className="admin-hint" style={{ margin: 0 }}>Chưa có lượt nào.</p>
             ) : (
@@ -300,7 +298,8 @@ function Dashboard() {
                 ))}
               </div>
             )}
-            <p className="admin-hint" style={{ margin: '12px 0 0' }}>Số liệu chỉ là con số, không lưu ảnh.</p>
+            <p className="admin-hint" style={{ margin: '12px 0 0' }}>Chỉ kết quả và con số, không lưu ảnh.</p>
+            <Link to="/admin/face" className="admin-card__link" style={{ padding: '10px 0 0' }}>Xem lịch sử quét →</Link>
           </section>
         </div>
       </div>

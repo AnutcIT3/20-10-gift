@@ -12,12 +12,24 @@ import {
   greetingFor,
   hintFor,
   isTooDark,
+  makeScanToken,
   meanLuma,
   remainingSeconds,
   showCountdown,
   stopKindFor,
   tallyVotes,
 } from './faceVote'
+
+describe('makeScanToken', () => {
+  it('cho đúng 32 ký tự hex như backend kiểm, mỗi lượt một mã', () => {
+    const token = makeScanToken()
+    expect(token).toMatch(/^[a-f0-9]{32}$/)
+    expect(makeScanToken()).not.toBe(token)
+    // Byte nhỏ vẫn đủ hai chữ số: 0x00 → "00", 0x0f → "0f"
+    const fixed = { getRandomValues: (bytes) => bytes.fill(15) }
+    expect(makeScanToken(fixed)).toBe('0f'.repeat(16))
+  })
+})
 
 const match = (studentId, extra = {}) => ({
   decision: 'match',
