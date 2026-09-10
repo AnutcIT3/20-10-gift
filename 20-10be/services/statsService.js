@@ -90,6 +90,23 @@ async function getDashboardStats() {
   const reactions = Object.fromEntries(reactionRows.map((r) => [r.emoji_key, Number(r.cnt)]));
   const totalReactions = reactionRows.reduce((s, r) => s + Number(r.cnt), 0);
 
+  // Face ID: chỉ đếm quyết định và câu trả lời "đúng là mình / không phải" —
+  // bảng này không có ảnh hay vector nên tổng hợp thoải mái. Máy chưa chạy
+  // migration 017 thì bảng chưa có: trả null thay vì làm sập cả trang Tổng quan.
+  let faceRow = null;
+  try {
+    [[faceRow]] = await pool.execute(
+      `SELECT
+         SUM(decision = 'match')  AS matched,
+         SUM(decision = 'reject') AS rejected,
+         SUM(confirmed = 1)       AS confirmedYes,
+         SUM(confirmed = 0)       AS confirmedNo
+       FROM face_match_log`,
+    );
+  } catch (error) {
+    if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+  }
+
   return {
     students: {
       total: Number(studentRow.total),
@@ -113,6 +130,12 @@ async function getDashboardStats() {
       byEmoji: reactions,
       total: totalReactions,
     },
+    face: faceRow ? {
+      matched: Number(faceRow.matched || 0),
+      rejected: Number(faceRow.rejected || 0),
+      confirmedYes: Number(faceRow.confirmedYes || 0),
+      confirmedNo: Number(faceRow.confirmedNo || 0),
+    } : null,
     topViewed,
   };
 }

@@ -74,6 +74,18 @@ const resolveLimiter = rateLimit({
   message: { success: false, message: 'Quá nhiều lượt tìm tên, vui lòng thử lại sau.' },
 });
 
+// Quét Face ID: mỗi phiên quét gửi ~1,25 khung/giây, tối đa 120 giây ≈ 150
+// request; 350/15 phút cho phép hai phiên trọn vẹn rồi mới bảo "gõ tên nhé".
+// Cũng là hàng rào chống dò quét thư viện gương mặt bằng ảnh tải lên hàng loạt.
+const faceMatchLimiter = rateLimit({
+  windowMs: WINDOW_15_MIN,
+  max: 350,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: ipKeyGenerator,
+  message: { success: false, message: 'Quá nhiều lượt quét, gõ tên giúp mình nhé.' },
+});
+
 // Polling data-revision: 5s/lượt = 180 req/15 phút/tab; nhiều admin, nhiều tab
 // cùng IP vẫn còn dư.
 const revisionLimiter = rateLimit({
@@ -92,5 +104,6 @@ module.exports = {
   generalLimiter,
   reactionLimiter,
   resolveLimiter,
+  faceMatchLimiter,
   revisionLimiter,
 };

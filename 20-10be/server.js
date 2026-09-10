@@ -16,6 +16,7 @@ const { adminStudentGalleryRouter, galleryRouter } = require('./routes/gallery-a
 const { adminLettersRouter, lettersRouter } = require('./routes/letters-admin');
 const greetingRoutes = require('./routes/greetings');
 const friendRoutes = require('./routes/friends');
+const faceRoutes = require('./routes/face');
 const adminStatsRoutes = require('./routes/admin-stats');
 const { generalLimiter, revisionLimiter } = require('./middleware/rateLimit');
 
@@ -97,6 +98,9 @@ app.use('/api/admin/letters', adminLettersRouter);
 app.use('/api/letters', lettersRouter);
 app.use('/api/greetings', greetingRoutes);
 app.use('/api/friends', friendRoutes);
+// Face ID: public, không qua giftLockGuard và không nằm trong data-revision
+// (khung hình không phải dữ liệu dùng chung)
+app.use('/api/face', faceRoutes);
 // generalLimiter bỏ qua data-revision (admin poll 5s/lượt); limiter riêng này
 // đứng trước auth để cả request chưa xác thực cũng bị giới hạn
 app.use('/api/admin/data-revision', revisionLimiter);
