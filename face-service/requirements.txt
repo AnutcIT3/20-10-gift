@@ -1,0 +1,12 @@
+# Moi truong cho face-service va bo benchmark. Tao venv roi:
+#   .venv\Scripts\python.exe -m pip install -r requirements.txt
+# onnxruntime ban CPU du dung; RTX 50 muon dung GPU can onnxruntime-gpu>=1.27.
+numpy<2
+opencv-python
+onnxruntime
+insightface
+pillow
+fastapi
+uvicorn[standard]
+python-multipart
+httpx
