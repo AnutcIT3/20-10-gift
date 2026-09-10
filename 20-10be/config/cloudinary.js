@@ -9,6 +9,38 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+// Chỉ lỗi 400 của Cloudinary mới là lỗi của TẤM ẢNH. 401/403/404 là sai
+// thông tin tài khoản trong .env, 420/429 là bị giới hạn tốc độ: bảo admin
+// "bỏ ảnh này" khi đó chỉ khiến họ xóa dần cả album mà lỗi vẫn y nguyên.
+// uploadErrorHandler trả thẳng message này (không qua errorHandler chung),
+// nên câu chữ còn nguyên cả ở chế độ production.
+function describeUploadError(error, originalname) {
+  const code = Number(error.http_code);
+  const detail = error.message || 'không rõ';
+  if (code === 400) {
+    return Object.assign(
+      new Error(`Ảnh "${originalname}" không hợp lệ hoặc bị hỏng (${detail}). Hãy bỏ ảnh này khỏi hàng đợi rồi tải lại.`),
+      { statusCode: 400 },
+    );
+  }
+  if (code === 401 || code === 403 || code === 404) {
+    return Object.assign(
+      new Error(`Cloudinary từ chối tài khoản (${detail}). Kiểm tra CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET trong 20-10be/.env — ảnh của bạn không có lỗi.`),
+      { statusCode: 502 },
+    );
+  }
+  if (code === 420 || code === 429) {
+    return Object.assign(
+      new Error(`Cloudinary đang giới hạn tốc độ (${detail}). Đợi một phút rồi bấm tải lại — ảnh của bạn không có lỗi.`),
+      { statusCode: 429 },
+    );
+  }
+  return Object.assign(
+    new Error(`Không gửi được ảnh "${originalname}" lên Cloudinary (${detail}). Kiểm tra mạng rồi bấm tải lại.`),
+    { statusCode: 502 },
+  );
+}
+
 function createStorage(resourceType, allowedFormats) {
   return {
     _handleFile(req, file, callback) {
@@ -17,7 +49,9 @@ function createStorage(resourceType, allowedFormats) {
         resource_type: resourceType,
         allowed_formats: allowedFormats,
       }, (error, result) => {
-        if (error) return callback(error);
+        if (error) {
+          return callback(describeUploadError(error, file.originalname));
+        }
         return callback(null, {
           path: result.secure_url,
           filename: result.public_id,
@@ -50,10 +84,13 @@ function fileFilter(allowedExts, allowedMimes) {
     }
     const ext = file.originalname.split('.').pop().toLowerCase();
     if (!allowedExts.includes(ext)) {
-      return cb(Object.assign(new Error('Invalid file format'), { statusCode: 400 }));
+      return cb(Object.assign(new Error(`Ảnh "${file.originalname}" không đúng định dạng (chỉ nhận ${allowedExts.join(', ')})`), { statusCode: 400 }));
     }
-    if (allowedMimes && !allowedMimes.includes(file.mimetype)) {
-      return cb(Object.assign(new Error(`Invalid MIME type: ${file.mimetype}`), { statusCode: 400 }));
+    // Windows không có codec HEIC báo MIME rỗng hoặc octet-stream cho ảnh iPhone;
+    // đuôi file đã qua kiểm tra và Cloudinary còn kiểm tra nội dung thật
+    const vagueMime = !file.mimetype || file.mimetype === 'application/octet-stream';
+    if (allowedMimes && !vagueMime && !allowedMimes.includes(file.mimetype)) {
+      return cb(Object.assign(new Error(`Ảnh "${file.originalname}" có kiểu ${file.mimetype} không được hỗ trợ`), { statusCode: 400 }));
     }
     cb(null, true);
   };
@@ -75,9 +112,9 @@ function uploadErrorHandler(err, req, res, next) {
 const uploadImage = multer({
   storage: createStorage('image', ALLOWED_IMAGE_TYPES),
   limits: { fileSize: MAX_IMAGE_SIZE },
-  fileFilter: fileFilter(ALLOWED_IMAGE_TYPES, ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']),
+  fileFilter: fileFilter(ALLOWED_IMAGE_TYPES, ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif']),
 });
 
 module.exports = {
-  cloudinary, uploadImage, uploadErrorHandler,
+  cloudinary, uploadImage, uploadErrorHandler, describeUploadError,
 };

@@ -13,18 +13,28 @@ param(
 
     [string]$DnsSettingsScript,
 
-    [switch]$SkipDnsRepair
+    [switch]$SkipDnsRepair,
+
+    # Face ID la tuy chon: bo trong hoac chua co .venv thi web van chay, chi an the Face ID.
+    [string]$FaceServiceDir,
+
+    [int]$FacePort = 5002
 )
 
 $ErrorActionPreference = 'Stop'
 $backendProcess = $null
 $tunnelProcess = $null
+$faceProcess = $null
 $ownsBackend = $false
+$ownsFace = $false
+$faceReady = $false
 $runtimeId = "$PID-$([DateTime]::UtcNow.Ticks)"
 $backendOutLog = Join-Path $env:TEMP "gift-backend-$runtimeId.out.log"
 $backendErrLog = Join-Path $env:TEMP "gift-backend-$runtimeId.err.log"
 $tunnelOutLog = Join-Path $env:TEMP "gift-tunnel-$runtimeId.out.log"
 $tunnelErrLog = Join-Path $env:TEMP "gift-tunnel-$runtimeId.err.log"
+$faceOutLog = Join-Path $env:TEMP "gift-face-$runtimeId.out.log"
+$faceErrLog = Join-Path $env:TEMP "gift-face-$runtimeId.err.log"
 
 function Test-BackendReady {
     param([int]$TargetPort)
@@ -42,6 +52,19 @@ function Test-BackendReady {
             -Uri "http://127.0.0.1:$TargetPort/" `
             -TimeoutSec 2
         return $root.StatusCode -eq 200 -and $root.Content.Contains('id="root"')
+    } catch {
+        return $false
+    }
+}
+
+function Test-FaceReady {
+    param([int]$TargetPort)
+
+    try {
+        $health = Invoke-RestMethod `
+            -Uri "http://127.0.0.1:$TargetPort/health" `
+            -TimeoutSec 2
+        return $health.status -eq 'ok'
     } catch {
         return $false
     }
@@ -318,6 +341,65 @@ try {
         Write-Host "[Backend] API, database va frontend deu san sang." -ForegroundColor Green
     }
 
+    # Face ID chi la phan them: moi loi trong khoi nay chi canh bao, khong bao gio
+    # lam hong public mode, vi web khong co face-service van chay binh thuong.
+    try {
+        $facePython = $null
+        if ($FaceServiceDir) {
+            $facePython = Join-Path $FaceServiceDir '.venv\Scripts\python.exe'
+        }
+
+        if (-not $facePython -or -not (Test-Path -LiteralPath $facePython)) {
+            Write-Host "[Face] Chua co face-service\.venv nen Face ID se an. Web van chay binh thuong." -ForegroundColor Yellow
+        } elseif (Test-FaceReady -TargetPort $FacePort) {
+            $faceReady = $true
+            Write-Host "[Face] Dang dung face-service san co tren cong $FacePort." -ForegroundColor Green
+        } else {
+            $faceListener = Get-NetTCPConnection `
+                -LocalPort $FacePort `
+                -State Listen `
+                -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+            if ($faceListener) {
+                # Thuong la cua so start-dev.bat dang nap model; khong mo them mot ban thu hai tren cung cong.
+                Write-Host "[Face] Cong $FacePort dang do process $($faceListener.OwningProcess) giu nhung chua tra loi /health, doi toi da 60 giay..." -ForegroundColor Yellow
+            } else {
+                Write-Host "[Face] Dang khoi dong face-service (nap model mat vai giay)..." -ForegroundColor Yellow
+                $faceProcess = Start-Process `
+                    -FilePath $facePython `
+                    -ArgumentList @('-m', 'uvicorn', 'app:app', '--host', '127.0.0.1', '--port', "$FacePort") `
+                    -WorkingDirectory $FaceServiceDir `
+                    -RedirectStandardOutput $faceOutLog `
+                    -RedirectStandardError $faceErrLog `
+                    -PassThru `
+                    -WindowStyle Hidden
+                $ownsFace = $true
+            }
+
+            for ($attempt = 1; $attempt -le 60; $attempt++) {
+                if ($ownsFace -and $faceProcess.HasExited) {
+                    break
+                }
+                if (Test-FaceReady -TargetPort $FacePort) {
+                    $faceReady = $true
+                    break
+                }
+                Start-Sleep -Seconds 1
+            }
+
+            if ($faceReady) {
+                Write-Host "[Face] face-service san sang tren cong $FacePort." -ForegroundColor Green
+            } elseif ($ownsFace -and $faceProcess.HasExited) {
+                Write-Host "[Face] face-service dung dot ngot nen Face ID se an. Log: $faceErrLog" -ForegroundColor Yellow
+            } else {
+                Write-Host "[Face] face-service chua san sang sau 60 giay. The Face ID se tu hien khi model nap xong; web van chay." -ForegroundColor Yellow
+            }
+        }
+    } catch {
+        Write-Host "[Face] Khong khoi dong duoc face-service: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "[Face] Face ID se an, web van chay binh thuong." -ForegroundColor Yellow
+    }
+
     $existingTunnels = Get-ExistingTunnelProcesses -TargetPort $Port
     if ($existingTunnels.Count -gt 0 -and $CleanExistingTunnels) {
         Write-Host "[Tunnel] Dang tat $($existingTunnels.Count) Cloudflare Tunnel cu cung tro vao cong $Port..." -ForegroundColor Yellow
@@ -451,10 +533,16 @@ try {
         Write-Host "  LINK CHO NGUOI CUNG WI-FI:" -ForegroundColor Green
         Write-Host "  $lanUrl" -ForegroundColor Cyan
     }
+    Write-Host ""
+    if ($faceReady) {
+        Write-Host "  FACE ID: san sang" -ForegroundColor Green
+    } else {
+        Write-Host "  FACE ID: tat (web van chay)" -ForegroundColor Yellow
+    }
     Write-Host "=========================================" -ForegroundColor Green
     Write-Host ""
     Write-Host "Giu cua so nay de link tiep tuc hoat dong." -ForegroundColor Yellow
-    Write-Host "Nhan Ctrl+C de tat tunnel va backend." -ForegroundColor Yellow
+    Write-Host "Nhan Ctrl+C de tat tunnel, backend va face-service do script tao." -ForegroundColor Yellow
     try {
         Set-Clipboard -Value $url -ErrorAction SilentlyContinue
         Write-Host "Link public da duoc copy vao clipboard." -ForegroundColor Green
@@ -481,6 +569,9 @@ try {
     exit 1
 } finally {
     Stop-OwnedProcess -Process $tunnelProcess
+    if ($ownsFace) {
+        Stop-OwnedProcess -Process $faceProcess
+    }
     if ($ownsBackend) {
         Stop-OwnedProcess -Process $backendProcess
     }

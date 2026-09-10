@@ -67,7 +67,7 @@ if not defined CF_EXE (
     exit /b 1
 )
 
-echo [3/4] Dang khoi dong backend va kiem tra readiness...
+echo [3/4] Dang khoi dong backend, face-service (neu co) va kiem tra readiness...
 echo [4/4] Dang mo Cloudflare Tunnel...
 echo.
 
@@ -77,7 +77,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%open-tunnel.ps1" ^
     -Port 5001 ^
     -CleanExistingTunnels ^
     -RestartExistingBackend ^
-    -DnsSettingsScript "%ROOT%dns-settings.ps1"
+    -DnsSettingsScript "%ROOT%dns-settings.ps1" ^
+    -FaceServiceDir "%ROOT%face-service" ^
+    -FacePort 5002
 
 set "EXIT_CODE=%ERRORLEVEL%"
 if not "%EXIT_CODE%"=="0" (
@@ -86,6 +88,6 @@ if not "%EXIT_CODE%"=="0" (
 )
 
 echo.
-echo Public mode da dung. Backend va tunnel do script tao da duoc tat.
+echo Public mode da dung. Backend, face-service va tunnel do script tao da duoc tat.
 pause
 exit /b %EXIT_CODE%

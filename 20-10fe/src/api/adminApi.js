@@ -108,6 +108,17 @@ export const adminApi = {
     method: 'DELETE', body: JSON.stringify({ ids }),
   }),
   getStats: () => request('/api/admin/stats'),
+  // Lịch sử Face ID: chỉ kết quả và con số của từng khung hình, không ảnh
+  getFaceSummary: () => request('/api/admin/face/summary'),
+  listFaceScans: ({ filter = 'all', studentId, before, limit } = {}) => {
+    const params = new URLSearchParams({ filter })
+    if (studentId) params.set('studentId', studentId)
+    if (before) params.set('before', before)
+    if (limit) params.set('limit', limit)
+    return request(`/api/admin/face/scans?${params}`)
+  },
+  getFaceScan: (id) => request(`/api/admin/face/scans/${id}`),
+  clearFaceHistory: () => request('/api/admin/face/scans', { method: 'DELETE' }),
   getDataRevision: () => request('/api/admin/data-revision'),
   getSettings: () => request('/api/admin/settings'),
   updateSettings: (data) => request('/api/admin/settings', {

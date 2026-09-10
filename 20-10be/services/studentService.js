@@ -20,6 +20,40 @@ function validateText(value, field, max, required = false) {
   return trimmed || null;
 }
 
+// Ảnh đại diện phải là ảnh đã tải lên Cloudinary (hoặc đường dẫn nội bộ):
+// CSP của trang quà chỉ cho phép img-src res.cloudinary.com, nên link dán từ
+// Facebook/Drive hiện được ở máy dev rồi bị trình duyệt chặn im lặng lúc
+// chạy thật. Chặn ngay lúc lưu để admin biết liền thay vì phát hiện hôm 20/10.
+function validateAvatarUrl(value) {
+  if (value === undefined || value === null) return value;
+  // "/logo.jpg" là đường dẫn nội bộ; "//host/…" thì trình duyệt hiểu là link
+  // ngoài (tự thêm https:) nên phải đi qua bước kiểm tra host bên dưới
+  if (value.startsWith('/') && !value.startsWith('//')) return value;
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw httpError('Ảnh đại diện phải là link ảnh đã tải lên thư viện (https://res.cloudinary.com/…)', 400);
+  }
+  if (parsed.protocol !== 'https:' || parsed.hostname !== 'res.cloudinary.com') {
+    throw httpError('Ảnh đại diện phải là ảnh trong thư viện của lớp (res.cloudinary.com), link ngoài sẽ bị trang quà chặn', 400);
+  }
+  return canonicalCloudinaryUrl(parsed) || value;
+}
+
+// Link copy từ trang quà mang theo đoạn biến đổi (f_auto,…,w_600/). Bỏ đoạn
+// đó để avatar trùng khít image_url gốc trong thư viện: nhờ vậy chặn xóa ảnh
+// đang làm avatar và huy hiệu "Ảnh đại diện" ở trang admin vẫn nhận ra nó.
+function canonicalCloudinaryUrl(parsed) {
+  const marker = '/image/upload/';
+  const at = parsed.pathname.indexOf(marker);
+  if (at === -1) return null;
+  const segments = parsed.pathname.slice(at + marker.length).split('/');
+  const keepFrom = segments.findIndex((segment) => /^v\d+$/.test(segment) || segment === 'gift_20_10');
+  if (keepFrom <= 0) return null;
+  return `${parsed.origin}${parsed.pathname.slice(0, at + marker.length)}${segments.slice(keepFrom).join('/')}`;
+}
+
 function sanitizeInput(data, requireName = false) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw httpError('Dữ liệu không hợp lệ', 400);
@@ -30,7 +64,7 @@ function sanitizeInput(data, requireName = false) {
     clean.normalized_name = normalizeName(clean.full_name);
   }
   clean.nickname = validateText(data.nickname, 'nickname', 50);
-  clean.avatar_url = validateText(data.avatar_url, 'avatar_url', 500);
+  clean.avatar_url = validateAvatarUrl(validateText(data.avatar_url, 'avatar_url', 500));
   clean.intro_message = validateText(data.intro_message, 'intro_message', 65535);
   clean.class_name = validateText(data.class_name, 'class_name', 20);
   if (Object.prototype.hasOwnProperty.call(data, 'seat_row')
@@ -333,5 +367,5 @@ async function updateSeat(id, data) {
 
 module.exports = {
   listStudents, getStudent, createStudent, updateStudent, deactivateStudent, activateStudent,
-  deleteStudent, updateAccessCode, updateSeat,
+  deleteStudent, updateAccessCode, updateSeat, validateAvatarUrl,
 };

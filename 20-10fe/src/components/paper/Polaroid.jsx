@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { cld, CLD_AVATAR, CLD_THUMB } from '../../lib/cloudinary'
 
 const hasIntersectionObserver = typeof IntersectionObserver !== 'undefined'
 
@@ -59,11 +60,14 @@ function Polaroid({
   if (tapeRotate !== undefined) css['--tape-rot'] = `${tapeRotate}deg`
 
   const showImage = Boolean(src) && inView && !failed
+  // Ảnh Cloudinary được lưu nguyên bản (tới 5 MB); polaroid chỉ cần bản 600px.
+  // Ảnh vuông (avatar) cắt vuông và ưu tiên giữ khuôn mặt ở giữa khung.
+  const displaySrc = cld(src, square ? CLD_AVATAR : CLD_THUMB)
   const frame = (
     <>
       {showImage && (
         <img
-          src={src}
+          src={displaySrc}
           alt={alt}
           loading={lazy ? 'lazy' : undefined}
           className={`polaroid__img${loaded ? ' is-loaded' : ''}`}

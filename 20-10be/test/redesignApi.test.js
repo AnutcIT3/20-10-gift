@@ -144,6 +144,8 @@ test('dashboard stats count scheduled letters separately from approved ones', as
       return [[{ total: 5, active: 4, totalViews: 30 }]];
     }
     if (sql.includes('NOT EXISTS')) return [[{ count: 1 }]];
+    if (sql.includes('avatar_url IS NULL')) return [[{ count: 3 }]];
+    if (sql.includes('FROM face_scans')) return [[{ scans: 2, confirmed: 1, denied: 0 }]];
     if (sql.includes('FROM gallery')) return [[{ total: 6 }]];
     if (sql.includes('ORDER BY view_count')) return [[]];
     if (sql.includes('FROM letter_reactions')) return [[]];
@@ -155,4 +157,47 @@ test('dashboard stats count scheduled letters separately from approved ones', as
   } finally {
     pool.execute = original;
   }
+});
+
+test('avatar links must be uploaded Cloudinary images and are stored without delivery transforms', () => {
+  const { validateAvatarUrl } = studentService;
+  const original = 'https://res.cloudinary.com/demo/image/upload/v1785341639/gift_20_10/abc.jpg';
+  assert.equal(validateAvatarUrl(original), original);
+  // Link copy từ trang quà (đã chèn f_auto,…) phải quy về đúng image_url gốc
+  assert.equal(
+    validateAvatarUrl('https://res.cloudinary.com/demo/image/upload/f_auto,q_auto,c_fill,g_face,w_600,h_600/v1785341639/gift_20_10/abc.jpg'),
+    original,
+  );
+  assert.equal(validateAvatarUrl('/logoclass.jpg'), '/logoclass.jpg');
+  assert.equal(validateAvatarUrl(null), null);
+  for (const bad of [
+    '//scontent.fbcdn.net/photo.jpg',
+    'http://res.cloudinary.com/demo/image/upload/v1/gift_20_10/a.jpg',
+    'https://res.cloudinary.com.evil.test/a.jpg',
+    'https://user@evil.test/res.cloudinary.com/a.jpg',
+    'javascript:alert(1)',
+    'không phải link',
+  ]) {
+    assert.throws(() => validateAvatarUrl(bad), (error) => error.statusCode === 400, bad);
+  }
+});
+
+test('Cloudinary upload errors blame the photo only when Cloudinary says the photo is bad', () => {
+  const { describeUploadError } = require('../config/cloudinary');
+  const corrupt = describeUploadError({ http_code: 400, message: 'Invalid image file' }, 'IMG_1.jpg');
+  assert.equal(corrupt.statusCode, 400);
+  assert.match(corrupt.message, /IMG_1\.jpg/);
+  assert.match(corrupt.message, /bỏ ảnh này/);
+
+  const credentials = describeUploadError({ http_code: 401, message: 'Invalid Signature' }, 'IMG_2.jpg');
+  assert.equal(credentials.statusCode, 502);
+  assert.match(credentials.message, /CLOUDINARY_API_SECRET/);
+  assert.doesNotMatch(credentials.message, /bỏ ảnh này/);
+
+  const limited = describeUploadError({ http_code: 420, message: 'Rate Limited' }, 'IMG_3.jpg');
+  assert.equal(limited.statusCode, 429);
+  assert.doesNotMatch(limited.message, /bỏ ảnh này/);
+
+  const network = describeUploadError({ message: 'socket hang up' }, 'IMG_4.jpg');
+  assert.equal(network.statusCode, 502);
 });

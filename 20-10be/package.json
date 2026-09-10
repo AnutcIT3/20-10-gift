@@ -11,7 +11,8 @@
     "create-admin": "node scripts/create-admin.js",
     "backup": "node scripts/backup.js",
     "backup:shared": "node scripts/backup.js --shared",
-    "restore": "node scripts/restore.js"
+    "restore": "node scripts/restore.js",
+    "face:enroll": "node scripts/face-enroll.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -13,18 +13,22 @@
 - Admin Dashboard hoàn chỉnh trên frontend.
 - Frontend dùng API thật qua Axios.
 - Tên không thuộc danh sách nhận lời chúc vui từ Gemini; nếu Gemini lỗi hoặc chưa cấu hình, backend dùng lời chúc tĩnh.
+- Face ID (tùy chọn): bạn trong lớp có thể mở trang quà bằng camera thay vì gõ tên. Tính năng tự ẩn khi service Python không chạy hoặc admin tắt công tắc — xem mục [Face ID](#face-id-tùy-chọn).
 
 ## Chạy nhanh trên Windows
 
 Lần đầu trên một máy mới:
 
-1. Cài Node.js 20+ và MySQL 8.
+1. Cài Node.js 20+ và MySQL 8. Muốn dùng Face ID thì cài thêm Python 3.11 (tùy chọn).
 2. Double-click `setup-local.bat`.
 3. Điền thông tin database, admin, Cloudinary và các biến môi trường cần dùng khi Notepad mở ra.
-4. Script sẽ tạo schema, khôi phục dữ liệu dùng chung từ Git và tạo tài khoản admin cục bộ.
+4. Script sẽ tạo schema, khôi phục dữ liệu dùng chung từ Git và tạo tài khoản admin cục bộ. Bước cuối tạo `face-service/.venv` nếu máy có Python 3.11; không có thì bỏ qua với một dòng cảnh báo, web vẫn chạy bình thường.
 5. Sau khi setup thành công, double-click `start-dev.bat`.
 
-Các lần sau chỉ cần `start-dev.bat`. Script mở backend, frontend và trình duyệt.
+Các lần sau chỉ cần `start-dev.bat`. Script mở ba cửa sổ — backend, frontend và
+face-service (cửa sổ thứ ba chỉ mở khi đã có `face-service/.venv`) — rồi mở
+trình duyệt. Face-service cần vài giây nạp model; thẻ ✨ Face ID trên trang chủ
+tự hiện khi service sẵn sàng.
 
 Để chủ động đồng bộ dữ liệu giữa các máy, double-click `sync-data.bat`:
 
@@ -42,12 +46,18 @@ npm run dev
 # Terminal 2
 cd 20-10fe
 npm run dev
+
+# Terminal 3 — tùy chọn, Face ID
+cd face-service
+.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 5002
 ```
 
 - Website: `http://localhost:5173`
 - Admin: `http://localhost:5173/admin/login`
 - Backend health: `http://localhost:5001/api/health`
 - Backend ready: `http://localhost:5001/api/ready`
+- Face-service health: `http://127.0.0.1:5002/health` (chỉ nghe trên máy, không ra mạng)
+- Trạng thái Face ID mà trang chủ nhìn thấy: `http://localhost:5001/api/face/status`
 
 ## Chia sẻ link tạm thời qua Cloudflare
 
@@ -64,10 +74,85 @@ Production build dùng `20-10fe/.env.production` với API cùng origin. Không 
 Quick Tunnel tạo URL mới sau mỗi lần chạy và chỉ phù hợp cho demo ngắn hạn.
 Link hiện tại được in trong cửa sổ script và tự động mở trên trình duyệt.
 
+Public mode cũng tự khởi động face-service (ẩn, ghi log ra `%TEMP%\gift-face-*.log`)
+nếu có `face-service/.venv`, chờ tối đa 60 giây cho model nạp xong rồi in dòng
+`FACE ID: san sang` hoặc `FACE ID: tat (web van chay)` trong bảng link. Service
+không lên được thì tunnel vẫn mở bình thường, chỉ thiếu thẻ Face ID. Link
+`https://...trycloudflare.com` là secure context nên camera dùng được trên điện
+thoại; link LAN `http://192.168...` thì trình duyệt không cho mở camera, thẻ Face
+ID tự ẩn ở đó.
+
+## Face ID (tùy chọn)
+
+Bạn trong lớp đứng trước camera là mở được trang quà của mình, không cần gõ
+tên. Thiết kế và các quyết định nằm trong `FACE_PLAN.md`; số đo chọn model nằm
+trong `face-service/RESULTS.md` (ArcFace w600k_r50, ngưỡng τ = 0,45, margin
+top1 − top2 ≥ 0,10).
+
+Ba phần ghép lại:
+
+- `face-service/` — FastAPI + insightface, chạy trên `127.0.0.1:5002`. Chỉ nhận
+  một ảnh và trả về vector 512 chiều kèm chỉ số chất lượng; không biết database,
+  không giữ trạng thái, không ghi ảnh ra đĩa. Chi tiết trong `face-service/README.md`.
+- Backend Node — giữ hồ sơ khuôn mặt trong bảng `face_profiles`, so khớp, áp
+  ngưỡng, rate limit riêng (10000 khung / 15 phút / IP — trang chỉ dùng trong
+  lớp nên đây chỉ là cái phanh cho máy kẹt vòng lặp; khung hình không bị tính vào
+  hạn mức chung của API) và công tắc `face_enabled`.
+- Frontend — thẻ **✨ Face ID** cạnh ô gõ tên trên trang chủ, mở khung quét
+  camera; hai khung liên tiếp cùng nhận ra một người thì hỏi "Có phải cậu là …?"
+  rồi mới mở trang quà.
+
+Thẻ Face ID **chỉ hiện khi đủ ba điều kiện**: trang chạy trên HTTPS hoặc
+`localhost`, trình duyệt có camera, và `GET /api/face/status` trả `enabled: true`
+(công tắc bật + face-service trả lời `/health` + có ít nhất một hồ sơ đã đăng
+ký). Thiếu một điều kiện thì thẻ biến mất, không bao giờ có nút bấm-vào-là-lỗi.
+
+Bật tính năng lần đầu:
+
+1. Cài Python 3.11, chạy lại `setup-local.bat` (hoặc tạo venv thủ công theo
+   mục *Cài đặt lần đầu*) để có `face-service/.venv`.
+2. Chạy `start-dev.bat`; cửa sổ thứ ba là face-service. Kiểm tra
+   `http://127.0.0.1:5002/health` trả `status: "ok"` và `model: "arcface_r50"`.
+3. Tạo bảng một lần: trong `20-10be` chạy `npm run migrate` (migration 017 tạo
+   `face_profiles`, `face_match_log` và công tắc `face_enabled` mặc định tắt;
+   migration 018 tạo `face_scans` cho trang Lịch sử Face ID).
+   `start-dev.bat` không tự chạy migrate; `start-public.bat` và `setup-local.bat` thì có.
+4. Đăng ký hồ sơ: đặt ảnh vào `bench/photos/<Họ và tên đúng như database>/`
+   (thư mục này nằm ngoài Git) rồi trong `20-10be` chạy `npm run face:enroll`.
+   Script in bảng "thư mục → học sinh", báo `CHƯA KHỚP` nếu tên không trùng, và
+   ghi một vector trung bình cho mỗi bạn. Thêm `--dry-run` để chỉ xem bảng khớp
+   tên; hoặc `npm run face:enroll -- --student <id> --images a.jpg b.jpg` để
+   đăng ký một bạn từ ảnh bất kỳ. Ảnh chỉ đi qua bộ nhớ, không được sao chép.
+5. Vào admin, gạt công tắc **✨ Face ID** ở sidebar (key `face_enabled` trong
+   `app_settings`, mặc định tắt). Tắt công tắc là thẻ biến mất ngay trên trang
+   chủ, không cần restart.
+
+Riêng tư: từng khung hình chỉ dùng để so khớp ngay lúc đó rồi bỏ — không ảnh,
+không video nào được lưu, và trang quét nói đúng như vậy. Server chỉ ghi số vào
+`face_match_log` (điểm, margin, cỡ mặt, độ sáng, độ nét, người giống nhất, câu trả
+lời "đúng là mình / không phải"), gom theo lượt quét trong `face_scans` (một lần
+mở camera: kết quả, thời gian, loại máy/trình duyệt, và tên người đó nếu họ gõ tên
+mở quà ngay sau lượt chưa thành). `face_profiles`, `face_match_log` và `face_scans`
+**không** nằm trong snapshot `backup:shared`/`restore`, nên không bao giờ lên Git;
+đổi máy thì đăng ký lại bằng `npm run face:enroll`.
+
+Lịch sử quét: admin → **Face ID**. Mỗi lượt có kết quả (nhận đúng, nhầm người,
+không nhận ra, hết giờ, lỗi camera…), nguyên nhân máy chẩn đoán kèm gợi ý sửa, và
+bấm vào thì thấy từng khung hình với con số của nó — tối, xa, nhòe hay "rõ mặt
+nhưng không khớp ai" hiện ra ở đó thay cho ảnh chụp. Cột **Theo thành viên** chỉ
+ra ai chưa có hồ sơ, ai hay phải gõ tên, ai hay bị máy nhận nhầm. Nút **Xoá lịch
+sử** xoá sạch các lượt (hồ sơ Face ID giữ nguyên) — nên xoá các lượt chạy thử
+trước ngày 20/10.
+
+Thẻ không hiện? Kiểm tra theo thứ tự: `/health` của face-service, công tắc
+`face_enabled`, số `profiles` trong `GET /api/face/status`, và trang có đang mở
+qua HTTPS/localhost không.
+
 ## Yêu cầu
 
 - Node.js >= 20
 - MySQL >= 8.0
+- Python 3.11 (tùy chọn, cho Face ID)
 - Cloudinary account để upload ảnh
 - Gemini API key nếu muốn sinh lời chúc AI
 
@@ -82,6 +167,11 @@ npm run create-admin
 
 cd ../20-10fe
 npm install
+
+# Tùy chọn — Face ID (cần Python 3.11)
+cd ../face-service
+py -3.11 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
 ## Biến môi trường
@@ -113,6 +203,9 @@ GEMINI_API_KEY=your_gemini_api_key
 GEMINI_MODEL=gemini-2.5-flash
 
 FRONTEND_URL=http://localhost:5173
+
+# Face ID (tùy chọn) — bỏ trống thì mặc định 127.0.0.1:5002 vẫn dùng được
+FACE_SERVICE_URL=http://127.0.0.1:5002
 ```
 
 Frontend — `20-10fe/.env.local`:
@@ -229,6 +322,11 @@ Public:
 - `GET /api/gifts/:accessCode/letters`
 - `POST /api/gifts/:accessCode/letters`
 - `POST /api/greetings/generate`
+- `GET /api/face/status` — `{ enabled, model, profiles }`; trang chủ dựa vào đây để hiện/ẩn thẻ Face ID, không bao giờ lỗi (mọi sự cố → `enabled: false`)
+- `POST /api/face/match` — multipart, một file `frame` (JPEG/PNG/WebP ≤ 1 MB), tùy chọn `scan` (mã lượt quét 32 ký tự hex) và `t` (ms từ lúc camera chạy); trả `decision` là `match` (kèm `matchId`, `giftPath`, `displayName`, `score`, `margin`), `reject`, `no_face`, `low_quality` (`reason`: `small`/`dark`/`blurry`) hoặc `many_faces`; 503 khi Face ID tắt hoặc service không trả lời, 429 khi quá 10000 request/15 phút. Có `scan` thì mọi khung (kể cả bị cổng chất lượng chặn) được ghi số vào lượt đó
+- `POST /api/face/scans/:scan/end` — JSON `{ outcome, matchId?, durationMs?, darkFrames? }`, khép lượt quét (`confirmed`/`denied` bắt buộc kèm `matchId`); chỉ tín hiệu đầu tiên có hiệu lực
+- `POST /api/face/scans/claim` — JSON `{ tokens, accessCode }`, ghép người vừa mở quà vào các lượt chưa thành của họ trong 30 phút gần nhất; luôn trả `ok`
+- `POST /api/face/confirm` — JSON `{ matchId, confirmed }`, ghi câu trả lời "đúng là mình / không phải" vào `face_match_log` (chỉ số, không ảnh); bản frontend mới gửi câu trả lời qua `/scans/:scan/end`
 
 Admin — yêu cầu `Authorization: Bearer <token>`:
 
@@ -238,7 +336,10 @@ Admin — yêu cầu `Authorization: Bearer <token>`:
 - `/api/gallery/*`
 - `/api/admin/letters`
 - `/api/letters/*`
-- `GET/PATCH /api/admin/settings` — khóa/mở trang quà chờ ngày 20/10
+- `GET/PATCH /api/admin/settings` — khóa/mở trang quà chờ ngày 20/10 (`gift_pages_locked`) và bật/tắt Face ID (`face_enabled`); PATCH gửi một trong hai key
+- `GET /api/admin/face/summary` — tổng theo kết quả, thời gian nhận ra (trung vị), nguyên nhân các lượt chưa thành, từng thành viên lớp
+- `GET /api/admin/face/scans?filter=all|ok|fail&studentId=&before=&limit=` — lịch sử lượt quét, mới nhất trước
+- `GET /api/admin/face/scans/:id` — một lượt kèm từng khung hình; `DELETE /api/admin/face/scans` — xoá sạch lịch sử quét
 
 ## Scripts
 
@@ -252,6 +353,7 @@ Backend:
 - `npm run backup:shared` — cập nhật snapshot dùng chung; cần review trước khi commit.
 - `npm run restore` — thay dữ liệu dùng chung bằng snapshot trong Git.
 - `npm run create-admin` — tạo/cập nhật admin từ env.
+- `npm run face:enroll` — đăng ký hồ sơ Face ID từ `bench/photos/<Họ và tên>/` (cần face-service đang chạy); `-- --dry-run` chỉ xem bảng khớp tên, `-- --student <id> --images ...` đăng ký một bạn.
 - `npm test` — chạy test backend.
 
 Frontend:
@@ -268,5 +370,6 @@ Frontend:
 - Mọi tên được nhập đều nhận một lời chúc Gemini: người trong lớp xem trên GiftPage cá nhân, người ngoài danh sách xem trang chúc chung. Gemini key chỉ nằm ở backend để không lộ trên trình duyệt.
 - Tên ngoài danh sách được hỏi "thành viên trong lớp hay khách ghé thăm" trước khi hiện lời chúc — hai kiểu lời chúc khác nhau (`classmate` / `visitor`).
 - Admin có thể **khóa trang quà chờ ngày 20/10** bằng công tắc **Trang quà** ở sidebar admin: người mở trang quà thấy "Chưa đến ngày 20/10, vui lòng chờ thêm", nhưng gửi lời chúc vẫn hoạt động — gửi link cho các bạn nam chúc trước, đến ngày admin gạt công tắc để mở.
+- Công tắc **✨ Face ID** nằm ngay dưới công tắc Trang quà, mặc định tắt. Quét mặt vẫn chạy khi trang quà đang khóa (nhận ra rồi mới gặp màn "chưa đến ngày"), nên bật Face ID sớm để thử không làm lộ quà. Dashboard có thẻ ✨ Face ID đếm số lượt quét nhận đúng / nhầm người / chưa thành, bấm vào để mở trang Lịch sử quét.
 - Xem `PLAN.md` và `IMPLEMENTATION.md` để biết thiết kế và API contract ban đầu.
 - Giao diện người dùng và admin theo handoff "Sổ lưu bút" (thư mục `design_handoff_luu_but_2010`): giấy kem, polaroid dán băng keo, thư kẻ dòng có tem. Font Itim / Lora / Patrick Hand tự lưu trữ trong `20-10fe/public/fonts` (giấy phép OFL) nên chạy offline và không cần nới CSP.

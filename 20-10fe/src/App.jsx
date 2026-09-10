@@ -16,6 +16,7 @@ const StudentManager = lazy(() => import('./pages/admin/StudentManager'))
 const ClassroomSeating = lazy(() => import('./pages/admin/ClassroomSeating'))
 const GalleryManager = lazy(() => import('./pages/admin/GalleryManager'))
 const LetterManager = lazy(() => import('./pages/admin/LetterManager'))
+const FaceHistory = lazy(() => import('./pages/admin/FaceHistory'))
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
               <Route path="seating" element={<ClassroomSeating />} />
               <Route path="gallery" element={<GalleryManager />} />
               <Route path="letters" element={<LetterManager />} />
+              <Route path="face" element={<FaceHistory />} />
             </Route>
           </Route>
           <Route path="*" element={<NotFoundPage />} />

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { adminApi } from '../../api/adminApi'
 import useDialogA11y from '../../hooks/useDialogA11y'
 import { seatLabel } from '../../lib/seat'
+import { cld, CLD_TINY } from '../../lib/cloudinary'
 
 const ROW_COUNT = 6
 const COLUMN_COUNT = 8
@@ -64,7 +65,7 @@ function SeatChangeModal({ action, saving, onConfirm, onCancel }) {
 function SeatAvatar({ student }) {
   return (
     <span className="seat__avatar" aria-hidden="true">
-      {student.avatar_url ? <img src={student.avatar_url} alt="" /> : studentInitial(student)}
+      {student.avatar_url ? <img src={cld(student.avatar_url, CLD_TINY)} alt="" /> : studentInitial(student)}
     </span>
   )
 }

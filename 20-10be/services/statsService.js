@@ -52,11 +52,23 @@ async function getDashboardStats() {
     `SELECT COUNT(*) AS total FROM gallery`,
   );
 
+  // Chỉ đếm thành viên lớp: hồ sơ bạn ngoài lớp (member_type = 'friend') tự
+  // sinh khi có lời chúc và theo thiết kế không bao giờ có ảnh, đếm cả họ thì
+  // con số này không bao giờ về 0 và lệch với bộ lọc ở trang Học sinh
   const [[noImageRow]] = await pool.execute(
     `SELECT COUNT(*) AS count
      FROM students s
      WHERE is_active = TRUE
+       AND member_type = 'class'
        AND NOT EXISTS (SELECT 1 FROM gallery g WHERE g.student_id = s.id)`,
+  );
+
+  const [[noAvatarRow]] = await pool.execute(
+    `SELECT COUNT(*) AS count
+     FROM students
+     WHERE is_active = TRUE
+       AND member_type = 'class'
+       AND (avatar_url IS NULL OR avatar_url = '')`,
   );
 
   // Top 5 học sinh được xem nhiều nhất
@@ -78,11 +90,33 @@ async function getDashboardStats() {
   const reactions = Object.fromEntries(reactionRows.map((r) => [r.emoji_key, Number(r.cnt)]));
   const totalReactions = reactionRows.reduce((s, r) => s + Number(r.cnt), 0);
 
+  // Face ID: đếm theo lượt quét (một lần mở camera) — nhận đúng, nhầm người,
+  // còn lại là chưa thành. Bảng chỉ có kết quả và con số, không ảnh hay vector.
+  // Máy chưa chạy migration 018 thì bảng chưa có: trả null thay vì làm sập cả
+  // trang Tổng quan.
+  let faceRow = null;
+  try {
+    [[faceRow]] = await pool.execute(
+      `SELECT
+         COUNT(*)                   AS scans,
+         SUM(outcome = 'confirmed') AS confirmed,
+         SUM(outcome = 'denied')    AS denied
+       FROM face_scans`,
+    );
+  } catch (error) {
+    if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+  }
+  const faceScans = Number(faceRow?.scans || 0);
+  const faceConfirmed = Number(faceRow?.confirmed || 0);
+  const faceDenied = Number(faceRow?.denied || 0);
+
   return {
     students: {
       total: Number(studentRow.total),
       active: Number(studentRow.active),
       totalViews: Number(studentRow.totalViews || 0),
+      // Thành viên lớp chưa có ảnh đại diện — mục tiêu riêng trong ROADMAP
+      withoutAvatar: Number(noAvatarRow.count),
     },
     letters: {
       pending: Number(letterRow.pending || 0),
@@ -99,6 +133,12 @@ async function getDashboardStats() {
       byEmoji: reactions,
       total: totalReactions,
     },
+    face: faceRow ? {
+      scans: faceScans,
+      confirmed: faceConfirmed,
+      denied: faceDenied,
+      failed: faceScans - faceConfirmed - faceDenied,
+    } : null,
     topViewed,
   };
 }

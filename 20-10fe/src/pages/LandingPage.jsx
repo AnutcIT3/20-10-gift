@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import giftRepository from '../api/giftRepository'
 import GiftReveal from '../components/GiftReveal'
@@ -8,9 +8,22 @@ import Stamp from '../components/paper/Stamp'
 import Postmark from '../components/paper/Postmark'
 import Polaroid from '../components/paper/Polaroid'
 import useDialogA11y from '../hooks/useDialogA11y'
+import useFaceScan from '../hooks/useFaceScan'
 import { EVENT_YEAR, formatStamp } from '../lib/event'
+import { greetingFor, showCountdown } from '../lib/faceVote'
 import { seatLabel } from '../lib/seat'
 import '../styles/landing.css'
+
+// Face-service có thể còn đang nạp model khi trang vừa mở (start-dev mở trình
+// duyệt sau 4 giây): hỏi lại status sau 5 giây rồi 15 giây trước khi thôi
+const FACE_STATUS_RETRIES_MS = [5000, 10000]
+
+// Camera chỉ chạy trên HTTPS (hoặc localhost) và trình duyệt có getUserMedia
+function cameraSupported() {
+  return typeof window !== 'undefined'
+    && window.isSecureContext
+    && Boolean(navigator.mediaDevices?.getUserMedia)
+}
 
 const EMPTY_WISH = {
   isAnonymous: false,
@@ -92,6 +105,32 @@ function LandingPage() {
   const [revealPath, setRevealPath] = useState(null)
   const [revealName, setRevealName] = useState('')
   const [revealStudent, setRevealStudent] = useState(null)
+  // 'face' khi quà được mở bằng Face ID → GiftReveal thêm huy hiệu nhỏ
+  const [revealVia, setRevealVia] = useState('')
+
+  // Face ID: thẻ ✨ chỉ hiện khi admin bật, service sống, đã có hồ sơ và máy
+  // có camera trên kết nối an toàn. Thiếu một điều kiện → thẻ không hề xuất hiện.
+  const [faceAvailable, setFaceAvailable] = useState(false)
+  // Destructure ngay tại đây: videoRef là ref, phần còn lại là giá trị render —
+  // gộp chung một object thì React Compiler coi mọi lần đọc thuộc tính là đọc ref
+  const {
+    active: faceActive,
+    status: faceStatus,
+    hint: faceHint,
+    kind: faceKind,
+    message: faceMessage,
+    title: faceTitle,
+    candidate: faceCandidate,
+    secondsLeft: faceSecondsLeft,
+    canRetry: faceCanRetry,
+    videoRef: faceVideoRef,
+    open: openFaceScan,
+    close: closeFace,
+    accept: acceptFace,
+    deny: denyFace,
+    retry: retryFace,
+    claim: claimFaceScans,
+  } = useFaceScan()
 
   // Link "gửi lời chúc" từ màn khóa 20/10 mở thẳng modal (/?wish=1)
   const [wishOpen, setWishOpen] = useState(() => searchParams.get('wish') === '1')
@@ -113,6 +152,36 @@ function LandingPage() {
     if (searchParams.has('wish')) setSearchParams({}, { replace: true })
   }
   const wishDialogRef = useDialogA11y(wishOpen, closeWish)
+  // Esc / bấm nền / nút × đều đi qua đây → hook nhả camera ngay
+  const faceDialogRef = useDialogA11y(faceActive, closeFace)
+
+  // Chỉ hỏi status khi đang ở bước "thành viên trong lớp"; lỗi gì cũng coi như
+  // tắt. setState chỉ chạy trong callback bất đồng bộ (quy tắc react-hooks v7).
+  useEffect(() => {
+    if (visitorRole !== 'classmate' || !cameraSupported()) return undefined
+    let cancelled = false
+    const timers = []
+    const probe = async (attempt) => {
+      try {
+        const status = await giftRepository.faceStatus()
+        if (cancelled) return
+        if (status?.enabled) {
+          setFaceAvailable(true)
+          return
+        }
+      } catch {
+        // Thẻ tiếp tục ẩn — gõ tên vẫn là đường chính
+      }
+      if (cancelled) return
+      const delay = FACE_STATUS_RETRIES_MS[attempt]
+      if (delay !== undefined) timers.push(setTimeout(() => probe(attempt + 1), delay))
+    }
+    probe(0)
+    return () => {
+      cancelled = true
+      timers.forEach(clearTimeout)
+    }
+  }, [visitorRole])
 
   const clearWishImage = () => {
     setWishImage(null)
@@ -159,8 +228,11 @@ function LandingPage() {
 
   const accessCodeFromGiftPath = (giftPath) => giftPath.split('/').filter(Boolean).pop()
 
-  const openGiftWithReveal = async (giftPath, displayName = '') => {
+  const openGiftWithReveal = async (giftPath, displayName = '', via = '') => {
     const accessCode = accessCodeFromGiftPath(giftPath)
+    // Vừa quét Face ID chưa thành rồi mở được quà: báo cho lịch sử của admin
+    // biết các lượt đó là của ai (không có lượt nào thì không gửi gì)
+    claimFaceScans(accessCode)
     let studentData = null
 
     try {
@@ -176,10 +248,30 @@ function LandingPage() {
     }
 
     setRevealName(displayName || studentData?.nickname || studentData?.full_name || '')
+    setRevealVia(via)
     // Truyền student sang GiftReveal (sơ đồ lớp + thư bay từ đúng bàn) và sang
     // GiftPage qua router state để hero hiện ngay, không fetch lại
     setRevealStudent(studentData)
     setRevealPath(giftPath)
+  }
+
+  const openFace = () => {
+    setError('')
+    openFaceScan()
+  }
+
+  // "Đúng là mình": hook đã đóng modal và nhả camera; chạy hiệu ứng mở quà như
+  // khi gõ tên (sơ đồ lớp, thư bay từ bàn), khóa 20/10 vẫn được tôn trọng
+  const confirmFace = async () => {
+    const candidate = acceptFace()
+    if (candidate) await openGiftWithReveal(candidate.giftPath, candidate.displayName, 'face')
+  }
+
+  // Dừng quét → đóng modal và đưa con trỏ về ô gõ tên. Chờ một nhịp vì
+  // useDialogA11y trả focus về nút ✨ ngay khi modal đóng.
+  const typeNameInstead = () => {
+    closeFace()
+    setTimeout(() => document.getElementById('student-name')?.focus(), 0)
   }
 
   const wishLetterData = () => ({
@@ -265,6 +357,8 @@ function LandingPage() {
   }
 
   const chooseRole = (role) => {
+    // Camera không bao giờ sống lâu hơn bước "thành viên trong lớp"
+    closeFace()
     setVisitorRole(role)
     setError('')
     setMatches([])
@@ -327,6 +421,7 @@ function LandingPage() {
         <GiftReveal
           student={revealStudent}
           recipientName={revealName}
+          via={revealVia}
           onComplete={() => navigate(revealPath, revealStudent ? { state: { student: revealStudent } } : undefined)}
         />
       )}
@@ -388,6 +483,17 @@ function LandingPage() {
                   {loading ? 'Đang tìm…' : isGuest ? 'Nhận lời chúc' : 'Mở quà'}
                 </button>
               </form>
+              {/* Lối vào phụ, không thay thế gõ tên: service báo nghỉ giữa chừng
+                  thì thẻ tự ẩn luôn cho tới lần tải trang sau */}
+              {!isGuest && faceAvailable && faceKind !== 'offline' && (
+                <button type="button" className="face-card" onClick={openFace} disabled={loading}>
+                  <span className="face-card__icon" aria-hidden="true">✨</span>
+                  <span className="face-card__text">
+                    <b>Face ID</b>
+                    <small>Nếu cậu đang ở nơi có ánh sáng ổn định, hãy đến với tôi.</small>
+                  </span>
+                </button>
+              )}
               {error && <p className="alert-note landing__alert" role="alert">{error}</p>}
               <p className="landing__note">
                 {isGuest
@@ -563,6 +669,89 @@ function LandingPage() {
                     </button>
                   </div>
                 </form>
+              </>
+            )}
+          </section>
+        </div>
+      )}
+
+      {/* Face ID: con trực tiếp của <main> như modal lời chúc — .landing__content
+          có animation transform nên sẽ thành khung chứa của position: fixed */}
+      {faceActive && (
+        <div className="wish-backdrop" role="presentation" onClick={closeFace}>
+          <section
+            ref={faceDialogRef}
+            className="wish-modal face-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="face-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button type="button" className="wish-close" onClick={closeFace} aria-label="Đóng">×</button>
+            {faceStatus === 'confirm' && faceCandidate ? (
+              <div className="face-confirm">
+                <Postmark
+                  moss
+                  size={84}
+                  rotate={-12}
+                  animate
+                  lines={['MẮT', 'THẦN', { big: '20.10' }]}
+                  className="face-confirm__postmark"
+                />
+                <p className="face-confirm__greeting">{greetingFor(faceCandidate.score)}</p>
+                <h2 id="face-modal-title">Có phải cậu là <b>{faceCandidate.displayName}</b>? 🌸</h2>
+                <div className="face-actions">
+                  <button type="button" className="btn-primary" onClick={confirmFace}>Đúng là mình 🌸</button>
+                  <button type="button" className="landing__wish" onClick={denyFace}>
+                    <span className="link-dashed">Không phải mình</span>
+                  </button>
+                </div>
+              </div>
+            ) : faceStatus === 'stopped' && faceKind === 'unrecognized' ? (
+              // Không phải lỗi: máy nhìn rõ mà không khớp ai. Lối nhanh nhất tới
+              // quà là gõ tên, nên nút đó đứng đầu; quét lại để phía sau.
+              <div className="face-stopped face-stopped--soft">
+                <h2 id="face-modal-title">{faceTitle}</h2>
+                <p className="face-stopped__text" role="status">{faceMessage}</p>
+                <div className="face-actions">
+                  <button type="button" className="btn-primary" onClick={typeNameInstead}>Gõ tên để mở quà</button>
+                  <button type="button" className="landing__wish" onClick={retryFace}>
+                    <span className="link-dashed">Quét lại</span>
+                  </button>
+                </div>
+              </div>
+            ) : faceStatus === 'stopped' ? (
+              <div className="face-stopped">
+                <h2 id="face-modal-title">{faceTitle || '✨ Face ID'}</h2>
+                <p className="alert-note" role="alert">{faceMessage}</p>
+                <div className="face-actions">
+                  {faceCanRetry && <button type="button" className="btn-primary" onClick={retryFace}>Quét lại</button>}
+                  <button type="button" className="landing__wish" onClick={typeNameInstead}>
+                    <span className="link-dashed">Gõ tên thay nhé</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <h2 id="face-modal-title">✨ Face ID</h2>
+                <div className={`face-viewfinder${faceStatus === 'scanning' ? ' is-scanning' : ''}`}>
+                  <video ref={faceVideoRef} className="face-video" autoPlay muted playsInline aria-hidden="true" />
+                  <span className="face-oval" aria-hidden="true" />
+                </div>
+                {/* Chữ luôn hiện song song với vòng quét: prefers-reduced-motion
+                    tắt animation thì người dùng vẫn biết máy đang làm gì */}
+                <p className="face-hint" role="status" aria-live="polite">{faceHint}</p>
+                {/* Đồng hồ chỉ hiện ở 10 giây cuối — thấy "còn 29 giây" ngay từ đầu
+                    dễ tưởng phải chờ đủ chừng ấy, trong khi thường ~2 giây là xong */}
+                {faceStatus === 'scanning' && (
+                  <p className="face-countdown">
+                    {showCountdown(faceSecondsLeft) ? `còn ${faceSecondsLeft} giây` : 'thường chỉ mất vài giây thôi'}
+                  </p>
+                )}
+                <p className="wish-hint face-privacy">
+                  Không lưu ảnh hay video — mỗi khung hình so khớp xong là bỏ. Mình chỉ ghi lại
+                  vài con số (đủ sáng chưa, có nhận ra không) để Face ID ngày càng nhận đúng hơn.
+                </p>
               </>
             )}
           </section>

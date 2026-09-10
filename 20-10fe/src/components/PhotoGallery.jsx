@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import Polaroid from './paper/Polaroid'
+import { cld, CLD_FULL } from '../lib/cloudinary'
 
 // Polaroid xoay xen kẽ, tấm chẵn hạ xuống một chút, băng keo đổi góc luân phiên
 const ROTATIONS = [-3, 2, -1.5, 2.5, -2, 1.5]
@@ -122,7 +123,7 @@ function PhotoGallery({ images = [] }) {
           <figure className="lightbox__polaroid" onClick={(e) => e.stopPropagation()}>
             <span className="tape tape--center lightbox__tape" aria-hidden="true" />
             <img
-              src={images[lightboxIndex].image_url}
+              src={cld(images[lightboxIndex].image_url, CLD_FULL)}
               alt={images[lightboxIndex].caption || ''}
               className="lightbox__img"
             />

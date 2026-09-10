@@ -161,7 +161,7 @@ test('fresh and upgraded databases converge, checksums lock history, and backup 
     await freshPool.end();
   }
   await run({ env, database: restoreDb, logger: null });
-  await restoreData({ connectionConfig: config(restoreDb), filePath: snapshot, logger: null });
+  await restoreData({ connectionConfig: config(restoreDb), filePath: snapshot, logger: null, preBackup: false });
   assert.deepEqual(await databaseSummary(restoreDb), freshSummary);
   const restored = await mysql.createConnection(config(restoreDb));
   const [[revision]] = await restored.execute('SELECT revision FROM app_data_revision WHERE id = 1');

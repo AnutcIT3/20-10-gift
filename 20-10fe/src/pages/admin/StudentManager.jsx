@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { adminApi } from '../../api/adminApi'
 import useDialogA11y from '../../hooks/useDialogA11y'
 import { seatLabel } from '../../lib/seat'
+import { cld, CLD_TINY } from '../../lib/cloudinary'
 
 const EMPTY_FORM = {
   full_name: '', nickname: '', avatar_url: '', intro_message: '', class_name: 'A1', access_code: '', is_active: true,
@@ -12,7 +13,9 @@ const FILTERS = [
   { value: 'active', label: 'Đang hoạt động' },
   { value: 'friend', label: 'Bạn ngoài lớp' },
   { value: 'noimg', label: 'Chưa có ảnh' },
+  { value: 'noavatar', label: 'Chưa có ảnh đại diện' },
 ]
+const FILTER_VALUES = FILTERS.map((item) => item.value)
 
 function accessCodeOf(student) {
   return (student.giftPath || '').split('/').filter(Boolean).pop() || ''
@@ -103,7 +106,12 @@ function StudentManager() {
   const [editingId, setEditingId] = useState(null)
   const [copiedId, setCopiedId] = useState(null)
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState('all')
+  // Thẻ "chưa có ảnh đại diện" ở Tổng quan dẫn thẳng tới bộ lọc tương ứng
+  const [filter, setFilter] = useState(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get('filter')
+    return FILTER_VALUES.includes(fromUrl) ? fromUrl : 'all'
+  })
+  const [avatarBroken, setAvatarBroken] = useState(false)
   const [confirmAction, setConfirmAction] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -131,6 +139,7 @@ function StudentManager() {
       if (filter === 'active' && !student.is_active) return false
       if (filter === 'friend' && student.member_type !== 'friend') return false
       if (filter === 'noimg' && (student.member_type === 'friend' || Number(student.gallery_count) > 0)) return false
+      if (filter === 'noavatar' && (student.member_type === 'friend' || student.avatar_url)) return false
       if (!keyword) return true
       return `${student.full_name || ''} ${student.nickname || ''} ${student.class_name || ''} ${accessCodeOf(student)}`
         .toLowerCase().includes(keyword)
@@ -259,13 +268,17 @@ function StudentManager() {
   }
 
   const classMembers = students.filter((student) => student.member_type !== 'friend').length
+  const withoutAvatar = students.filter((student) => student.member_type !== 'friend' && !student.avatar_url).length
 
   return (
     <section>
       <header className="admin-page-header">
         <div>
           <p className="admin-kicker">Học sinh</p>
-          <h2>Danh sách lớp · {classMembers} bạn</h2>
+          <h2>
+            Danh sách lớp · {classMembers} bạn
+            {withoutAvatar > 0 && <small className="is-clay"> · {withoutAvatar} chưa có ảnh đại diện</small>}
+          </h2>
         </div>
         <div className="admin-header-actions">
           <button type="button" className="admin-btn" disabled={exporting} onClick={exportStudents}>
@@ -318,8 +331,17 @@ function StudentManager() {
             </select>
           </label>
           <label className="admin-field">Lớp<input className="input-hand" maxLength={20} value={form.class_name} onChange={(e) => setForm({ ...form, class_name: e.target.value })} /></label>
-          <label className="admin-field">URL ảnh đại diện<input className="input-hand input-hand--mono" maxLength={500} value={form.avatar_url} onChange={(e) => setForm({ ...form, avatar_url: e.target.value })} placeholder="https://…" /></label>
-          {form.avatar_url && <div className="admin-avatar-preview"><img src={form.avatar_url} alt="Preview avatar" onError={(event) => { event.currentTarget.style.display = 'none' }} /></div>}
+          <label className="admin-field">
+            Ảnh đại diện (link ảnh trong thư viện)
+            <input className="input-hand input-hand--mono" maxLength={500} value={form.avatar_url} onChange={(e) => { setAvatarBroken(false); setForm({ ...form, avatar_url: e.target.value }) }} placeholder="https://res.cloudinary.com/…" />
+          </label>
+          {form.avatar_url && (
+            <div className="admin-avatar-preview">
+              {avatarBroken
+                ? <p className="admin-hint is-clay">Không tải được ảnh từ link này. Cách dễ nhất: vào Thư viện ảnh của bạn ấy và bấm "Đặt làm ảnh đại diện".</p>
+                : <img src={cld(form.avatar_url, CLD_TINY)} alt="Preview avatar" onError={() => setAvatarBroken(true)} />}
+            </div>
+          )}
           <label className="admin-field admin-field--full">Lời dẫn trên trang quà<textarea className="input-hand" rows={2} value={form.intro_message} onChange={(e) => setForm({ ...form, intro_message: e.target.value })} /></label>
           {editingId && form.access_code && (
             <p className="admin-form__note">Link quà: {window.location.origin}/gift/{form.access_code.trim().toLowerCase()} — đổi mã thì link cũ hết hiệu lực.</p>
@@ -365,23 +387,25 @@ function StudentManager() {
             const isFriend = student.member_type === 'friend'
             const photos = Number(student.gallery_count ?? 0)
             const noImage = !isFriend && photos === 0
+            const noAvatar = !isFriend && !student.avatar_url
             const seat = seatLabel(student.seat_row, student.seat_col)
             const initial = (student.nickname || student.full_name || '?').trim().charAt(0).toUpperCase()
             const statusLine = [
               student.nickname && student.nickname !== student.full_name ? `"${student.nickname}"` : null,
               isFriend ? 'bạn ngoài lớp · tự tạo khi có lời chúc'
                 : !student.is_active ? 'đã tắt'
-                  : noImage ? 'chưa có ảnh' : 'đang hoạt động',
+                  : noImage ? 'chưa có ảnh'
+                    : noAvatar ? 'chưa chọn ảnh đại diện' : 'đang hoạt động',
             ].filter(Boolean).join(' · ')
             return (
               <div key={student.id} className={`stu-row${noImage ? ' stu-row--noimg' : ''}`} role="row">
                 <div className="stu-name" role="cell">
                   <span className={`stu-avatar${isFriend ? ' stu-avatar--friend' : noImage ? ' stu-avatar--noimg' : ''}`} aria-hidden="true">
-                    {student.avatar_url ? <img src={student.avatar_url} alt="" /> : initial}
+                    {student.avatar_url ? <img src={cld(student.avatar_url, CLD_TINY)} alt="" /> : initial}
                   </span>
                   <div>
                     <b>{student.full_name}</b>
-                    <small className={isFriend ? 'is-moss' : noImage ? 'is-clay' : ''}>{statusLine}</small>
+                    <small className={isFriend ? 'is-moss' : (noImage || noAvatar) ? 'is-clay' : ''}>{statusLine}</small>
                   </div>
                 </div>
                 <span className={`stu-cell${seat ? '' : ' stu-cell--muted'}`} role="cell">{seat ? capitalize(seat) : '—'}</span>

@@ -41,3 +41,9 @@ Thumbs.db
 
 # Ảnh chụp màn hình debug cục bộ
 /20-10fe/login-alert.png
+
+# Face ID benchmark — ảnh sinh trắc và model không bao giờ lên Git
+/bench/
+/face-service/.venv/
+/face-service/models/
+**/__pycache__/
