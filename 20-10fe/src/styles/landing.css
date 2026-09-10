@@ -488,6 +488,184 @@
   font-size: 16px;
 }
 
+/* ── Face ID ("Mắt thần 20/10") ── */
+/* Thẻ nhỏ dưới ô gõ tên — lối vào phụ, không lấn át nút "Mở quà" */
+.face-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(380px, 100%);
+  margin-top: 16px;
+  padding: 10px 16px 10px 12px;
+  border: 1.5px dashed var(--line);
+  border-radius: 4px;
+  background: var(--peach-soft);
+  box-shadow: var(--shadow-tiny);
+  color: var(--ink);
+  text-align: left;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.face-card:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-soft);
+}
+
+.face-card__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+  background: #fff;
+  outline: 2px dashed var(--beige);
+  outline-offset: -4px;
+  font-size: 19px;
+}
+
+.face-card__text {
+  display: grid;
+  gap: 2px;
+}
+
+.face-card__text b {
+  font: 18px var(--font-hand);
+  font-weight: 400;
+  color: var(--clay);
+}
+
+.face-card__text small {
+  font: italic 13px/1.4 var(--font-body);
+  color: var(--muted);
+}
+
+.face-modal {
+  width: min(460px, 100%);
+  padding: 30px 26px 24px;
+  background: var(--paper);
+  text-align: center;
+}
+
+.face-modal h2 {
+  margin: 0 0 14px;
+  font-size: 30px;
+  line-height: 1.15;
+}
+
+/* Khung ngắm như một tấm polaroid: viền trắng, đáy dày hơn */
+.face-viewfinder {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 10px solid #fff;
+  border-bottom-width: 16px;
+  background: var(--ink);
+  box-shadow: var(--shadow-soft);
+}
+
+/* Soi gương: nghiêng trái là thấy nghiêng trái. transform chỉ nằm trên video,
+   không đặt animation nào lên chính phần tử này */
+.face-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+/* Khung oval "đưa mặt vào đây", phần ngoài oval tối đi một chút */
+.face-oval {
+  position: absolute;
+  left: 28%;
+  top: 12%;
+  width: 44%;
+  height: 76%;
+  border: 3px dashed rgba(255, 255, 255, .85);
+  border-radius: 50%;
+  box-shadow: 0 0 0 999px rgba(61, 47, 40, .3);
+  pointer-events: none;
+}
+
+/* Vòng quét chỉ đổi màu viền — không đụng transform. Giảm chuyển động thì
+   tắt hẳn, dòng chữ trạng thái vẫn cho biết máy đang làm gì */
+.face-viewfinder.is-scanning .face-oval {
+  animation: faceScan 1.6s ease-in-out infinite;
+}
+
+@keyframes faceScan {
+  0%, 100% { border-color: rgba(255, 255, 255, .85); }
+  50% { border-color: var(--peach); }
+}
+
+.face-hint {
+  min-height: 1.4em;
+  margin: 14px 0 0;
+  font: 20px/1.4 var(--font-write);
+  color: var(--ink-2);
+}
+
+.face-countdown {
+  margin: 2px 0 0;
+  font: italic 13px var(--font-body);
+  color: var(--muted);
+}
+
+.face-privacy {
+  margin: 12px auto 0;
+  max-width: 340px;
+}
+
+.face-confirm {
+  position: relative;
+  padding-top: 6px;
+  animation: fadeUp .5s ease both;
+}
+
+.face-confirm__postmark {
+  position: absolute;
+  left: -4px;
+  top: -10px;
+}
+
+.face-confirm__greeting {
+  margin: 56px 0 0;
+  font: 20px var(--font-write);
+  color: var(--moss-ink);
+}
+
+.face-modal .face-confirm h2 {
+  margin: 6px 0 0;
+  font-size: 32px;
+}
+
+.face-confirm h2 b {
+  color: var(--clay);
+  font-weight: 400;
+}
+
+.face-actions {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.face-actions .btn-primary {
+  min-height: 48px;
+  font-size: 18px;
+}
+
+.face-actions .landing__wish {
+  margin-top: 0;
+  font-size: 16px;
+}
+
+.face-stopped .alert-note {
+  text-align: left;
+}
+
 /* ── Di động ── */
 @media (max-width: 719px) {
   .landing {
@@ -656,5 +834,28 @@
   .wish-submit-note {
     order: 2;
     text-align: center;
+  }
+}
+
+/* ── Face ID trên điện thoại ── */
+@media (max-width: 719px) {
+  .face-modal {
+    padding: 26px 16px 20px;
+  }
+
+  .face-modal h2 {
+    font-size: 26px;
+  }
+
+  .face-modal .face-confirm h2 {
+    font-size: 28px;
+  }
+
+  .face-viewfinder {
+    border-width: 6px 6px 10px;
+  }
+
+  .face-card {
+    width: 100%;
   }
 }

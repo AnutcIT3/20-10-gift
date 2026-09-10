@@ -128,6 +128,22 @@ async function generateGreeting(name, audienceType = 'student') {
   return { greeting: `Chúc ${name} một ngày 20/10 thật vui vẻ và rạng rỡ! 🌷` }
 }
 
+// ── Face ID: chế độ mock luôn "tắt tính năng" để thẻ ✨ tự ẩn ─────────────────
+async function faceStatus() {
+  await delay(100)
+  return { enabled: false, model: null, profiles: 0 }
+}
+
+async function matchFace() {
+  await delay(100)
+  throw Object.assign(new Error('Face ID tạm nghỉ'), { status: 503 })
+}
+
+async function faceConfirm() {
+  await delay(100)
+  return { ok: true }
+}
+
 const mockGiftRepository = {
   resolveStudent,
   getGift,
@@ -137,6 +153,9 @@ const mockGiftRepository = {
   createLetter,
   createFriendLetter,
   generateGreeting,
+  faceStatus,
+  matchFace,
+  faceConfirm,
 }
 
 export default mockGiftRepository

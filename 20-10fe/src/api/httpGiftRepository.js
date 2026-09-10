@@ -56,7 +56,32 @@ async function generateGreeting(name, audienceType = 'student') {
   return response.data.data
 }
 
+// ── Face ID ("Mắt thần 20/10") ───────────────────────────────────────────────
+// { enabled, model, profiles } — enabled=false khi admin tắt, service chưa
+// lên hoặc chưa có hồ sơ; FE chỉ hiện thẻ ✨ khi enabled
+async function faceStatus() {
+  const response = await api.get('/api/face/status')
+  return response.data.data
+}
+
+// Một khung hình camera (Blob JPEG ≤ 480 px) → quyết định của server.
+// signal để hủy khi đóng modal; timeout ngắn hơn mặc định vì vòng quét gửi
+// liên tục, một khung treo không được chặn các khung sau
+async function matchFace(blob, { signal, timeout = 6000 } = {}) {
+  const form = new FormData()
+  form.append('frame', blob, 'frame.jpg')
+  const response = await api.post('/api/face/match', form, { signal, timeout })
+  return response.data.data
+}
+
+// Người dùng trả lời "đúng là mình" / "không phải" — chỉ gửi số, không ảnh
+async function faceConfirm(matchId, confirmed) {
+  const response = await api.post('/api/face/confirm', { matchId, confirmed })
+  return response.data.data
+}
+
 export default {
   resolveStudent, getGift, getGiftContent, getGallery, getLetters,
   createLetter, createFriendLetter, generateGreeting,
+  faceStatus, matchFace, faceConfirm,
 }

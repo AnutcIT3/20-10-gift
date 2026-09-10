@@ -174,3 +174,12 @@
   text-align: center;
   animation: fadeUp .6s ease 1.6s both;
 }
+
+/* Huy hiệu nhỏ khi quà được mở bằng Face ID */
+.reveal__via {
+  display: block;
+  margin-top: 6px;
+  font: italic 15px var(--font-body);
+  color: var(--clay);
+  letter-spacing: .02em;
+}
