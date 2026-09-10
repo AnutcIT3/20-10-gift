@@ -53,13 +53,19 @@ test('dashboard stats normalizes aggregate values and reaction totals', async ()
     [[{ pending: '1', approved: '4', rejected: null }]],
     [[{ total: '2' }]],
     [[{ count: '19' }]],
+    [[{ count: '5' }]],
     [[{ id: 20, full_name: 'Hùng', view_count: 10 }]],
     [[{ emoji_key: 'love', cnt: '3' }, { emoji_key: 'think', cnt: '1' }]],
   ];
-  pool.execute = async () => results.shift();
+  const seen = [];
+  pool.execute = async (sql) => { seen.push(sql); return results.shift(); };
   try {
     const result = await statsService.getDashboardStats();
-    assert.deepEqual(result.students, { total: 22, active: 21, totalViews: 24 });
+    assert.deepEqual(result.students, { total: 22, active: 21, totalViews: 24, withoutAvatar: 5 });
+    // Cả hai bộ đếm "chưa có" chỉ tính thành viên lớp, không tính bạn ngoài lớp
+    assert.match(seen[3], /member_type = 'class'/);
+    assert.match(seen[4], /member_type = 'class'/);
+    assert.match(seen[4], /avatar_url IS NULL/);
     assert.deepEqual(result.letters, { pending: 1, approved: 4, rejected: 0, scheduled: 0 });
     assert.deepEqual(result.reactions, { byEmoji: { love: 3, think: 1 }, total: 4 });
     assert.equal(result.gallery.studentsWithoutImages, 19);

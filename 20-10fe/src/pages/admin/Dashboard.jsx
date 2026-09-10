@@ -174,6 +174,12 @@ function Dashboard() {
           value={stats?.gallery?.total}
           label={stats ? `Ảnh · ${stats.gallery?.studentsWithoutImages ?? 0} bạn chưa có` : 'Ảnh'}
         />
+        <StatCard
+          to="/admin/students?filter=noavatar"
+          value={stats?.students?.withoutAvatar}
+          label="Bạn chưa có ảnh đại diện"
+          tone={stats?.students?.withoutAvatar ? 'clay' : 'moss'}
+        />
       </div>
 
       <div className="dash-grid">

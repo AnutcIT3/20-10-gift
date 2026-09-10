@@ -1812,3 +1812,81 @@
     padding: 18px 14px;
   }
 }
+
+/* ── Thay đổi từ thiết bị khác: báo, không tự remount (giữ hàng đợi ảnh) ── */
+.admin-stale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--moss);
+  background: var(--moss-soft);
+  color: #3f5236;
+  font: 15px/1.4 var(--font-body);
+}
+
+/* ── Hàng đợi ảnh: bỏ từng tấm, tiến độ từng tấm ── */
+.upload-queue__item {
+  position: relative;
+}
+
+.upload-queue__remove {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--clay);
+  color: #fff;
+  font: 14px/24px var(--font-body);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(61, 47, 40, .3);
+}
+
+.upload-queue__remove:hover {
+  background: var(--clay-dark);
+}
+
+.upload-progress {
+  width: 100%;
+  height: 6px;
+  margin-top: 8px;
+  background: var(--beige);
+  overflow: hidden;
+}
+
+.upload-progress span {
+  display: block;
+  height: 100%;
+  background: var(--moss);
+  transition: width .3s ease;
+}
+
+/* ── Ảnh đang là ảnh đại diện ── */
+.gallery-admin__card.is-avatar {
+  outline: 3px solid var(--moss);
+  outline-offset: 2px;
+}
+
+.gallery-admin__badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 1;
+  padding: 2px 8px;
+  background: var(--moss);
+  color: #fff;
+  font: 12px var(--font-hand);
+  letter-spacing: .04em;
+}
+
+.avatar-box__hint {
+  margin: 8px 0 0;
+  font: 13px/1.4 var(--font-body);
+  color: var(--muted);
+}

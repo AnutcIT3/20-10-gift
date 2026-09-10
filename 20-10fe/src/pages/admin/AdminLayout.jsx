@@ -8,6 +8,10 @@ function AdminLayout() {
   const navigate = useNavigate()
   const observedRevision = useRef(null)
   const [outletKey, setOutletKey] = useState(0)
+  // Có thay đổi từ thiết bị khác nhưng CHƯA tải lại: remount tự động sẽ xóa
+  // hàng đợi ảnh đang chờ tải, chú thích đang gõ, form đang sửa — trong một
+  // buổi tải 100 ảnh, chỉ cần một bạn gửi lời chúc là mất sạch. Để admin bấm.
+  const [stale, setStale] = useState(false)
   // Sidebar: số lời chúc chờ duyệt (badge) và trạng thái khóa trang quà
   const [sidebar, setSidebar] = useState({ pending: null, locked: null })
   const [lockSaving, setLockSaving] = useState(false)
@@ -41,10 +45,11 @@ function AdminLayout() {
         if (observedRevision.current === null) {
           observedRevision.current = revision
         } else if (revision > observedRevision.current) {
-          // Chỉ remount khi revision MỚI HƠN: response poll cũ về muộn sau khi
-          // đã adopt revision từ mutation của chính mình sẽ bị bỏ qua
+          // Chỉ báo khi revision MỚI HƠN: response poll cũ về muộn sau khi
+          // đã adopt revision từ mutation của chính mình sẽ bị bỏ qua.
+          // Sidebar (badge, khóa) vẫn tự cập nhật; trang con chờ admin bấm.
           observedRevision.current = revision
-          setOutletKey((key) => key + 1)
+          setStale(true)
           loadSidebar()
         }
       } catch {
@@ -151,7 +156,22 @@ function AdminLayout() {
         </div>
         <button type="button" className="admin-logout" onClick={logout}>Đăng xuất</button>
       </aside>
-      <main className="admin-main"><Outlet key={outletKey} /></main>
+      <main className="admin-main">
+        {stale && (
+          <div className="admin-stale" role="status">
+            <span>Có thay đổi mới từ thiết bị khác.</span>
+            <button
+              type="button"
+              className="admin-btn admin-btn--sm admin-btn--primary"
+              onClick={() => { setStale(false); setOutletKey((key) => key + 1) }}
+            >
+              Tải lại trang này
+            </button>
+            <button type="button" className="admin-btn admin-btn--sm" onClick={() => setStale(false)}>Để sau</button>
+          </div>
+        )}
+        <Outlet key={outletKey} />
+      </main>
       {lockError && <p key={lockError} className="admin-alert error" role="alert">{lockError}</p>}
     </div>
   )

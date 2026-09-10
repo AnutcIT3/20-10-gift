@@ -144,6 +144,7 @@ test('dashboard stats count scheduled letters separately from approved ones', as
       return [[{ total: 5, active: 4, totalViews: 30 }]];
     }
     if (sql.includes('NOT EXISTS')) return [[{ count: 1 }]];
+    if (sql.includes('avatar_url IS NULL')) return [[{ count: 3 }]];
     if (sql.includes('FROM gallery')) return [[{ total: 6 }]];
     if (sql.includes('ORDER BY view_count')) return [[]];
     if (sql.includes('FROM letter_reactions')) return [[]];

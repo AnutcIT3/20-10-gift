@@ -73,9 +73,26 @@ async function restoreData(options = {}) {
     );
   }
 
+  const dbConfig = options.connectionConfig || getDatabaseConfig();
+
+  // Lưới an toàn: snapshot bắt đầu bằng DELETE toàn bộ 5 bảng, nên restore
+  // nhầm bản cũ là mất sạch ảnh và avatar vừa làm mà không có gì để lấy lại.
+  // Luôn dump dữ liệu hiện có ra file cục bộ (ngoài Git) trước khi ghi đè.
+  if (options.preBackup !== false) {
+    const { backupData, localOutputFile } = require('./backup');
+    const safetyFile = localOutputFile();
+    const pool = mysql.createPool(dbConfig);
+    try {
+      await backupData({ pool, outputFile: safetyFile, logger: null });
+    } finally {
+      await pool.end();
+    }
+    logger?.log(`Dữ liệu hiện tại đã được lưu trước vào: ${safetyFile}`);
+  }
+
   logger?.log(`Restoring shared data from: ${filePath}`);
   const sql = fs.readFileSync(filePath, 'utf8');
-  const connection = await mysql.createConnection(options.connectionConfig || getDatabaseConfig());
+  const connection = await mysql.createConnection(dbConfig);
 
   try {
     await connection.beginTransaction();

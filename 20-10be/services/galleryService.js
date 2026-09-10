@@ -100,11 +100,23 @@ async function reorder(items) {
 
 async function deleteImage(id) {
   const [rows] = await pool.execute(
-    'SELECT id, public_id, resource_type FROM gallery WHERE id = ? LIMIT 1',
+    'SELECT id, public_id, resource_type, image_url FROM gallery WHERE id = ? LIMIT 1',
     [id],
   );
   const image = rows[0];
   if (!image) throw httpError('Không tìm thấy ảnh', 404);
+
+  // Avatar chỉ là bản sao URL của một ảnh trong thư viện, không có khóa ngoại.
+  // Xóa ảnh đó là destroy luôn file trên Cloudinary và avatar gãy im lặng trên
+  // trang quà (polaroid rơi về chữ cái đầu, không ai được báo). Chặn lại.
+  const [owners] = await pool.execute(
+    'SELECT full_name FROM students WHERE avatar_url = ? LIMIT 3',
+    [image.image_url],
+  );
+  if (owners.length) {
+    const names = owners.map((row) => row.full_name).join(', ');
+    throw httpError(`Ảnh này đang là ảnh đại diện của ${names} — đổi ảnh đại diện trước rồi mới xóa`, 409);
+  }
 
   // Xóa DB trước, Cloudinary sau: nếu Cloudinary lỗi thì chỉ sót file mồ côi
   // vô hại; thứ tự ngược lại để lại row trỏ tới ảnh đã mất (URL 404)

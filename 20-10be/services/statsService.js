@@ -52,11 +52,23 @@ async function getDashboardStats() {
     `SELECT COUNT(*) AS total FROM gallery`,
   );
 
+  // Chỉ đếm thành viên lớp: hồ sơ bạn ngoài lớp (member_type = 'friend') tự
+  // sinh khi có lời chúc và theo thiết kế không bao giờ có ảnh, đếm cả họ thì
+  // con số này không bao giờ về 0 và lệch với bộ lọc ở trang Học sinh
   const [[noImageRow]] = await pool.execute(
     `SELECT COUNT(*) AS count
      FROM students s
      WHERE is_active = TRUE
+       AND member_type = 'class'
        AND NOT EXISTS (SELECT 1 FROM gallery g WHERE g.student_id = s.id)`,
+  );
+
+  const [[noAvatarRow]] = await pool.execute(
+    `SELECT COUNT(*) AS count
+     FROM students
+     WHERE is_active = TRUE
+       AND member_type = 'class'
+       AND (avatar_url IS NULL OR avatar_url = '')`,
   );
 
   // Top 5 học sinh được xem nhiều nhất
@@ -83,6 +95,8 @@ async function getDashboardStats() {
       total: Number(studentRow.total),
       active: Number(studentRow.active),
       totalViews: Number(studentRow.totalViews || 0),
+      // Thành viên lớp chưa có ảnh đại diện — mục tiêu riêng trong ROADMAP
+      withoutAvatar: Number(noAvatarRow.count),
     },
     letters: {
       pending: Number(letterRow.pending || 0),
