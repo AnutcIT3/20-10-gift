@@ -11,9 +11,11 @@ dia, khong ghi log noi dung anh - chi log so.
 
 Chay:  .venv/Scripts/python.exe -m uvicorn app:app --host 127.0.0.1 --port 5002
 """
+import asyncio
 import logging
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
@@ -38,7 +40,16 @@ async def lifespan(app):
     log.info('model %s san sang tren %s sau %d ms',
              info['model'], info['provider'], info['load_ms'])
     app.state.counters = {'requests': 0, 'no_face': 0, 'errors': 0, 'total_ms': 0.0}
+    # Model chay tren MOT luong rieng voi hang doi vao-truoc-ra-truoc. Truoc day
+    # model chay thang tren vong su kien: ca lop quet cung luc thi vong su kien
+    # bi chan lien tuc, request nao duoc lam truoc la hen xui - thu tai 29 nguoi
+    # co khung phai cho hon 8 giay (backend het cho, bao "Face ID nghi") trong
+    # khi trung binh chi ~2 giay. Nay khung den truoc xong truoc, va vong su kien
+    # luon ranh de nhan request moi va tra loi /health ngay. Mot luong la du:
+    # onnxruntime da dung het cac nhan CPU cho moi lan chay.
+    app.state.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='face-infer')
     yield
+    app.state.executor.shutdown(wait=False, cancel_futures=True)
 
 
 app = FastAPI(title='face-service', version='0.1.0', lifespan=lifespan,
@@ -65,10 +76,18 @@ async def _read_upload(image: UploadFile):
         raise HTTPException(status_code=400, detail='khong co du lieu anh')
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail='anh qua lon')
+    return data
+
+
+def _analyze(data, max_faces, with_embedding):
+    """Chay tren luong model: giai ma anh roi phat hien + trich dac trung.
+    Tra (ket qua, ms xu ly), ket qua None neu anh khong doc duoc."""
+    t0 = time.perf_counter()
     img = face_engine.decode_image(data)
     if img is None:
-        raise HTTPException(status_code=400, detail='khong doc duoc anh')
-    return img, len(data)
+        return None, 0.0
+    result = app.state.engine.describe(img, max_faces=max_faces, with_embedding=with_embedding)
+    return result, 1000 * (time.perf_counter() - t0)
 
 
 @app.post('/embed')
@@ -84,9 +103,12 @@ async def embed(image: UploadFile = File(...),
     c = app.state.counters
     t0 = time.perf_counter()
     try:
-        img, nbytes = await _read_upload(image)
-        result = app.state.engine.describe(img, max_faces=max_faces,
-                                           with_embedding=embedding)
+        data = await _read_upload(image)
+        loop = asyncio.get_running_loop()
+        result, busy_ms = await loop.run_in_executor(
+            app.state.executor, _analyze, data, max_faces, embedding)
+        if result is None:
+            raise HTTPException(status_code=400, detail='khong doc duoc anh')
     except HTTPException:
         c['errors'] += 1
         raise
@@ -94,13 +116,14 @@ async def embed(image: UploadFile = File(...),
         c['errors'] += 1
         log.exception('embed that bai: %s', exc)
         return JSONResponse(status_code=500, content={'detail': 'xu ly anh that bai'})
-    elapsed = 1000 * (time.perf_counter() - t0)
+    # avg_ms o /health van la thoi gian xu ly; thoi gian xep hang ghi rieng
+    wait_ms = 1000 * (time.perf_counter() - t0) - busy_ms
     c['requests'] += 1
-    c['total_ms'] += elapsed
+    c['total_ms'] += busy_ms
     if not result['faces']:
         c['no_face'] += 1
     # chi log so, khong bao gio log anh
-    log.info('embed %d KB -> %d mat, %s px, %.0f ms',
-             nbytes // 1024, len(result['faces']),
-             result['faces'][0]['face_px'] if result['faces'] else '-', elapsed)
+    log.info('embed %d KB -> %d mat, %s px, %.0f ms (xep hang %.0f ms)',
+             len(data) // 1024, len(result['faces']),
+             result['faces'][0]['face_px'] if result['faces'] else '-', busy_ms, wait_ms)
     return result

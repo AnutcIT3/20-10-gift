@@ -21,7 +21,12 @@ const FACE_MIN_BRIGHTNESS = 40;
 const FACE_MIN_BLUR = 40;
 // Khung hình quét đã thu nhỏ ≤ 480 px nên 1 MB là dư; chặn sớm ở multer
 const FACE_FRAME_MAX_BYTES = 1024 * 1024;
-const FACE_EMBED_TIMEOUT_MS = 4000;
+// face-service xử lý lần lượt từng khung (~90 ms/khung, ~11 khung/giây), nên khi
+// cả lớp quét cùng lúc khung phải xếp hàng: mỗi người quét góp một khung vào
+// hàng. Thử tải: 40 người cùng lúc thì chờ tới ~4,1 giây — mức cũ 4 giây làm gần
+// nửa số bạn bị báo "Face ID nghỉ". 8 giây đủ cho ~80 người quét cùng một lúc;
+// service chết thật thì /health (đệm 10 giây) vẫn báo nghỉ ngay, không phải chờ.
+const FACE_EMBED_TIMEOUT_MS = 8000;
 // Bộ nhớ đệm: /health và thư viện vector đọc lại theo chu kỳ, không mỗi khung
 const FACE_HEALTH_TTL_MS = 10000;
 const FACE_GALLERY_TTL_MS = 30000;

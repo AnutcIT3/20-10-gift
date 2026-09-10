@@ -96,7 +96,16 @@ Trả về:
 
 `faces` rỗng khi không thấy mặt. Lỗi: `400` khi ảnh không đọc được, `413` khi
 quá `FACE_MAX_UPLOAD_BYTES`, `500` khi model xử lý thất bại (service không chết).
-Ảnh chỉ sống trong request; log chỉ ghi số (KB, số mặt, cỡ mặt, ms).
+Ảnh chỉ sống trong request; log chỉ ghi số (KB, số mặt, cỡ mặt, ms xử lý, ms xếp hàng).
+
+Model chạy trên **một luồng riêng với hàng đợi vào trước ra trước**: khi cả lớp
+quét cùng lúc, khung đến trước được xử lý trước, còn vòng sự kiện luôn rảnh để
+nhận request mới và trả lời `/health` ngay. Laptop xử lý ~9–10 khung/giây, nên
+mỗi người đang quét chờ thêm ~0,1 giây cho mỗi người khác đang quét cùng lúc.
+Thử tải trên máy chính: 29 người cùng lúc thì mỗi khung chờ tối đa ~3 giây, 40
+người ~4 giây — không ai bị báo "Face ID nghỉ" (backend chờ tối đa 8 giây, tức
+dư cho khoảng 70–80 người quét cùng một lúc). `avg_ms` ở `/health` là thời gian
+xử lý, không tính lúc xếp hàng.
 
 ## Đăng ký hồ sơ
 
