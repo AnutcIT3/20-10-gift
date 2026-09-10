@@ -7,6 +7,7 @@ import {
   RETRYABLE_STOPS,
   SCAN_TIMEOUT_MS,
   STOP_MESSAGES,
+  STOP_TITLES,
   TICK_MS,
   isTooDark,
   meanLuma,
@@ -77,6 +78,9 @@ function useFaceScan() {
   const intervalRef = useRef(null)
   const controllerRef = useRef(null)
   const votesRef = useRef(INITIAL_VOTES)
+  // Những người vừa bị bấm "Không phải mình" trong lần mở modal này — khớp
+  // với họ coi như không khớp, để máy không hỏi lại đúng cái tên sai đó
+  const excludedRef = useRef([])
   const inFlightRef = useRef(false)
   const meterCanvasRef = useRef(null)
   const frameCanvasRef = useRef(null)
@@ -121,9 +125,11 @@ function useFaceScan() {
       try {
         const result = await giftRepository.matchFace(blob, { signal: controller.signal, timeout: 6000 })
         if (done) return
-        const { votes, hint, conclusion } = tallyVotes(votesRef.current, result)
+        const { votes, hint, conclusion, giveUp } = tallyVotes(votesRef.current, result, excludedRef.current)
         votesRef.current = votes
         if (conclusion) conclude(conclusion)
+        // Nhìn rõ mặt vài giây mà không khớp ai: dừng ngay, khỏi chờ hết giờ
+        else if (giveUp) finish('unrecognized')
         else setHint(hint)
       } catch (err) {
         if (done || controller.signal.aborted) return
@@ -196,6 +202,7 @@ function useFaceScan() {
   }, [active, session])
 
   const open = () => {
+    excludedRef.current = []
     setState({ ...IDLE, status: 'starting', hint: HINTS.starting })
     setActive(true)
   }
@@ -218,10 +225,13 @@ function useFaceScan() {
     return candidate
   }
 
-  // "Không phải mình": báo server, xóa phiếu, mở camera quét lại từ đầu
+  // "Không phải mình": báo server, loại người đó khỏi lượt quét tiếp, quét lại
   const deny = () => {
     const { candidate } = state
-    if (candidate) giftRepository.faceConfirm(candidate.matchId, false).catch(() => {})
+    if (candidate) {
+      excludedRef.current = [...excludedRef.current, candidate.studentId]
+      giftRepository.faceConfirm(candidate.matchId, false).catch(() => {})
+    }
     restart()
   }
 
@@ -231,6 +241,7 @@ function useFaceScan() {
     hint: state.hint,
     kind: state.kind,
     message: state.message,
+    title: STOP_TITLES[state.kind] || '',
     candidate: state.candidate,
     secondsLeft: state.secondsLeft,
     canRetry: state.status === 'stopped' && RETRYABLE_STOPS.includes(state.kind),

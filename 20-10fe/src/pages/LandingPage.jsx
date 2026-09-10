@@ -10,7 +10,7 @@ import Polaroid from '../components/paper/Polaroid'
 import useDialogA11y from '../hooks/useDialogA11y'
 import useFaceScan from '../hooks/useFaceScan'
 import { EVENT_YEAR, formatStamp } from '../lib/event'
-import { greetingFor } from '../lib/faceVote'
+import { greetingFor, showCountdown } from '../lib/faceVote'
 import { seatLabel } from '../lib/seat'
 import '../styles/landing.css'
 
@@ -119,6 +119,7 @@ function LandingPage() {
     hint: faceHint,
     kind: faceKind,
     message: faceMessage,
+    title: faceTitle,
     candidate: faceCandidate,
     secondsLeft: faceSecondsLeft,
     canRetry: faceCanRetry,
@@ -702,9 +703,22 @@ function LandingPage() {
                   </button>
                 </div>
               </div>
+            ) : faceStatus === 'stopped' && faceKind === 'unrecognized' ? (
+              // Không phải lỗi: máy nhìn rõ mà không khớp ai. Lối nhanh nhất tới
+              // quà là gõ tên, nên nút đó đứng đầu; quét lại để phía sau.
+              <div className="face-stopped face-stopped--soft">
+                <h2 id="face-modal-title">{faceTitle}</h2>
+                <p className="face-stopped__text" role="status">{faceMessage}</p>
+                <div className="face-actions">
+                  <button type="button" className="btn-primary" onClick={typeNameInstead}>Gõ tên để mở quà</button>
+                  <button type="button" className="landing__wish" onClick={retryFace}>
+                    <span className="link-dashed">Quét lại</span>
+                  </button>
+                </div>
+              </div>
             ) : faceStatus === 'stopped' ? (
               <div className="face-stopped">
-                <h2 id="face-modal-title">✨ Face ID</h2>
+                <h2 id="face-modal-title">{faceTitle || '✨ Face ID'}</h2>
                 <p className="alert-note" role="alert">{faceMessage}</p>
                 <div className="face-actions">
                   {faceCanRetry && <button type="button" className="btn-primary" onClick={retryFace}>Quét lại</button>}
@@ -723,8 +737,12 @@ function LandingPage() {
                 {/* Chữ luôn hiện song song với vòng quét: prefers-reduced-motion
                     tắt animation thì người dùng vẫn biết máy đang làm gì */}
                 <p className="face-hint" role="status" aria-live="polite">{faceHint}</p>
+                {/* Đồng hồ chỉ hiện ở 10 giây cuối — thấy "còn 29 giây" ngay từ đầu
+                    dễ tưởng phải chờ đủ chừng ấy, trong khi thường ~2 giây là xong */}
                 {faceStatus === 'scanning' && (
-                  <p className="face-countdown">còn {faceSecondsLeft} giây</p>
+                  <p className="face-countdown">
+                    {showCountdown(faceSecondsLeft) ? `còn ${faceSecondsLeft} giây` : 'thường chỉ mất vài giây thôi'}
+                  </p>
                 )}
                 <p className="wish-hint face-privacy">
                   Video không được ghi lại — từng khung hình chỉ dùng để so khớp ngay lúc đó rồi bỏ.

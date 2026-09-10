@@ -666,6 +666,24 @@
   text-align: left;
 }
 
+/* "Không nhận ra" không phải lỗi: chữ viết tay dịu, không khung đỏ */
+.face-stopped--soft {
+  animation: fadeUp .5s ease both;
+}
+
+.face-modal .face-stopped--soft h2 {
+  margin: 8px 0 0;
+  font-size: 28px;
+  line-height: 1.25;
+}
+
+.face-stopped__text {
+  margin: 14px auto 0;
+  max-width: 360px;
+  font: 19px/1.45 var(--font-write);
+  color: var(--ink-2);
+}
+
 /* ── Di động ── */
 @media (max-width: 719px) {
   .landing {

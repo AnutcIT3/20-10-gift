@@ -2,7 +2,14 @@
 // độ tự tin, đo sáng. Toàn hàm thuần để vitest phủ được mà không cần webcam.
 
 export const TICK_MS = 800                 // nhịp lấy khung hình (~1.25 fps)
-export const SCAN_TIMEOUT_MS = 120 * 1000  // quét tối đa 2 phút rồi nhường cho gõ tên
+// Hai đường dừng khi không nhận ra, tách theo nguyên nhân:
+// - Nhìn rõ mặt mà không khớp ai (người ngoài, hoặc hôm nay khác ảnh hồ sơ):
+//   sau REJECTS_TO_GIVE_UP khung rõ mặt (~5 giây) là đủ biết, dừng sớm.
+// - Không nhìn rõ mặt (tối, lệch khung, quá xa): nhắc chỉnh tối đa 30 giây.
+// Người được nhận ra thường xong trong ~2 giây nên không ai phải chờ lâu.
+export const SCAN_TIMEOUT_MS = 30 * 1000
+export const REJECTS_TO_GIVE_UP = 6
+export const COUNTDOWN_FROM = 10           // chỉ hiện đồng hồ đếm ngược ở 10 giây cuối
 export const VOTES_TO_CONCLUDE = 2         // hai khung liên tiếp cùng một người mới kết luận
 export const CONFIDENT_SCORE = 0.6         // từ mức này máy "nhận ra ngay", dưới thì "hmm…"
 export const DARK_LUMA = 35                // luma Rec.601 trung bình vùng giữa dưới mức này → tối, không gửi
@@ -20,20 +27,28 @@ export const HINTS = Object.freeze({
   many_faces: 'Chỉ một người trong khung thôi nha',
 })
 
-// Lý do dừng quét → câu nhắn; mọi đường lỗi đều rơi êm về gõ tên
+// Lý do dừng quét → câu nhắn; mọi đường lỗi đều rơi êm về gõ tên. Mỗi câu nói
+// đúng nguyên nhân: không đổ cho ánh sáng khi thật ra máy đã nhìn rõ mặt.
 export const STOP_MESSAGES = Object.freeze({
   camera: 'Không mở được camera — gõ tên giúp mình nhé 🌷',
   offline: 'Face ID đang nghỉ, gõ tên giúp mình nhé 🌷',
-  limited: 'Hôm nay cậu xinh quá mình nhận không ra 😅 — thử gõ tên nhé',
-  timeout: 'Ánh sáng chưa chiều mình rồi, gõ tên giúp mình nha 🌷',
+  limited: 'Hôm nay mình quét hơi nhiều rồi — gõ tên giúp mình nhé 🌷',
+  timeout: 'Mình chưa nhìn rõ mặt cậu — thử chỗ sáng hơn, để cả khuôn mặt trong khung, hoặc gõ tên nhé 🌷',
+  unrecognized: 'Có thể hôm nay cậu hơi khác ảnh mình đang giữ — tóc mới, kính, góc máy… Không sao đâu, gõ tên là mở được quà ngay.',
   hidden: 'Cậu rời tab nên mình đã tắt camera — bấm quét lại nhé 🌷',
 })
 
-// Dừng vì hết giờ / rời tab thì cho quét lại; camera bị từ chối, service nghỉ
-// hay bị giới hạn tần suất thì không — thử lại cũng chỉ lỗi y hệt
-export const RETRYABLE_STOPS = Object.freeze(['timeout', 'hidden'])
+// Tiêu đề riêng cho lượt dừng không phải lỗi; lý do khác dùng tiêu đề chung
+export const STOP_TITLES = Object.freeze({
+  unrecognized: 'Hôm nay cậu xinh quá, mình nhận không ra 😅',
+})
 
-export const INITIAL_VOTES = Object.freeze({ studentId: null, count: 0 })
+// Hết giờ, rời tab, không nhận ra thì cho quét lại; camera bị từ chối, service
+// nghỉ hay bị giới hạn tần suất thì không — thử lại cũng chỉ lỗi y hệt
+export const RETRYABLE_STOPS = Object.freeze(['timeout', 'hidden', 'unrecognized'])
+
+// rejects = số khung RÕ MẶT mà không khớp ai kể từ lần khớp gần nhất
+export const INITIAL_VOTES = Object.freeze({ studentId: null, count: 0, rejects: 0 })
 
 // Câu nhắc tại chỗ cho từng quyết định của server (không kết luận danh tính)
 export function hintFor(result) {
@@ -52,21 +67,42 @@ export function hintFor(result) {
 /**
  * Cộng một kết quả /api/face/match vào phiếu bầu.
  * - 'match': cùng người với phiếu trước → +1, khác người → bắt đầu đếm lại từ 1.
- * - Mọi quyết định khác (reject, no_face, low_quality, many_faces) không tính
- *   phiếu và cũng không xóa phiếu đang có: một khung nhòe không làm mất công
- *   khung tốt vừa rồi.
+ *   Mọi lần khớp đều xóa bộ đếm "rõ mặt mà không khớp".
+ * - 'reject' (máy nhìn rõ mặt nhưng không khớp ai đủ chắc): cộng 1 vào
+ *   `rejects`; đủ REJECTS_TO_GIVE_UP thì `giveUp` — dừng sớm, không bắt người
+ *   dùng chờ hết giờ chỉ để nghe câu "không nhận ra".
+ * - no_face / low_quality / many_faces là trạng thái đang chỉnh máy: không tính
+ *   phiếu, không cộng `rejects`, cũng không xóa gì — một khung nhòe không làm
+ *   mất công khung tốt vừa rồi.
+ * - `excluded`: những người cậu ấy vừa bấm "Không phải mình"; khớp với họ được
+ *   coi như không khớp ai, để máy không hỏi lại đúng cái tên sai đó.
  * Đủ VOTES_TO_CONCLUDE phiếu liên tiếp → `conclusion` là ứng viên để hỏi xác nhận.
  */
-export function tallyVotes(votes, result) {
-  if (result?.decision !== 'match') {
-    return { votes, hint: hintFor(result), conclusion: null }
+export function tallyVotes(votes, result, excluded = []) {
+  const rejects = votes.rejects || 0
+  const isMatch = result?.decision === 'match' && !excluded.includes(result.studentId)
+  const isReject = result?.decision === 'reject'
+    || (result?.decision === 'match' && excluded.includes(result.studentId))
+
+  if (isReject) {
+    const next = { ...votes, rejects: rejects + 1 }
+    return {
+      votes: next,
+      hint: HINTS.scanning,
+      conclusion: null,
+      giveUp: next.rejects >= REJECTS_TO_GIVE_UP,
+    }
+  }
+  if (!isMatch) {
+    return { votes, hint: hintFor(result), conclusion: null, giveUp: false }
   }
   const count = votes.studentId === result.studentId ? votes.count + 1 : 1
-  const next = { studentId: result.studentId, count }
+  const next = { studentId: result.studentId, count, rejects: 0 }
   if (count >= VOTES_TO_CONCLUDE) {
     return {
       votes: next,
       hint: HINTS.almost,
+      giveUp: false,
       conclusion: {
         matchId: result.matchId,
         studentId: result.studentId,
@@ -77,7 +113,13 @@ export function tallyVotes(votes, result) {
       },
     }
   }
-  return { votes: next, hint: HINTS.almost, conclusion: null }
+  return { votes: next, hint: HINTS.almost, conclusion: null, giveUp: false }
+}
+
+// Chỉ hiện đồng hồ ở COUNTDOWN_FROM giây cuối; trước đó là câu trấn an —
+// thấy "còn 29 giây" ngay từ đầu dễ tưởng phải chờ đủ chừng ấy
+export function showCountdown(secondsLeft) {
+  return Number(secondsLeft) <= COUNTDOWN_FROM
 }
 
 // Lời chào phân tầng theo độ tự tin — máy có "tính cách" thay vì kết quả khô khan
