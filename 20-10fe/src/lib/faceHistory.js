@@ -14,6 +14,7 @@ export const OUTCOMES = Object.freeze({
   timeout: { label: 'Hết giờ', tone: 'warn' },
   camera: { label: 'Lỗi camera', tone: 'bad' },
   offline: { label: 'Face ID nghỉ', tone: 'bad' },
+  network: { label: 'Mạng chập chờn', tone: 'warn' },
   limited: { label: 'Quá nhiều lượt', tone: 'bad' },
   hidden: { label: 'Rời tab', tone: 'muted' },
   closed: { label: 'Tự đóng', tone: 'muted' },
@@ -57,8 +58,12 @@ export const ISSUES = Object.freeze({
     tip: 'Thường do mở link trong Zalo/Messenger/Facebook hoặc bấm từ chối quyền camera — mở bằng Safari hay Chrome.',
   },
   offline: {
-    label: 'Face ID nghỉ hoặc mất mạng',
-    tip: 'Kiểm tra cửa sổ face-service và mạng của máy chủ.',
+    label: 'Face ID nghỉ',
+    tip: 'Máy chủ báo Face ID đang tắt hoặc face-service không trả lời — kiểm tra công tắc Face ID và cửa sổ public mode.',
+  },
+  network: {
+    label: 'Mạng của người quét chập chờn',
+    tip: 'Khung hình không tới được máy chủ (mạng điện thoại yếu, đang đổi Wi-Fi/4G, trình duyệt trong Facebook/Zalo). Thường quét lại là được; lặp lại nhiều thì mở link bằng Chrome/Safari hoặc đổi mạng.',
   },
   limited: {
     label: 'Chạm giới hạn số lượt quét',

@@ -42,8 +42,8 @@ function countKey(decision, reason) {
 
 /**
  * Một nguyên nhân cho mỗi lượt chưa thành, theo thứ tự:
- * 1. Kết quả đã tự nói lên nguyên nhân: nhầm người, camera, mạng, giới hạn,
- *    máy nhìn rõ mặt mà không khớp ai ("unrecognized").
+ * 1. Kết quả đã tự nói lên nguyên nhân: nhầm người, camera, Face ID nghỉ,
+ *    mạng của người quét, giới hạn, máy nhìn rõ mặt mà không khớp ai.
  * 2. Máy đã hỏi "Có phải cậu là…?" mà người dùng bỏ đi không trả lời.
  * 3. Còn lại (hết giờ, rời tab, tự đóng, bỏ dở): vấn đề chiếm nhiều khung nhất —
  *    khung trình duyệt tự bỏ vì tối cũng tính là tối. Hòa thì ưu tiên "rõ mặt
@@ -54,7 +54,7 @@ function diagnose(scan, counts) {
   const { outcome } = scan;
   if (outcome === 'confirmed') return null;
   if (outcome === 'denied') return 'wrong_person';
-  if (outcome === 'camera' || outcome === 'offline' || outcome === 'limited') return outcome;
+  if (['camera', 'offline', 'network', 'limited'].includes(outcome)) return outcome;
   if (outcome === 'unrecognized') return 'no_match';
   if (scan.suggested_student_id) return 'unanswered';
 

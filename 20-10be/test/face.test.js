@@ -429,6 +429,16 @@ test('scan end validates its input and only the first outcome counts', async (t)
   assert.equal(writes.filter((w) => w.sql.includes('UPDATE face_match_log')).length, 1);
 });
 
+test('scan end records "network" apart from "offline": the frame never reached us, the service is fine', async (t) => {
+  const base = await startApp(t);
+  const writes = mockDatabase();
+
+  const response = await postJson(`${base}/api/face/scans/${SCAN}/end`, { outcome: 'network', durationMs: 21700 });
+  assert.equal(response.status, 200);
+  const update = writes.find((w) => w.sql.includes('UPDATE face_scans'));
+  assert.deepEqual(update.params, ['network', null, 21700, 0, SCAN_ID]);
+});
+
 test('scan end never attaches a name through a match frame of another scan', async (t) => {
   const base = await startApp(t);
   const writes = mockDatabase();
