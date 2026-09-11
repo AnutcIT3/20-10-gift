@@ -19,8 +19,10 @@ const EMBEDDING_BYTES = EMBEDDING_DIM * 4;
 const HEALTH_TIMEOUT_MS = 2000;
 // Lượt quét: mã 32 ký tự hex do trình duyệt tạo; kết quả khép lượt lại
 const SCAN_TOKEN_RE = /^[a-f0-9]{32}$/;
+// 'offline' = máy chủ báo Face ID nghỉ (503); 'network' = khung hình của người
+// quét không tới được máy chủ (mạng điện thoại, Cloudflare) — hai chuyện khác nhau
 const SCAN_OUTCOMES = new Set([
-  'confirmed', 'denied', 'unrecognized', 'timeout', 'hidden', 'camera', 'offline', 'limited', 'closed',
+  'confirmed', 'denied', 'unrecognized', 'timeout', 'hidden', 'camera', 'offline', 'network', 'limited', 'closed',
 ]);
 // Hai kết quả gắn với câu hỏi "Có phải cậu là…?" nên bắt buộc kèm matchId
 const ANSWER_OUTCOMES = new Set(['confirmed', 'denied']);

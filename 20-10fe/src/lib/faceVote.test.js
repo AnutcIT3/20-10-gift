@@ -14,10 +14,17 @@ import {
   isTooDark,
   makeScanToken,
   meanLuma,
+  NETWORK_FAILS_TO_STOP,
+  NETWORK_MAX_OUTAGE_MS,
+  NETWORK_MIN_OUTAGE_MS,
+  NO_NETWORK_TROUBLE,
+  addNetworkFailure,
+  frameErrorKind,
+  networkGaveUp,
   remainingSeconds,
   showCountdown,
-  stopKindFor,
   tallyVotes,
+  timeoutKind,
 } from './faceVote'
 
 describe('makeScanToken', () => {
@@ -179,19 +186,27 @@ describe('greetingFor', () => {
   })
 })
 
-describe('stopKindFor', () => {
-  it('503 hoặc mất mạng → nghỉ; 429 → giới hạn; lỗi khác → quét tiếp', () => {
-    expect(stopKindFor({ status: 503 })).toBe('offline')
-    expect(stopKindFor({ isNetworkError: true })).toBe('offline')
-    expect(stopKindFor({ status: 429 })).toBe('limited')
-    expect(stopKindFor({ status: 400 })).toBeNull()
-    expect(stopKindFor({ status: 413 })).toBeNull()
-    expect(stopKindFor({ status: 500 })).toBeNull()
-    expect(stopKindFor(null)).toBeNull()
+describe('frameErrorKind', () => {
+  it('chỉ máy chủ báo 503 mới là "Face ID nghỉ"; 429 → giới hạn', () => {
+    expect(frameErrorKind({ status: 503 })).toBe('offline')
+    expect(frameErrorKind({ status: 429 })).toBe('limited')
+  })
+
+  it('không có phản hồi hay cổng Cloudflare lỗi → chuyện đường truyền, không phải Face ID nghỉ', () => {
+    // Trình duyệt hết 10 giây đợi (axios ECONNABORTED) cũng là isNetworkError
+    expect(frameErrorKind({ isNetworkError: true })).toBe('network')
+    for (const status of [502, 504, 524, 530]) expect(frameErrorKind({ status })).toBe('network')
+  })
+
+  it('một khung hỏng thì quét tiếp', () => {
+    expect(frameErrorKind({ status: 400 })).toBeNull()
+    expect(frameErrorKind({ status: 413 })).toBeNull()
+    expect(frameErrorKind({ status: 500 })).toBeNull()
+    expect(frameErrorKind(null)).toBeNull()
   })
 
   it('mỗi lý do dừng đều có câu nhắn nói đúng nguyên nhân', () => {
-    for (const kind of ['camera', 'offline', 'limited', 'timeout', 'unrecognized', 'hidden']) {
+    for (const kind of ['camera', 'offline', 'network', 'limited', 'timeout', 'unrecognized', 'hidden']) {
       expect(STOP_MESSAGES[kind]).toBeTruthy()
     }
     expect(STOP_MESSAGES.offline).toBe('Face ID đang nghỉ, gõ tên giúp mình nhé 🌷')
@@ -202,7 +217,48 @@ describe('stopKindFor', () => {
     expect(STOP_MESSAGES.unrecognized).not.toMatch(/sáng/)
     expect(STOP_MESSAGES.unrecognized).toMatch(/gõ tên/)
     expect(STOP_TITLES.unrecognized).toMatch(/nhận không ra/)
-    expect(RETRYABLE_STOPS).toEqual(['timeout', 'hidden', 'unrecognized'])
+    // Mạng chập chờn: nói là mạng, không đổ cho Face ID, và cho quét lại
+    expect(STOP_TITLES.network).toMatch(/Mạng/)
+    expect(STOP_MESSAGES.network).not.toMatch(/nghỉ/)
+    expect(STOP_MESSAGES.network).toMatch(/quét lại/)
+    expect(RETRYABLE_STOPS).toEqual(['timeout', 'hidden', 'unrecognized', 'network'])
+  })
+})
+
+describe('chuỗi lỗi đường truyền — mất một khung chưa phải lý do dừng', () => {
+  const t0 = 1_700_000_000_000
+
+  it('đúng trường hợp thật: một khung đợi 10 giây không phản hồi thì vẫn quét tiếp', () => {
+    const trouble = addNetworkFailure(NO_NETWORK_TROUBLE, t0 + 800)
+    expect(trouble).toEqual({ fails: 1, since: t0 + 800 })
+    expect(networkGaveUp(trouble, t0 + 10_900)).toBe(false)
+  })
+
+  it('mạng chết hẳn (lỗi ngay tức thì): dừng khi đủ 3 khung liên tiếp và kéo dài ít nhất 5 giây', () => {
+    expect(NETWORK_FAILS_TO_STOP).toBe(3)
+    expect(NETWORK_MIN_OUTAGE_MS).toBe(5000)
+    let trouble = NO_NETWORK_TROUBLE
+    for (let i = 1; i <= NETWORK_FAILS_TO_STOP; i += 1) trouble = addNetworkFailure(trouble, t0 + i * 800)
+    // 3 khung trong 2,4 giây: có thể chỉ là đang đổi Wi-Fi ↔ 4G
+    expect(networkGaveUp(trouble, t0 + 2_400)).toBe(false)
+    expect(networkGaveUp(trouble, t0 + 800 + NETWORK_MIN_OUTAGE_MS)).toBe(true)
+  })
+
+  it('mỗi khung đợi đủ 10 giây: sau 15 giây mất liên lạc thì thôi dù mới 2 khung', () => {
+    expect(NETWORK_MAX_OUTAGE_MS).toBe(15_000)
+    const trouble = addNetworkFailure(addNetworkFailure(NO_NETWORK_TROUBLE, t0 + 800), t0 + 11_700)
+    expect(trouble).toEqual({ fails: 2, since: t0 + 800 })
+    expect(networkGaveUp(trouble, t0 + 21_700)).toBe(true)
+  })
+
+  it('hết giờ quét lúc mạng đang hỏng thì lý do là mạng, không phải "chưa nhìn rõ mặt"', () => {
+    const now = t0 + 30_000
+    expect(timeoutKind(NO_NETWORK_TROUBLE, null, now)).toBe('timeout')
+    expect(timeoutKind({ fails: 1, since: t0 + 20_000 }, null, now)).toBe('network')
+    // Khung đang gửi đã treo 8 giây mà chưa có phản hồi
+    expect(timeoutKind(NO_NETWORK_TROUBLE, now - 8_000, now)).toBe('network')
+    // Khung vừa gửi 1 giây trước thì chưa tính là mạng hỏng
+    expect(timeoutKind(NO_NETWORK_TROUBLE, now - 1_000, now)).toBe('timeout')
   })
 })
 

@@ -60,7 +60,8 @@ function scanRow(id, fields = {}) {
 test('diagnose trusts outcomes that already explain themselves', () => {
   assert.equal(diagnose({ outcome: 'confirmed' }, counts()), null);
   assert.equal(diagnose({ outcome: 'denied', suggested_student_id: 3 }, counts({ match: 2 })), 'wrong_person');
-  for (const outcome of ['camera', 'offline', 'limited']) {
+  // 'offline' là máy chủ báo nghỉ, 'network' là khung không tới được máy chủ
+  for (const outcome of ['camera', 'offline', 'network', 'limited']) {
     assert.equal(diagnose({ outcome }, counts({ dark: 9 })), outcome);
   }
   // Máy nhìn rõ mặt đủ lâu mà không khớp ai: vấn đề ở hồ sơ, không ở ánh sáng

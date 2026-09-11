@@ -14,6 +14,13 @@ export const VOTES_TO_CONCLUDE = 2         // hai khung liên tiếp cùng một
 export const CONFIDENT_SCORE = 0.6         // từ mức này máy "nhận ra ngay", dưới thì "hmm…"
 export const DARK_LUMA = 35                // luma Rec.601 trung bình vùng giữa dưới mức này → tối, không gửi
 export const MAX_FRAME_WIDTH = 480         // khung gửi lên rộng tối đa 480 px (~50–150 KB JPEG)
+// Mất mạng một khung chưa phải lý do dừng: điện thoại chập chờn, đang đổi Wi-Fi
+// ↔ 4G thì vài giây là hết. Chỉ thôi khi đủ NETWORK_FAILS_TO_STOP khung liên
+// tiếp không có phản hồi trong ít nhất NETWORK_MIN_OUTAGE_MS, hoặc mất liên lạc
+// NETWORK_MAX_OUTAGE_MS dù mới vài khung (mỗi khung đợi phản hồi tới 10 giây).
+export const NETWORK_FAILS_TO_STOP = 3
+export const NETWORK_MIN_OUTAGE_MS = 5000
+export const NETWORK_MAX_OUTAGE_MS = 15000
 
 export const HINTS = Object.freeze({
   starting: 'Đang mở camera…',
@@ -25,27 +32,32 @@ export const HINTS = Object.freeze({
   dark: 'Hơi tối rồi 🌙',
   blurry: 'Giữ máy yên một chút nhé',
   many_faces: 'Chỉ một người trong khung thôi nha',
+  slowNetwork: 'Mạng hơi chậm, chờ mình một chút nhé…',
 })
 
 // Lý do dừng quét → câu nhắn; mọi đường lỗi đều rơi êm về gõ tên. Mỗi câu nói
-// đúng nguyên nhân: không đổ cho ánh sáng khi thật ra máy đã nhìn rõ mặt.
+// đúng nguyên nhân: không đổ cho ánh sáng khi thật ra máy đã nhìn rõ mặt, và
+// không bảo "Face ID nghỉ" khi thật ra là mạng của người quét chập chờn.
 export const STOP_MESSAGES = Object.freeze({
   camera: 'Không mở được camera — gõ tên giúp mình nhé 🌷',
   offline: 'Face ID đang nghỉ, gõ tên giúp mình nhé 🌷',
+  network: 'Hình chưa gửi đi được — bấm quét lại, đổi Wi-Fi/4G, hoặc gõ tên nhé 🌷',
   limited: 'Hôm nay mình quét hơi nhiều rồi — gõ tên giúp mình nhé 🌷',
   timeout: 'Mình chưa nhìn rõ mặt cậu — thử chỗ sáng hơn, để cả khuôn mặt trong khung, hoặc gõ tên nhé 🌷',
   unrecognized: 'Có thể hôm nay cậu hơi khác ảnh mình đang giữ — tóc mới, kính, góc máy… Không sao đâu, gõ tên là mở được quà ngay.',
   hidden: 'Cậu rời tab nên mình đã tắt camera — bấm quét lại nhé 🌷',
 })
 
-// Tiêu đề riêng cho lượt dừng không phải lỗi; lý do khác dùng tiêu đề chung
+// Tiêu đề riêng cho vài lý do dừng; lý do khác dùng tiêu đề chung
 export const STOP_TITLES = Object.freeze({
   unrecognized: 'Hôm nay cậu xinh quá, mình nhận không ra 😅',
+  network: 'Mạng đang chập chờn 📶',
 })
 
-// Hết giờ, rời tab, không nhận ra thì cho quét lại; camera bị từ chối, service
-// nghỉ hay bị giới hạn tần suất thì không — thử lại cũng chỉ lỗi y hệt
-export const RETRYABLE_STOPS = Object.freeze(['timeout', 'hidden', 'unrecognized'])
+// Hết giờ, rời tab, không nhận ra, mạng chập chờn thì cho quét lại; camera bị
+// từ chối, service nghỉ hay bị giới hạn tần suất thì không — thử lại cũng chỉ
+// lỗi y hệt
+export const RETRYABLE_STOPS = Object.freeze(['timeout', 'hidden', 'unrecognized', 'network'])
 
 // rejects = số khung RÕ MẶT mà không khớp ai kể từ lần khớp gần nhất
 export const INITIAL_VOTES = Object.freeze({ studentId: null, count: 0, rejects: 0 })
@@ -129,12 +141,47 @@ export function greetingFor(score) {
     : 'Hmm... có phải cậu không ta? 🤔'
 }
 
-// Lỗi từ matchFace → lý do dừng, hoặc null nếu chỉ là một khung hỏng (400/413/
-// 500) và nên quét tiếp
-export function stopKindFor(err) {
+// Cổng Cloudflare báo không tới được máy chủ (tunnel chập chờn, hết giờ chờ)
+const GATEWAY_STATUSES = new Set([502, 504, 520, 521, 522, 523, 524, 530])
+
+/**
+ * Lỗi của một khung từ matchFace:
+ * - 'limited' (429) và 'offline' (503: chính máy chủ báo Face ID tắt hoặc
+ *   face-service không trả lời) → dừng ngay.
+ * - 'network': không có phản hồi (mất mạng, trình duyệt hết giờ đợi) hoặc cổng
+ *   Cloudflare báo lỗi → bỏ khung đó, hook đếm chuỗi lỗi bằng addNetworkFailure.
+ * - null: một khung hỏng (400/413/500) → quét tiếp.
+ */
+export function frameErrorKind(err) {
   if (err?.status === 429) return 'limited'
-  if (err?.status === 503 || err?.isNetworkError) return 'offline'
+  if (err?.status === 503) return 'offline'
+  if (err?.isNetworkError || GATEWAY_STATUSES.has(err?.status)) return 'network'
   return null
+}
+
+// Chuỗi lỗi đường truyền của một lượt: fails = số khung liên tiếp không có phản
+// hồi, since = lúc gửi khung đầu của chuỗi (khung đợi đủ 10 giây cũng được tính).
+// Có phản hồi thì quay về NO_NETWORK_TROUBLE.
+export const NO_NETWORK_TROUBLE = Object.freeze({ fails: 0, since: null })
+
+export function addNetworkFailure(trouble, sentAt) {
+  return { fails: trouble.fails + 1, since: trouble.since ?? sentAt }
+}
+
+export function networkGaveUp(trouble, now) {
+  if (!trouble.fails) return false
+  const outage = now - trouble.since
+  return (trouble.fails >= NETWORK_FAILS_TO_STOP && outage >= NETWORK_MIN_OUTAGE_MS)
+    || outage >= NETWORK_MAX_OUTAGE_MS
+}
+
+// Hết giờ quét trong lúc đường truyền đang hỏng — chuỗi lỗi chưa dứt, hoặc khung
+// đang gửi đã treo lâu — thì lý do là mạng, không phải "chưa nhìn rõ mặt".
+// pendingSince: lúc gửi khung đang chờ phản hồi, null nếu không có.
+export function timeoutKind(trouble, pendingSince, now) {
+  if (trouble.fails > 0) return 'network'
+  if (pendingSince !== null && now - pendingSince >= NETWORK_MIN_OUTAGE_MS) return 'network'
+  return 'timeout'
 }
 
 // Mã lượt quét: 32 ký tự hex ngẫu nhiên (backend kiểm /^[a-f0-9]{32}$/) — chỉ

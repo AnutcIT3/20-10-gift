@@ -29,14 +29,14 @@ describe('outcomeOf', () => {
   })
 
   it('mọi kết quả backend có thể trả về đều có nhãn', () => {
-    for (const outcome of ['confirmed', 'denied', 'unrecognized', 'timeout', 'hidden', 'camera', 'offline', 'limited', 'closed']) {
+    for (const outcome of ['confirmed', 'denied', 'unrecognized', 'timeout', 'hidden', 'camera', 'offline', 'network', 'limited', 'closed']) {
       expect(OUTCOMES[outcome]?.label).toBeTruthy()
     }
   })
 
   it('mọi nguyên nhân backend chẩn đoán đều có nhãn và gợi ý', () => {
     const issues = ['wrong_person', 'no_match', 'dark', 'small', 'blurry', 'no_face', 'many_faces',
-      'unanswered', 'camera', 'offline', 'limited', 'no_frames', 'left_early']
+      'unanswered', 'camera', 'offline', 'network', 'limited', 'no_frames', 'left_early']
     for (const issue of issues) {
       expect(ISSUES[issue]?.label).toBeTruthy()
       expect(ISSUES[issue]?.tip).toBeTruthy()

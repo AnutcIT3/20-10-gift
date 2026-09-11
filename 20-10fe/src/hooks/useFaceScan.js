@@ -4,17 +4,21 @@ import {
   HINTS,
   INITIAL_VOTES,
   MAX_FRAME_WIDTH,
+  NO_NETWORK_TROUBLE,
   RETRYABLE_STOPS,
   SCAN_TIMEOUT_MS,
   STOP_MESSAGES,
   STOP_TITLES,
   TICK_MS,
+  addNetworkFailure,
+  frameErrorKind,
   isTooDark,
   makeScanToken,
   meanLuma,
+  networkGaveUp,
   remainingSeconds,
-  stopKindFor,
   tallyVotes,
+  timeoutKind,
 } from '../lib/faceVote'
 
 const METER_SIZE = 32                 // canvas đo sáng 32×32, lấy luma vùng giữa 16×16
@@ -127,6 +131,8 @@ function useFaceScan() {
     if (!active) return undefined
     let done = false          // phiên này đã nhả camera (kết luận, dừng, hoặc dọn dẹp)
     let startedAt = Date.now()
+    let trouble = NO_NETWORK_TROUBLE   // chuỗi khung liên tiếp không có phản hồi
+    let pendingSince = null            // lúc gửi khung đang chờ phản hồi
     votesRef.current = INITIAL_VOTES
     const scan = newScan()
     scanRef.current = scan
@@ -167,11 +173,14 @@ function useFaceScan() {
     const send = async (blob, t) => {
       const controller = new AbortController()
       controllerRef.current = controller
+      const sentAt = Date.now()
+      pendingSince = sentAt
       try {
         const result = await giftRepository.matchFace(blob, {
           signal: controller.signal, scan: scan.token, t,
         })
         if (done) return
+        trouble = NO_NETWORK_TROUBLE
         const { votes, hint, conclusion, giveUp } = tallyVotes(votesRef.current, result, excludedRef.current)
         votesRef.current = votes
         if (conclusion) conclude(conclusion)
@@ -180,10 +189,19 @@ function useFaceScan() {
         else setHint(hint)
       } catch (err) {
         if (done || controller.signal.aborted) return
-        // 400/413/500 chỉ là một khung hỏng → quét tiếp; 503/mất mạng/429 thì dừng
-        const kind = stopKindFor(err)
-        if (kind) finish(kind)
+        // 400/413/500 chỉ là một khung hỏng → quét tiếp; 503/429 thì dừng.
+        // Khung mất trên đường truyền thì bỏ qua, nhịp sau gửi khung mới — chỉ
+        // dừng khi mạng hỏng đủ lâu, và nói đúng là do mạng
+        const kind = frameErrorKind(err)
+        if (kind === 'network') {
+          trouble = addNetworkFailure(trouble, sentAt)
+          if (networkGaveUp(trouble, Date.now())) finish('network')
+          else setHint(HINTS.slowNetwork)
+        } else if (kind) {
+          finish(kind)
+        }
       } finally {
+        pendingSince = null
         if (controllerRef.current === controller) controllerRef.current = null
         inFlightRef.current = false
       }
@@ -193,7 +211,7 @@ function useFaceScan() {
       if (done) return
       const now = Date.now()
       const left = remainingSeconds(startedAt, now)
-      if (left <= 0) { finish('timeout'); return }
+      if (left <= 0) { finish(timeoutKind(trouble, pendingSince, now)); return }
       setState((current) => (current.secondsLeft === left ? current : { ...current, secondsLeft: left }))
       // Không bao giờ chồng request: còn khung đang bay thì bỏ qua nhịp này
       if (inFlightRef.current) return
