@@ -6,7 +6,7 @@ import { seatLabel } from '../../lib/seat'
 import { cld, CLD_TINY } from '../../lib/cloudinary'
 
 const EMPTY_FORM = {
-  full_name: '', nickname: '', avatar_url: '', intro_message: '', class_name: 'A1', access_code: '', is_active: true,
+  full_name: '', nickname: '', avatar_url: '', intro_message: '', admin_wish: '', class_name: 'A1', access_code: '', is_active: true,
 }
 const FILTERS = [
   { value: 'all', label: 'Tất cả' },
@@ -156,6 +156,7 @@ function StudentManager() {
         nickname: form.nickname.trim() || null,
         avatar_url: form.avatar_url.trim() || null,
         intro_message: form.intro_message.trim() || null,
+        admin_wish: form.admin_wish.trim() || null,
         class_name: form.class_name.trim() || null,
       }
       if (editingId) {
@@ -189,6 +190,7 @@ function StudentManager() {
       nickname: student.nickname || '',
       avatar_url: student.avatar_url || '',
       intro_message: student.intro_message || '',
+      admin_wish: student.admin_wish || '',
       class_name: student.class_name || 'A1',
       access_code: accessCodeOf(student),
       is_active: Boolean(student.is_active),
@@ -342,7 +344,8 @@ function StudentManager() {
                 : <img src={cld(form.avatar_url, CLD_TINY)} alt="Preview avatar" onError={() => setAvatarBroken(true)} />}
             </div>
           )}
-          <label className="admin-field admin-field--full">Lời dẫn trên trang quà<textarea className="input-hand" rows={2} value={form.intro_message} onChange={(e) => setForm({ ...form, intro_message: e.target.value })} /></label>
+          <label className="admin-field admin-field--full">Lời chúc riêng (hiện ngay dưới tên trên trang quà)<textarea className="input-hand" rows={3} value={form.intro_message} onChange={(e) => setForm({ ...form, intro_message: e.target.value })} /></label>
+          <label className="admin-field admin-field--full">Lời chúc từ admin (ô 💌 riêng, để trống thì không hiện gì)<textarea className="input-hand" rows={3} value={form.admin_wish} onChange={(e) => setForm({ ...form, admin_wish: e.target.value })} /></label>
           {editingId && form.access_code && (
             <p className="admin-form__note">Link quà: {window.location.origin}/gift/{form.access_code.trim().toLowerCase()} — đổi mã thì link cũ hết hiệu lực.</p>
           )}

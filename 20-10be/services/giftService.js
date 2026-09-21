@@ -7,7 +7,7 @@ function httpError(message, statusCode) {
 
 async function getStudentByCode(accessCode) {
   const [rows] = await pool.execute(
-    `SELECT id, full_name, nickname, avatar_url, intro_message, seat_row, seat_col, member_type
+    `SELECT id, full_name, nickname, avatar_url, intro_message, admin_wish, seat_row, seat_col, member_type
      FROM students WHERE access_code = ? AND is_active = TRUE LIMIT 1`,
     [accessCode],
   );
@@ -26,7 +26,7 @@ async function getApprovedLetters(studentId) {
   // Chỉ trả letter đã approved VÀ đã tới giờ hiện. reveal_at lưu theo UTC nên
   // phải so với UTC_TIMESTAMP(), không dùng NOW() (phụ thuộc múi giờ MySQL)
   const [rows] = await pool.execute(
-    `SELECT id, sender_name, is_anonymous, title, content, reveal_at, created_at, image_url
+    `SELECT id, sender_name, sender_kind, is_anonymous, title, content, reveal_at, created_at, image_url
      FROM letters
      WHERE student_id = ? AND status = 'approved'
        AND (reveal_at IS NULL OR reveal_at <= UTC_TIMESTAMP())
@@ -47,15 +47,16 @@ async function createLetter(studentId, data, image = null) {
 
   // Dùng chung bộ validate với admin (letterService) thay vì bản sao 50 dòng.
   // Các field public không được quyền đặt bị ép bỏ trước khi sanitize:
-  // status luôn 'pending', student lấy từ access code chứ không từ payload.
+  // status luôn 'pending', student lấy từ access code chứ không từ payload,
+  // sender_kind luôn 'guest' — nhóm "các bạn nam 12A1" chỉ admin nhập được.
   const clean = sanitizeLetterPayload(
-    { ...data, status: undefined, student_id: undefined, student_ids: undefined },
+    { ...data, status: undefined, student_id: undefined, student_ids: undefined, sender_kind: undefined },
     { defaultStatus: 'pending' },
   );
 
   await pool.execute(
-    `INSERT INTO letters (student_id, sender_name, title, content, is_anonymous, status, reveal_at, image_url, image_public_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO letters (student_id, sender_name, sender_kind, title, content, is_anonymous, status, reveal_at, image_url, image_public_id)
+     VALUES (?, ?, 'guest', ?, ?, ?, ?, ?, ?, ?)`,
     [studentId, clean.senderName, clean.title, clean.content, clean.isAnonymous, clean.status, clean.revealAt,
       image?.url || null, image?.publicId || null],
   );

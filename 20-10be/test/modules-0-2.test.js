@@ -369,9 +369,9 @@ test('module 3: create student normalizes name and retries duplicate access code
     if (sql.includes('INSERT INTO students')) {
       inserts += 1;
       assert.equal(params[1], 'nguyen thi an');
-      assert.equal(params[6].length, 12);
-      assert.equal(params[7], 0);
-      assert.equal(params[8], 9);
+      assert.equal(params[7].length, 12);
+      assert.equal(params[8], 0);
+      assert.equal(params[9], 9);
       if (inserts < 3) throw Object.assign(new Error('duplicate'), { code: 'ER_DUP_ENTRY' });
       return [{ insertId: 8 }];
     }
@@ -823,7 +823,7 @@ test('module 4: admin can create one letter for multiple students', async () => 
     });
     assert.deepEqual(result, { created: 2 });
     assert.equal(inserts.length, 2);
-    assert.deepEqual(inserts[0], [1, 'Admin', '20/10', 'Chúc bạn thật vui.', false, 'approved', null]);
+    assert.deepEqual(inserts[0], [1, 'Admin', 'guest', '20/10', 'Chúc bạn thật vui.', false, 'approved', null]);
     assert.ok(calls.includes('commit'));
   } finally {
     pool.getConnection = original;
@@ -856,7 +856,7 @@ test('module 4: admin update letter can change recipient and full content', asyn
       is_anonymous: false,
       status: 'pending',
     }), {});
-    assert.deepEqual(updateParams, [4, 'Lớp A1', 'Mới', 'Nội dung đã sửa', false, 'pending', null, 9]);
+    assert.deepEqual(updateParams, [4, 'Lớp A1', 'guest', 'Mới', 'Nội dung đã sửa', false, 'pending', null, 9]);
   } finally {
     pool.getConnection = original;
   }

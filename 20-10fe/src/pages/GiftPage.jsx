@@ -223,6 +223,18 @@ function GiftPage() {
       <div className="gift__inner">
         <GiftHeader studentName={studentName} />
         <HeroSection student={student} />
+        {/* Lời chúc admin viết riêng: người thật viết nên hiện luôn, không gõ
+            từng chữ như câu máy sinh; không viết thì không có ô nào cả */}
+        {student?.admin_wish && (
+          <section className="ai-note ai-note--admin">
+            <span className="ai-note__clip" aria-hidden="true" />
+            <span className="ai-note__label">
+              <span className="ai-note__label-long">💌 LỜI CHÚC TỪ ADMIN</span>
+              <span className="ai-note__label-short">💌 TỪ ADMIN</span>
+            </span>
+            <p>{student.admin_wish}</p>
+          </section>
+        )}
         {aiGreeting && (
           <section className="ai-note" aria-live="polite">
             <span className="ai-note__clip" aria-hidden="true" />

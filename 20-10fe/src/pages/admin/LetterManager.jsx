@@ -13,9 +13,16 @@ const STATUSES = [
 // Tab "Hẹn giờ" là bộ lọc ảo (đã duyệt nhưng chưa tới giờ) — không phải trạng thái lưu
 const TABS = [...STATUSES, { value: 'scheduled', label: 'Hẹn giờ' }]
 
+// Nhóm người gửi quyết định lời chúc nằm ở khối nào trên trang quà
+const SENDER_KINDS = [
+  { value: 'classmate', label: 'Các bạn nam 12A1' },
+  { value: 'guest', label: 'Khách ghé thăm' },
+]
+
 const EMPTY_COMPOSE_FORM = {
   studentIds: [],
   senderName: 'Admin',
+  senderKind: 'classmate',
   isAnonymous: false,
   title: '',
   content: '',
@@ -194,6 +201,7 @@ function LetterManager() {
     student_id: form.studentId ? Number(form.studentId) : undefined,
     student_ids: form.studentIds,
     sender_name: form.isAnonymous ? null : form.senderName.trim(),
+    sender_kind: form.senderKind,
     title: form.title.trim() || null,
     content: form.content.trim(),
     is_anonymous: form.isAnonymous,
@@ -284,6 +292,7 @@ function LetterManager() {
     setEditForm({
       studentId: String(letter.student_id),
       senderName: letter.sender_name || '',
+      senderKind: letter.sender_kind || 'guest',
       isAnonymous: Boolean(letter.is_anonymous || !letter.sender_name),
       title: letter.title || '',
       content: letter.content || '',
@@ -408,6 +417,11 @@ function LetterManager() {
           {!composeForm.isAnonymous && (
             <label className="admin-field">Tên người gửi<input className="input-hand" maxLength={100} value={composeForm.senderName} onChange={(event) => setComposeForm({ ...composeForm, senderName: event.target.value })} /></label>
           )}
+          <label className="admin-field">Nhóm trên trang quà
+            <select className="input-hand" value={composeForm.senderKind} onChange={(event) => setComposeForm({ ...composeForm, senderKind: event.target.value })}>
+              {SENDER_KINDS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+          </label>
           <label className="admin-field">Trạng thái
             <select className="input-hand" value={composeForm.status} onChange={(event) => setComposeForm({ ...composeForm, status: event.target.value })}>
               {STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
@@ -462,6 +476,7 @@ function LetterManager() {
                     {letter.reveal_at && <span className="chip chip--peach">⏰ hiện {formatReveal(letter.reveal_at)}</span>}
                     {letter.image_url && <span className="chip chip--beige">📷 1 ảnh</span>}
                     {letter.member_type === 'friend' && <span className="chip chip--moss">bạn ngoài lớp</span>}
+                    {letter.sender_kind === 'classmate' && <span className="chip chip--beige">bạn nam 12A1</span>}
                     <span className={`admin-badge ${letter.status}`}>
                       {STATUSES.find((item) => item.value === letter.status)?.label || letter.status}
                     </span>
@@ -523,6 +538,11 @@ function LetterManager() {
                 <label><input type="radio" name="edit-sender" checked={editForm.isAnonymous} onChange={() => setEditForm({ ...editForm, isAnonymous: true, senderName: '' })} /> Ẩn danh</label>
               </div>
               {!editForm.isAnonymous && <label className="admin-field">Tên người gửi<input className="input-hand" maxLength={100} value={editForm.senderName} onChange={(event) => setEditForm({ ...editForm, senderName: event.target.value })} /></label>}
+              <label className="admin-field">Nhóm trên trang quà
+                <select className="input-hand" value={editForm.senderKind} onChange={(event) => setEditForm({ ...editForm, senderKind: event.target.value })}>
+                  {SENDER_KINDS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </label>
               <label className="admin-field">Trạng thái
                 <select className="input-hand" value={editForm.status} onChange={(event) => setEditForm({ ...editForm, status: event.target.value })}>
                   {STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}

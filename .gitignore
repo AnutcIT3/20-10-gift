@@ -42,6 +42,9 @@ Thumbs.db
 # Ảnh chụp màn hình debug cục bộ
 /20-10fe/login-alert.png
 
+# Lời chúc thật của lớp: nội dung riêng tư, không lên Git khi repo còn công khai
+/20-10be/content/
+
 # Face ID benchmark — ảnh sinh trắc và model không bao giờ lên Git
 /bench/
 /face-service/.venv/
