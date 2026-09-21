@@ -133,7 +133,20 @@ function LetterCard({ letter, accessCode, index }) {
 }
 
 // ── Letter Section ────────────────────────────────────────────────────────────
+// Hai nhóm người gửi: các bạn nam 12A1 (admin nhập sẵn) và khách ghé thăm (gửi
+// qua form, chờ duyệt). Tiêu đề nhóm chỉ hiện khi có lời chúc của các bạn nam —
+// trang chỉ toàn thư của khách thì giữ nguyên một danh sách liền như trước.
+const GROUPS = [
+  { kind: 'classmate', title: 'Từ các bạn nam 12A1' },
+  { kind: 'guest', title: 'Từ khách ghé thăm' },
+]
+
 function LetterSection({ letters = [], accessCode }) {
+  const groups = GROUPS
+    .map((group) => ({ ...group, items: letters.filter((letter) => (letter.sender_kind || 'guest') === group.kind) }))
+    .filter((group) => group.items.length > 0)
+  const grouped = groups.length > 1 || groups[0]?.kind === 'classmate'
+
   return (
     <section className="gift__section gift__section--last" aria-labelledby="letters-title">
       <h2 id="letters-title" className="section-title">
@@ -141,13 +154,16 @@ function LetterSection({ letters = [], accessCode }) {
         <span className="section-title__count">{letters.length ? `${letters.length} bức thư` : 'hộp thư còn trống'}</span>
       </h2>
       {letters.length > 0
-        ? (
-          <div className="letters">
-            {letters.map((letter, index) => (
-              <LetterCard key={letter.id} letter={letter} accessCode={accessCode} index={index} />
-            ))}
+        ? groups.map((group) => (
+          <div key={group.kind} className="letters-group">
+            {grouped && <h3 className="letters-group__title">{group.title}</h3>}
+            <div className="letters">
+              {group.items.map((letter, index) => (
+                <LetterCard key={letter.id} letter={letter} accessCode={accessCode} index={index} />
+              ))}
+            </div>
           </div>
-        )
+        ))
         : (
           <div className="letter-paper letters__empty">
             <EmptyState icon="💌" message="Chưa có lời chúc nào… hãy là người đầu tiên gửi nhé!" />

@@ -3,7 +3,7 @@ const pool = require('../config/db');
 const { cloudinary } = require('../config/cloudinary');
 const normalizeName = require('../utils/normalizeName');
 
-const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'class_name'];
+const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'admin_wish', 'class_name'];
 const SPECIAL_SEAT = { row: 0, column: 9 };
 
 function httpError(message, statusCode) {
@@ -66,6 +66,7 @@ function sanitizeInput(data, requireName = false) {
   clean.nickname = validateText(data.nickname, 'nickname', 50);
   clean.avatar_url = validateAvatarUrl(validateText(data.avatar_url, 'avatar_url', 500));
   clean.intro_message = validateText(data.intro_message, 'intro_message', 65535);
+  clean.admin_wish = validateText(data.admin_wish, 'admin_wish', 65535);
   clean.class_name = validateText(data.class_name, 'class_name', 20);
   if (Object.prototype.hasOwnProperty.call(data, 'seat_row')
     || Object.prototype.hasOwnProperty.call(data, 'seat_col')) {
@@ -154,7 +155,7 @@ async function assertNoDuplicateVisibleName(fullName, excludeId = null) {
 // từng người; subquery tương quan là đủ cho quy mô một lớp (vài chục dòng)
 async function listStudents() {
   const [rows] = await pool.execute(
-    `SELECT s.id, s.full_name, s.nickname, s.avatar_url, s.intro_message, s.class_name,
+    `SELECT s.id, s.full_name, s.nickname, s.avatar_url, s.intro_message, s.admin_wish, s.class_name,
       s.seat_row, s.seat_col, s.is_active, s.access_code, s.member_type, s.view_count,
       s.created_at, s.updated_at,
       (SELECT COUNT(*) FROM gallery g WHERE g.student_id = s.id) AS gallery_count,
@@ -167,7 +168,7 @@ async function listStudents() {
 
 async function getStudent(id) {
   const [rows] = await pool.execute(
-    `SELECT id, full_name, nickname, avatar_url, intro_message, class_name,
+    `SELECT id, full_name, nickname, avatar_url, intro_message, admin_wish, class_name,
       seat_row, seat_col, is_active, access_code, member_type, view_count, created_at, updated_at
      FROM students WHERE id = ? LIMIT 1`,
     [id],
@@ -183,10 +184,10 @@ async function createStudent(data) {
     try {
       const [result] = await pool.execute(
         `INSERT INTO students
-          (full_name, normalized_name, nickname, avatar_url, intro_message, class_name, access_code, seat_row, seat_col)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (full_name, normalized_name, nickname, avatar_url, intro_message, admin_wish, class_name, access_code, seat_row, seat_col)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [clean.full_name, clean.normalized_name, clean.nickname || null,
-          clean.avatar_url || null, clean.intro_message || null, clean.class_name || 'A1', accessCode,
+          clean.avatar_url || null, clean.intro_message || null, clean.admin_wish || null, clean.class_name || 'A1', accessCode,
           clean.seat_row ?? null, clean.seat_col ?? null],
       );
       return getStudent(result.insertId);

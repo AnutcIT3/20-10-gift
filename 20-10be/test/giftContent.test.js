@@ -65,3 +65,71 @@ test('gift content resolves the student once and returns the complete initial pa
     statsService.recordView = originals.recordView;
   }
 });
+
+// ── Ba loại lời chúc ─────────────────────────────────────────────────────────
+// Trang quà tách lời chúc của các bạn nam 12A1 (admin nhập sẵn) khỏi lời chúc
+// của khách gửi qua form. Nhóm là dữ liệu tin cậy nên form công khai không được
+// quyền tự nhận mình là bạn cùng lớp.
+test('lời chúc gửi qua form công khai luôn vào nhóm khách, dù payload khai là bạn cùng lớp', async () => {
+  const pool = require('../config/db');
+  const original = pool.execute;
+  let insertSql;
+  let insertParams;
+  pool.execute = async (sql, params) => {
+    insertSql = sql;
+    insertParams = params;
+    return [{ insertId: 1 }];
+  };
+  try {
+    const result = await giftService.createLetter(7, {
+      sender_name: 'Người lạ',
+      content: 'Chúc mừng 20/10',
+      is_anonymous: false,
+      sender_kind: 'classmate',
+      status: 'approved',
+    });
+    assert.deepEqual(result, { status: 'pending' });
+    assert.match(insertSql, /VALUES \(\?, \?, 'guest',/);
+    // status bị ép về 'pending' và sender_kind không nằm trong tham số
+    assert.deepEqual(insertParams, [7, 'Người lạ', null, 'Chúc mừng 20/10', false, 'pending', null, null, null]);
+  } finally {
+    pool.execute = original;
+  }
+});
+
+test('admin nhập được lời chúc của các bạn nam 12A1 và bị chặn nhóm lạ', async () => {
+  const letterService = require('../services/letterService');
+  const pool = require('../config/db');
+  const original = pool.getConnection;
+  const inserts = [];
+  pool.getConnection = async () => ({
+    beginTransaction: async () => {},
+    execute: async (sql, params) => {
+      if (sql.includes('FROM students')) return [[{ id: 1 }]];
+      if (sql.includes('INSERT INTO letters')) inserts.push(params);
+      return [[]];
+    },
+    commit: async () => {},
+    rollback: async () => {},
+    release: () => {},
+  });
+  try {
+    await letterService.createLetters({
+      student_ids: [1],
+      sender_name: 'Tuấn',
+      content: 'Chúc cậu 20/10 vui vẻ',
+      sender_kind: 'classmate',
+      status: 'approved',
+    });
+    assert.equal(inserts[0][2], 'classmate');
+
+    await assert.rejects(() => letterService.createLetters({
+      student_ids: [1],
+      sender_name: 'Tuấn',
+      content: 'Chúc cậu 20/10 vui vẻ',
+      sender_kind: 'giao_vien',
+    }), { statusCode: 400 });
+  } finally {
+    pool.getConnection = original;
+  }
+});

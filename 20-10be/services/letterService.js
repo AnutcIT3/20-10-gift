@@ -3,6 +3,9 @@ const reactionService = require('./reactionService');
 const { cloudinary } = require('../config/cloudinary');
 
 const STATUSES = ['pending', 'approved', 'rejected'];
+// Nhóm người gửi trên trang quà: 'classmate' là các bạn nam 12A1 admin nhập
+// sẵn, 'guest' là khách gửi qua form công khai (mặc định).
+const SENDER_KINDS = ['classmate', 'guest'];
 // 'scheduled' là trạng thái ảo chỉ dùng để LỌC: đã duyệt nhưng reveal_at chưa tới
 const LIST_STATUSES = [...STATUSES, 'scheduled'];
 const MAX_BULK_ITEMS = 100;
@@ -101,12 +104,18 @@ function sanitizeLetterPayload(data, {
     ? defaultStatus
     : validateStatus(data.status);
 
+  const senderKind = data.sender_kind === undefined || data.sender_kind === null || data.sender_kind === ''
+    ? 'guest'
+    : data.sender_kind;
+  if (!SENDER_KINDS.includes(senderKind)) throw httpError('Nhóm người gửi không hợp lệ', 400);
+
   return {
     studentIds: requireStudentIds ? parseIdList(data.student_ids, 'student_ids') : undefined,
     studentId: data.student_id === undefined || data.student_id === null || data.student_id === ''
       ? undefined
       : parsePositiveId(data.student_id, 'student_id'),
     senderName,
+    senderKind,
     title,
     content,
     isAnonymous,
@@ -182,7 +191,7 @@ async function listLetters(query) {
   // LIMIT/OFFSET nội suy trực tiếp là ngoại lệ có chủ đích: cả hai đã được ép
   // về integer trong khoảng an toàn ở parsePagination phía trên, không phải input thô
   const [items] = await pool.execute(
-    `SELECT l.id, l.student_id, s.full_name AS student_name, s.member_type, l.sender_name,
+    `SELECT l.id, l.student_id, s.full_name AS student_name, s.member_type, l.sender_name, l.sender_kind,
       l.title, l.content, l.is_anonymous, l.status, l.reveal_at, l.created_at, l.image_url
      FROM letters l JOIN students s ON s.id = l.student_id
      WHERE ${where} ORDER BY l.created_at DESC LIMIT ${pageSize} OFFSET ${offset}`,
@@ -233,9 +242,10 @@ async function createLetters(data) {
 
     for (const studentId of clean.studentIds) {
       await connection.execute(
-        `INSERT INTO letters (student_id, sender_name, title, content, is_anonymous, status, reveal_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [studentId, clean.senderName, clean.title, clean.content, clean.isAnonymous, clean.status, clean.revealAt],
+        `INSERT INTO letters (student_id, sender_name, sender_kind, title, content, is_anonymous, status, reveal_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [studentId, clean.senderName, clean.senderKind, clean.title, clean.content, clean.isAnonymous,
+          clean.status, clean.revealAt],
       );
     }
 
@@ -258,6 +268,7 @@ async function updateLetter(id, data) {
 
     const fields = [
       ['sender_name', clean.senderName],
+      ['sender_kind', clean.senderKind],
       ['title', clean.title],
       ['content', clean.content],
       ['is_anonymous', clean.isAnonymous],

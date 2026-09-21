@@ -175,6 +175,22 @@
   animation: fadeUp .8s ease .2s both;
 }
 
+/* Lời chúc admin: cùng dáng giấy xé, nhưng là giấy thư thật (--letter) để
+   phân biệt với câu máy sinh trên nền đào */
+.ai-note--admin {
+  background: var(--letter);
+  box-shadow: var(--shadow-soft);
+}
+
+.ai-note--admin .ai-note__label {
+  background: var(--clay-dark);
+}
+
+.ai-note--admin .ai-note__clip {
+  border-color: var(--clay);
+  border-bottom-color: transparent;
+}
+
 .ai-note__clip {
   position: absolute;
   left: 18px;
@@ -358,6 +374,26 @@
 }
 
 /* ── Những lời chúc: thư kẻ dòng có tem ── */
+.letters-group + .letters-group {
+  margin-top: 34px;
+}
+
+.letters-group__title {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 0;
+  font: 20px var(--font-hand);
+  color: var(--clay);
+}
+
+.letters-group__title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--beige);
+}
+
 .letters {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -791,6 +827,14 @@
   .ai-note p {
     margin-top: 10px;
     font-size: 23px;
+  }
+
+  .letters-group__title {
+    font-size: 17px;
+  }
+
+  .letters-group + .letters-group {
+    margin-top: 26px;
   }
 
   .caret {
