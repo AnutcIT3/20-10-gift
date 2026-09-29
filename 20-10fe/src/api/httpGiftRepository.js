@@ -98,8 +98,66 @@ async function faceScanClaim(tokens, accessCode) {
   return response.data.data
 }
 
+// ── Ngày 20/10: đếm ngược, bông hoa 12A1, hồi âm, bản lưu ───────────────────
+// { locked, unlockAt, serverNow, opened?, total?, replies? }
+async function getEventStatus() {
+  const response = await api.get('/api/event')
+  return response.data.data
+}
+
+// Mở quà từ trang chủ (gõ tên / Face ID) → { counted, rank, opened, total }
+async function recordOpen(accessCode, via = 'name') {
+  const response = await api.post(`/api/gifts/${encodeURIComponent(accessCode)}/open`, { via })
+  return response.data.data
+}
+
+// { target: 'letter' | 'class' | 'admin', letter_id?, content } → hồi âm chờ duyệt
+async function createReply(accessCode, data) {
+  const response = await api.post(`/api/gifts/${encodeURIComponent(accessCode)}/replies`, data)
+  return response.data.data
+}
+
+// Hộp thư hồi âm công khai; `to` lọc những hồi âm gửi đích danh một người.
+// exact: khớp trọn chữ ("An" không tính hồi âm gửi "Anh") — dùng khi báo
+// "có thư gửi cậu"; ô tìm kiếm thì khớp từ đầu chữ, gõ tới đâu lọc tới đó
+async function listReplies({ to, exact = false } = {}) {
+  const params = {}
+  if (to) params.to = to
+  if (to && exact) params.exact = 1
+  const response = await api.get('/api/replies', { params })
+  return response.data.data
+}
+
+// Bản lưu quà: máy chủ kéo ảnh về nhúng vào file nên có thể mất vài chục giây.
+// Dùng fetch thay axios để đọc được thông báo lỗi JSON khi phản hồi không phải file.
+async function downloadKeepsake(accessCode, greeting = '') {
+  const timeout = typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(90_000) : undefined
+  let response
+  try {
+    response = await fetch(`${api.defaults.baseURL}/api/gifts/${encodeURIComponent(accessCode)}/keepsake`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ greeting: greeting || undefined }),
+      signal: timeout,
+    })
+  } catch (error) {
+    throw Object.assign(new Error(error?.name === 'TimeoutError'
+      ? 'Gói quà lâu quá, thử lại giúp mình nhé.'
+      : 'Không thể kết nối tới máy chủ'), { isNetworkError: true })
+  }
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null)
+    throw Object.assign(
+      new Error(payload?.message || `Không tải được bản lưu (${response.status})`),
+      { status: response.status },
+    )
+  }
+  return response.blob()
+}
+
 export default {
   resolveStudent, getGift, getGiftContent, getGallery, getLetters,
   createLetter, createFriendLetter, generateGreeting,
   faceStatus, matchFace, faceScanEnd, faceScanClaim,
+  getEventStatus, recordOpen, createReply, listReplies, downloadKeepsake,
 }

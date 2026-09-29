@@ -8,6 +8,7 @@ import './App.css'
 const LandingPage = lazy(() => import('./pages/LandingPage'))
 const GiftPage = lazy(() => import('./pages/GiftPage'))
 const CelebrationPage = lazy(() => import('./pages/CelebrationPage'))
+const RepliesPage = lazy(() => import('./pages/RepliesPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const LoginPage = lazy(() => import('./pages/admin/LoginPage'))
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'))
@@ -16,6 +17,7 @@ const StudentManager = lazy(() => import('./pages/admin/StudentManager'))
 const ClassroomSeating = lazy(() => import('./pages/admin/ClassroomSeating'))
 const GalleryManager = lazy(() => import('./pages/admin/GalleryManager'))
 const LetterManager = lazy(() => import('./pages/admin/LetterManager'))
+const ReplyManager = lazy(() => import('./pages/admin/ReplyManager'))
 const FaceHistory = lazy(() => import('./pages/admin/FaceHistory'))
 
 function App() {
@@ -28,6 +30,7 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/gift/:accessCode" element={<GiftPage />} />
           <Route path="/celebrate/:name" element={<CelebrationPage />} />
+          <Route path="/hoi-am" element={<RepliesPage />} />
           <Route path="/girls" element={<Navigate to="/" replace />} />
           <Route path="/boys-wish" element={<Navigate to="/" replace />} />
           <Route path="/admin/login" element={<LoginPage />} />
@@ -38,6 +41,7 @@ function App() {
               <Route path="seating" element={<ClassroomSeating />} />
               <Route path="gallery" element={<GalleryManager />} />
               <Route path="letters" element={<LetterManager />} />
+              <Route path="replies" element={<ReplyManager />} />
               <Route path="face" element={<FaceHistory />} />
             </Route>
           </Route>

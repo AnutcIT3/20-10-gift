@@ -12,18 +12,6 @@
   margin: 0 auto;
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 /* ── Header ── */
 .gift__header {
   display: flex;
@@ -217,7 +205,7 @@
   display: none;
 }
 
-.ai-note p {
+.ai-note > p {
   margin: 14px 0 0;
   font: 29px/1.5 var(--font-write);
   color: var(--ink);
@@ -520,6 +508,182 @@
   font-size: 14px;
 }
 
+/* ── Hồi âm: dưới mỗi lá thư, trong lời chúc admin, và gửi cả lớp ── */
+.reply-box {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.letter__reply {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1.5px dashed var(--beige);
+}
+
+.ai-note__reply {
+  margin-top: 16px;
+}
+
+.reply-box__open {
+  padding: 6px 14px;
+  font-size: 15px;
+}
+
+.reply-note {
+  width: 100%;
+  padding: 8px 14px 10px;
+  background: rgba(217, 223, 207, .6);
+  border-left: 3px solid var(--moss);
+}
+
+.reply-note__label {
+  font: 14px var(--font-hand);
+  color: var(--moss-ink);
+}
+
+.reply-note__text {
+  margin: 2px 0 0;
+  font: 19px/1.45 var(--font-write);
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.reply-form {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px 14px;
+  background: var(--cream);
+  border: 1.5px dashed var(--line);
+  border-radius: 6px;
+  animation: fadeUp .3s ease both;
+}
+
+.reply-form__label {
+  font: 17px var(--font-hand);
+  color: var(--clay);
+  overflow-wrap: anywhere;
+}
+
+.reply-form__input {
+  min-height: 98px;
+  border-bottom: 0;
+  background: repeating-linear-gradient(transparent 0 31px, var(--rule) 31px 32px);
+  font-size: 21px;
+  line-height: 32px;
+}
+
+.reply-form__hint {
+  margin: 0;
+  font: italic 12.5px/1.5 var(--font-body);
+  color: var(--muted);
+}
+
+.reply-form__hint b {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--clay);
+}
+
+.reply-form__alert {
+  font-size: 14px;
+}
+
+.reply-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+.reply-form__send {
+  min-height: 42px;
+  padding: 0 16px;
+  font-size: 17px;
+  box-shadow: 3px 3px 0 var(--beige);
+}
+
+.thanks__card {
+  position: relative;
+  margin-top: 22px;
+  padding: 22px 26px 20px;
+  transform: rotate(-.4deg);
+}
+
+.thanks__intro {
+  margin: 0 0 12px;
+  font: 21px/32px var(--font-write);
+  color: var(--ink-2);
+}
+
+.thanks__board {
+  margin: 20px 0 0;
+  text-align: center;
+}
+
+/* ── Cất quà vào máy ── */
+.keepsake__card {
+  position: relative;
+  padding: 30px 32px 26px;
+  transform: rotate(.5deg);
+}
+
+/* Tem nổi bên phải, chữ chạy vòng quanh — màn hẹp không bị tem đè chữ */
+.keepsake__stamp {
+  position: relative;
+  float: right;
+  margin: -12px -10px 8px 14px;
+}
+
+.keepsake__title {
+  margin: 0;
+  font-size: 40px;
+  line-height: 1.1;
+}
+
+.keepsake__text {
+  max-width: 580px;
+  margin: 10px 0 18px;
+  font: 20px/32px var(--font-write);
+  color: var(--ink-2);
+}
+
+.keepsake__button {
+  --rot: -1deg;
+}
+
+.keepsake__status {
+  min-height: 1.5em;
+  margin: 12px 0 0;
+  font: italic 14px/1.5 var(--font-body);
+  color: var(--muted);
+}
+
+.keepsake__status b {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--clay);
+}
+
+.keepsake__alert {
+  margin-top: 10px;
+}
+
+.keepsake__hint {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  background: var(--peach-soft);
+  font: 14px/1.5 var(--font-body);
+  color: var(--clay-dark);
+}
+
+.gift__rank {
+  color: var(--clay);
+}
+
 /* ── Footer ── */
 .gift__footer {
   display: flex;
@@ -573,24 +737,6 @@
   max-width: 300px;
   font: 20px/1.45 var(--font-write);
   color: var(--ink-2);
-}
-
-.countdown {
-  display: flex;
-  justify-content: center;
-  align-items: baseline;
-  gap: 16px;
-  margin: 22px 0 0;
-  font: 15px var(--font-hand);
-  color: var(--muted);
-}
-
-.countdown b {
-  display: block;
-  font-size: 34px;
-  font-weight: 400;
-  line-height: 1;
-  color: var(--clay);
 }
 
 .gift-locked .btn-ink {
@@ -824,7 +970,7 @@
     display: inline;
   }
 
-  .ai-note p {
+  .ai-note > p {
     margin-top: 10px;
     font-size: 23px;
   }
@@ -924,6 +1070,52 @@
 
   .letter__footer time {
     font-size: 13px;
+  }
+
+  .reply-form__input {
+    font-size: 19px;
+    line-height: 30px;
+    background: repeating-linear-gradient(transparent 0 29px, var(--rule) 29px 30px);
+  }
+
+  .reply-form__actions {
+    justify-content: stretch;
+  }
+
+  .reply-form__actions .reply-form__send {
+    flex: 1;
+    --rot: 0deg;
+  }
+
+  .thanks__card {
+    padding: 18px 18px 16px;
+  }
+
+  .thanks__intro {
+    font-size: 19px;
+    line-height: 30px;
+  }
+
+  .keepsake__card {
+    padding: 24px 20px 20px;
+  }
+
+  .keepsake__title {
+    font-size: 32px;
+  }
+
+  .keepsake__text {
+    font-size: 18px;
+    line-height: 30px;
+  }
+
+  .keepsake__button {
+    width: 100%;
+    --rot: 0deg;
+  }
+
+  .gift__footer {
+    flex-wrap: wrap;
   }
 
   .react-btn {

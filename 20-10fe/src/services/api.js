@@ -41,6 +41,8 @@ api.interceptors.response.use(
       || (error.code === 'ECONNABORTED' ? 'Máy chủ phản hồi quá chậm' : 'Không thể kết nối tới máy chủ'),
     )
     normalized.status = error.response?.status
+    // Giữ thân phản hồi: màn khoá 423 cần giờ tự mở (unlockAt) và giờ máy chủ
+    normalized.data = error.response?.data
     normalized.isNetworkError = !error.response
     return Promise.reject(normalized)
   },

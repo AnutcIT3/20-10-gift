@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { adminApi, adminAuth } from '../../api/adminApi'
-import { CLASS_NAME } from '../../lib/event'
+import { CLASS_NAME, formatClock } from '../../lib/event'
 import '../../styles/admin.css'
 
 function AdminLayout() {
@@ -14,7 +14,9 @@ function AdminLayout() {
   const [stale, setStale] = useState(false)
   // Sidebar: số lời chúc chờ duyệt (badge), trạng thái khóa trang quà và công
   // tắc Face ID (null = chưa biết, chưa cho bấm)
-  const [sidebar, setSidebar] = useState({ pending: null, locked: null, faceEnabled: null })
+  const [sidebar, setSidebar] = useState({
+    pending: null, repliesPending: null, locked: null, unlockAt: null, faceEnabled: null,
+  })
   const [lockSaving, setLockSaving] = useState(false)
   const [lockError, setLockError] = useState('')
   const [faceSaving, setFaceSaving] = useState(false)
@@ -25,7 +27,9 @@ function AdminLayout() {
       const [stats, settings] = await Promise.all([adminApi.getStats(), adminApi.getSettings()])
       setSidebar({
         pending: Number(stats?.letters?.pending ?? 0),
+        repliesPending: Number(stats?.replies?.pending ?? 0),
         locked: Boolean(settings?.gift_pages_locked),
+        unlockAt: settings?.gift_unlock_at || null,
         faceEnabled: Boolean(settings?.face_enabled),
       })
     } catch {
@@ -100,7 +104,12 @@ function AdminLayout() {
     setLockError('')
     try {
       const updated = await adminApi.updateSettings({ gift_pages_locked: !sidebar.locked })
-      setSidebar((current) => ({ ...current, locked: Boolean(updated?.gift_pages_locked) }))
+      // Mở tay thì máy chủ huỷ luôn giờ hẹn tự mở
+      setSidebar((current) => ({
+        ...current,
+        locked: Boolean(updated?.gift_pages_locked),
+        unlockAt: updated?.gift_pages_locked ? current.unlockAt : null,
+      }))
     } catch (err) {
       setLockError(err.message)
     } finally {
@@ -150,6 +159,10 @@ function AdminLayout() {
             Lời chúc
             {sidebar.pending > 0 && <span className="admin-nav-badge" aria-label={`${sidebar.pending} lời chúc chờ duyệt`}>{sidebar.pending}</span>}
           </NavLink>
+          <NavLink to="/admin/replies">
+            Hồi âm
+            {sidebar.repliesPending > 0 && <span className="admin-nav-badge" aria-label={`${sidebar.repliesPending} hồi âm chờ duyệt`}>{sidebar.repliesPending}</span>}
+          </NavLink>
           <NavLink to="/admin/gallery">Thư viện ảnh</NavLink>
           <NavLink to="/admin/students">Học sinh</NavLink>
           <NavLink to="/admin/seating">Sơ đồ lớp</NavLink>
@@ -174,7 +187,9 @@ function AdminLayout() {
             {locked === null
               ? 'Đang kiểm tra trạng thái…'
               : locked
-                ? <>Đang <b>KHÓA</b> chờ 20/10. Gửi lời chúc vẫn hoạt động.</>
+                ? (sidebar.unlockAt
+                  ? <>Đang <b>KHÓA</b>, tự mở lúc <b>{formatClock(sidebar.unlockAt)}</b>. Gửi lời chúc vẫn hoạt động.</>
+                  : <>Đang <b>KHÓA</b> chờ 20/10. Gửi lời chúc vẫn hoạt động. Hẹn giờ tự mở ở trang Tổng quan.</>)
                 : <>Đang <b>MỞ</b> — mọi người xem được trang quà. Bật khóa để giữ bất ngờ.</>}
           </p>
           {/* BẬT dùng is-on (giữ nền rêu), không mượn is-locked màu đất của khóa */}

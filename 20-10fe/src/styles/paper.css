@@ -383,3 +383,114 @@ button.polaroid__frame {
   font: 20px var(--font-write);
   color: var(--muted);
 }
+
+/* ── Đếm ngược tới 20/10 (màn khoá, trang chủ): ô số kiểu tem ngày ── */
+.countdown {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 16px;
+  margin: 22px 0 0;
+  font: 15px var(--font-hand);
+  color: var(--muted);
+}
+
+.countdown b {
+  display: block;
+  min-width: 1.4em;
+  font-size: 34px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--clay);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Bông hoa 12A1: mỗi bạn mở quà, một cánh tô màu ── */
+.flower {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.flower__art {
+  position: relative;
+  width: var(--flower-size, 170px);
+}
+
+.flower__art svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* Cánh chưa nở: viền nét đứt, hơi thu lại. Đổi class → transition nên chỉ cánh
+   vừa nở lúc đang xem mới có chuyển động; tải trang thì hoa hiện sẵn */
+.flower__petal {
+  fill: rgba(255, 253, 248, .85);
+  stroke: #b9a48d;
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transform: scale(.84);
+  transition: fill .8s ease, stroke .8s ease, transform .8s cubic-bezier(.2, .9, .3, 1.4);
+}
+
+.flower__petal.is-open {
+  fill: var(--peach);
+  stroke: var(--clay);
+  stroke-dasharray: none;
+  transform: scale(1);
+}
+
+.flower.is-complete .flower__petal.is-open {
+  fill: #f0b995;
+}
+
+.flower__count {
+  font: 28px var(--font-hand);
+  fill: var(--peach-soft);
+}
+
+/* Cánh hoa rơi vào giữa mỗi khi có thêm một bạn mở quà */
+.flower__drop {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 13px;
+  height: 17px;
+  border-radius: 50% 50% 50% 0;
+  background: var(--peach);
+  box-shadow: 0 2px 4px rgba(168, 95, 63, .25);
+  pointer-events: none;
+  animation: flowerDrop 1.5s ease-in both;
+}
+
+@keyframes flowerDrop {
+  0% { transform: translate(-50%, -46px) rotate(0); opacity: 0; }
+  20% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translate(-50%, calc(var(--flower-size, 170px) * .44)) rotate(300deg) scale(.4); opacity: 0; }
+}
+
+.flower__caption {
+  font: 16px var(--font-hand);
+  color: var(--muted);
+  text-align: center;
+}
+
+.flower__caption b {
+  font-weight: 400;
+  color: var(--clay);
+}
+
+.flower--compact {
+  --flower-size: 104px;
+}
+
+.flower--compact .flower__caption {
+  font-size: 15px;
+}

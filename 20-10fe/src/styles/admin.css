@@ -774,6 +774,93 @@
   font-size: 16px;
 }
 
+/* ── Thư hồi âm ── */
+.reply-manager__hint {
+  margin: -6px 0 14px;
+}
+
+.reply-manager__hint a {
+  color: var(--clay);
+}
+
+.reply-row__quote {
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border-left: 3px solid var(--beige);
+  background: var(--paper);
+  font: italic 13px/1.5 var(--font-body);
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* ── Thẻ "Ngày 20/10": hẹn giờ tự mở + bông hoa 12A1 ── */
+.dash-event {
+  display: grid;
+  gap: 10px;
+}
+
+.dash-event h3 {
+  margin-bottom: 2px;
+}
+
+.dash-event__state {
+  margin: 0;
+  font: 15px/1.5 var(--font-body);
+  color: var(--ink-2);
+}
+
+.dash-event__state b {
+  color: var(--ink);
+}
+
+.dash-event__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dash-event__row .admin-input {
+  flex: 1 1 190px;
+  min-width: 0;
+}
+
+.dash-event__hint {
+  margin: 0;
+}
+
+.dash-event__flower {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.dash-event__count {
+  margin: 0 0 4px;
+  font: 18px var(--font-hand);
+  color: var(--muted);
+}
+
+.dash-event__count b {
+  font-weight: 400;
+  color: var(--clay);
+  font-size: 24px;
+}
+
+.dash-event__flower .admin-btn {
+  margin-top: 8px;
+}
+
+.dash-event__error {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--peach-soft);
+  color: var(--clay-dark);
+}
+
 /* ── Tổng quan (1h) ── */
 .dash-stats {
   display: grid;

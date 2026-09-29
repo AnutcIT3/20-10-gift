@@ -1,14 +1,16 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import giftRepository from '../api/giftRepository'
 import HeroSection from '../components/HeroSection'
 import PhotoGallery from '../components/PhotoGallery'
 import LetterSection from '../components/LetterSection'
 import GiftLocked from '../components/GiftLocked'
+import KeepsakeCard from '../components/KeepsakeCard'
 import PaperError from '../components/PaperError'
+import ReplyBox from '../components/ReplyBox'
 import TypingText from '../components/TypingText'
 import Petals from '../components/paper/Petals'
-import { CLASS_LABEL } from '../lib/event'
+import { CLASS_LABEL, CLASS_NAME } from '../lib/event'
 import '../styles/gift.css'
 
 const ERROR_VIEWS = {
@@ -84,12 +86,43 @@ function GiftHeader({ studentName }) {
   )
 }
 
-function GiftFooter() {
+function GiftFooter({ openRank }) {
   return (
     <footer className="gift__footer">
       <img src="/logoclass.jpg" alt="" />
       <span>{CLASS_LABEL}</span>
+      {/* Mở quà từ trang chủ thì biết mình là bạn thứ mấy của lớp mở quà */}
+      {openRank && <span className="gift__rank">· bạn thứ {openRank} mở quà 🌸</span>}
     </footer>
+  )
+}
+
+// Cuối trang: vài dòng gửi lại cả lớp, và lối sang Hộp thư hồi âm
+function ThanksSection({ accessCode, replies, onReplied }) {
+  return (
+    <section className="gift__section thanks" aria-labelledby="thanks-title">
+      <h2 id="thanks-title" className="section-title">
+        Gửi lại đôi dòng
+        <span className="section-title__count">cho cả lớp {CLASS_NAME}</span>
+      </h2>
+      <div className="thanks__card letter-paper">
+        <p className="thanks__intro">
+          Đọc xong rồi thì để lại vài chữ cho cả lớp nhé: một lời cảm ơn, một kỷ niệm, hay chỉ một cái mặt cười 😊
+        </p>
+        <ReplyBox
+          accessCode={accessCode}
+          target="class"
+          recipient={`cả lớp ${CLASS_NAME}`}
+          replies={replies}
+          onSent={onReplied}
+          openLabel="✉ Viết cho cả lớp"
+          moreLabel="✉ Viết thêm cho cả lớp"
+        />
+      </div>
+      <p className="thanks__board">
+        <Link to="/hoi-am" className="link-dashed">📬 Xem Hộp thư hồi âm của lớp</Link>
+      </p>
+    </section>
   )
 }
 
@@ -120,6 +153,19 @@ function GiftSkeleton({ withHero }) {
   )
 }
 
+// Lượt mở chờ ghi chỉ có giá trị trong một đêm chờ quà: tab thử cũ được trình
+// duyệt khôi phục vài ngày sau không được góp cánh hoa thay chủ trang
+const PENDING_OPEN_TTL_MS = 12 * 60 * 60 * 1000
+
+// Ghi xong thì xoá lượt mở chờ khỏi history.state (tải lại trang không ghi
+// lại). Sửa thẳng history thay vì navigate: đổi location.state sẽ làm trang
+// tải lại nội dung và nhấp nháy.
+function forgetPendingOpen() {
+  const current = window.history.state
+  if (!current?.usr?.pendingOpen) return
+  window.history.replaceState({ ...current, usr: { ...current.usr, pendingOpen: undefined } }, '')
+}
+
 // ── GiftPage ──────────────────────────────────────────────────────────────────
 function GiftPage() {
   const { accessCode } = useParams()
@@ -129,11 +175,20 @@ function GiftPage() {
   const [student, setStudent] = useState(() => location.state?.student || null)
   const [gallery, setGallery] = useState([])
   const [letters, setLetters] = useState([])
+  // Hồi âm chủ trang đã viết (thư, cả lớp, admin) — hiện lại "cậu đã hồi âm"
+  const [replies, setReplies] = useState([])
   const [aiGreeting, setAiGreeting] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null) // { kind, message }
-  const [locked, setLocked] = useState(false)
+  // Đang khoá chờ 20/10: { unlockAt, serverNow } để màn khoá đếm ngược đúng giờ
+  const [locked, setLocked] = useState(null)
   const [retryKey, setRetryKey] = useState(0)
+  // Bạn gõ tên ở trang chủ lúc quà còn khoá rồi chờ ở màn khoá tới giờ hẹn:
+  // lượt mở được ghi khi quà mở ra ở đây. { code, rank } — rank của đúng trang
+  const [recordedRank, setRecordedRank] = useState(null)
+  const recordedFor = useRef(new Set())
+  const openRank = location.state?.openRank
+    || (recordedRank?.code === accessCode ? recordedRank.rank : null)
 
   useEffect(() => {
     let cancelled = false
@@ -141,7 +196,7 @@ function GiftPage() {
     async function load() {
       setLoading(true)
       setError(null)
-      setLocked(false)
+      setLocked(null)
       setAiGreeting('')
       // Đồng bộ hero với student truyền qua router state; navigate sang access
       // code khác mà không có state thì xóa hero cũ để không hiện nhầm người
@@ -152,6 +207,7 @@ function GiftPage() {
           student: studentData,
           gallery: galleryData,
           letters: lettersData,
+          replies: repliesData,
         } = await giftRepository.getGiftContent(accessCode)
 
         if (cancelled) return
@@ -164,6 +220,18 @@ function GiftPage() {
         setStudent(studentData)
         setGallery(galleryData || [])
         setLetters(lettersData || [])
+        setReplies(repliesData || [])
+        const pendingOpen = location.state?.pendingOpen
+        const fresh = pendingOpen && Date.now() - Number(pendingOpen.at) < PENDING_OPEN_TTL_MS
+        if (fresh && studentData.member_type === 'class' && !recordedFor.current.has(accessCode)) {
+          recordedFor.current.add(accessCode)
+          forgetPendingOpen()
+          giftRepository.recordOpen(accessCode, pendingOpen.via)
+            .then((result) => {
+              if (!cancelled && result?.counted) setRecordedRank({ code: accessCode, rank: result.rank })
+            })
+            .catch(() => {})
+        }
         giftRepository.generateGreeting(
           studentData.full_name,
           // Hồ sơ "bạn bè" ngoài lớp nhận lời chúc kiểu thông thường
@@ -173,7 +241,9 @@ function GiftPage() {
           .catch(() => {})
       } catch (err) {
         if (!cancelled) {
-          if (err.status === 423) setLocked(true)
+          if (err.status === 423) {
+            setLocked({ unlockAt: err.data?.unlockAt || null, serverNow: err.data?.serverNow || null })
+          }
           else if (err.status === 404) setError({ kind: 'notfound', message: 'Có thể đường link đã hết hiệu lực hoặc bạn gõ nhầm. Thử tìm lại tên ở trang chủ nhé.' })
           else if (!navigator.onLine || err.isNetworkError) setError({ kind: 'network', message: 'Không thể kết nối backend. Hãy kiểm tra mạng và chắc chắn server đang chạy.' })
           else setError({ kind: 'error', message: err.message || 'Có lỗi xảy ra, vui lòng thử lại sau.' })
@@ -187,8 +257,18 @@ function GiftPage() {
     return () => { cancelled = true }
   }, [accessCode, retryKey, location.state])
 
-  // Admin đang khóa trang quà chờ ngày 20/10
-  if (locked) return <GiftLocked />
+  const addReply = (reply) => setReplies((current) => [...current, reply])
+
+  // Admin đang khóa trang quà chờ ngày 20/10; tới giờ hẹn thì tự tải lại
+  if (locked) {
+    return (
+      <GiftLocked
+        unlockAt={locked.unlockAt}
+        serverNow={locked.serverNow}
+        onUnlock={() => setRetryKey((key) => key + 1)}
+      />
+    )
+  }
 
   const studentName = student?.nickname || student?.full_name
 
@@ -233,6 +313,15 @@ function GiftPage() {
               <span className="ai-note__label-short">💌 TỪ ADMIN</span>
             </span>
             <p>{student.admin_wish}</p>
+            <ReplyBox
+              accessCode={accessCode}
+              target="admin"
+              recipient="admin"
+              replies={replies.filter((reply) => reply.target === 'admin')}
+              onSent={addReply}
+              openLabel="✉ Hồi âm admin"
+              className="ai-note__reply"
+            />
           </section>
         )}
         {aiGreeting && (
@@ -246,8 +335,14 @@ function GiftPage() {
           </section>
         )}
         <PhotoGallery images={gallery} />
-        <LetterSection letters={letters} accessCode={accessCode} />
-        <GiftFooter />
+        <LetterSection letters={letters} accessCode={accessCode} replies={replies} onReplied={addReply} />
+        <ThanksSection
+          accessCode={accessCode}
+          replies={replies.filter((reply) => reply.target === 'class')}
+          onReplied={addReply}
+        />
+        <KeepsakeCard accessCode={accessCode} studentName={studentName} greeting={aiGreeting} />
+        <GiftFooter openRank={openRank} />
       </div>
     </div>
   )

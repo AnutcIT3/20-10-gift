@@ -24,6 +24,9 @@ function CelebrationPage() {
     : null
   const [audience, setAudience] = useState(presetAudience)
   const [result, setResult] = useState(null)
+  // Bạn cùng lớp (thường là các bạn nam) gõ tên mình: có bạn nữ nào hồi âm
+  // đích danh cho cậu ấy không? { name, count }
+  const [replyInfo, setReplyInfo] = useState(null)
 
   const chooseAudience = (type) => {
     setResult(null)
@@ -46,6 +49,18 @@ function CelebrationPage() {
       })
     return () => { cancelled = true }
   }, [name, audience])
+
+  useEffect(() => {
+    if (audience !== 'classmate' || name.trim().length < 2) return undefined
+    let cancelled = false
+    giftRepository.listReplies({ to: name, exact: true })
+      .then((data) => { if (!cancelled) setReplyInfo({ name, count: Number(data?.total || 0) }) })
+      // Hộp thư còn khoá (423) hay lỗi mạng: chỉ đơn giản là không hiện gì
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [name, audience])
+
+  const replyCount = audience === 'classmate' && replyInfo?.name === name ? replyInfo.count : 0
 
   const currentResult =
     result?.requestName === name && result?.audience === audience ? result : null
@@ -101,6 +116,11 @@ function CelebrationPage() {
               </p>
             )}
             {hasGreeting && <p className="postcard__message">{currentResult.greeting}</p>}
+            {hasGreeting && replyCount > 0 && (
+              <Link className="postcard__replies" to={`/hoi-am?to=${encodeURIComponent(name)}&exact=1`}>
+                📬 Có {replyCount} thư hồi âm gửi {name} — đọc ngay
+              </Link>
+            )}
             <div className="postcard__foot">
               {hasGreeting
                 ? <span className="postcard__sign">— Tập thể lớp {CLASS_NAME}</span>

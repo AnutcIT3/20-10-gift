@@ -66,7 +66,7 @@ async function getGiftContent(accessCode) {
     getGallery(accessCode),
     getLetters(accessCode),
   ])
-  return { student, gallery, letters }
+  return { student, gallery, letters, replies: [] }
 }
 
 async function getGallery(accessCode) {
@@ -149,6 +149,62 @@ async function faceScanClaim() {
   return { ok: true }
 }
 
+// ── Ngày 20/10 ──────────────────────────────────────────────────────────────
+async function getEventStatus() {
+  await delay(100)
+  return { locked: false, unlockAt: null, serverNow: new Date().toISOString(), opened: 5, total: 23, replies: 2 }
+}
+
+async function recordOpen() {
+  await delay(100)
+  return { counted: true, rank: 6, opened: 6, total: 23 }
+}
+
+async function createReply(accessCode, data) {
+  await delay(300)
+  const content = (data.content || '').trim()
+  if (!content) throw Object.assign(new Error('Nội dung không được để trống'), { status: 400 })
+  return {
+    id: Date.now(),
+    target: data.target,
+    letter_id: data.target === 'letter' ? data.letter_id : null,
+    content,
+    status: 'pending',
+    created_at: new Date().toISOString(),
+  }
+}
+
+async function listReplies({ to, exact = false } = {}) {
+  await delay(300)
+  const items = [
+    {
+      id: 2,
+      content: 'Cảm ơn Nam nhiều nha, đọc xong cười cả buổi 😄',
+      created_at: '2026-10-20T01:00:00Z',
+      from: { name: 'Vy', fullName: 'Nguyễn Thúy Vy', friend: false },
+      to: { kind: 'person', name: 'Hoàng Nam' },
+    },
+    {
+      id: 1,
+      content: 'Cảm ơn cả lớp đã làm món quà dễ thương thế này 🌷',
+      created_at: '2026-10-20T00:10:00Z',
+      from: { name: 'Anh', fullName: 'Trần Mai Anh', friend: false },
+      to: { kind: 'class' },
+    },
+  ]
+  const matches = (name) => {
+    const words = ` ${normalizeName(name)} `
+    return words.includes(exact ? ` ${normalizeName(to)} ` : ` ${normalizeName(to)}`)
+  }
+  const filtered = to ? items.filter((item) => item.to.kind === 'person' && matches(item.to.name)) : items
+  return { items: filtered, total: filtered.length }
+}
+
+async function downloadKeepsake(accessCode) {
+  await delay(500)
+  return new Blob([`<!doctype html><title>Quà 20/10</title><p>Bản lưu mẫu của ${accessCode}</p>`], { type: 'text/html' })
+}
+
 const mockGiftRepository = {
   resolveStudent,
   getGift,
@@ -162,6 +218,11 @@ const mockGiftRepository = {
   matchFace,
   faceScanEnd,
   faceScanClaim,
+  getEventStatus,
+  recordOpen,
+  createReply,
+  listReplies,
+  downloadKeepsake,
 }
 
 export default mockGiftRepository

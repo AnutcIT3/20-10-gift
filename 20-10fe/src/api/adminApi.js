@@ -107,6 +107,18 @@ export const adminApi = {
   bulkDeleteLetters: (ids) => request('/api/admin/letters/bulk', {
     method: 'DELETE', body: JSON.stringify({ ids }),
   }),
+  // Thư hồi âm các bạn nữ viết lại — duyệt như lời chúc
+  listReplies: ({ status, page = 1, pageSize = 20 }) => {
+    const params = new URLSearchParams({ status, page, pageSize })
+    return request(`/api/admin/replies?${params}`)
+  },
+  updateReplyStatus: (id, status) => request(`/api/admin/replies/${id}/status`, {
+    method: 'PATCH', body: JSON.stringify({ status }),
+  }),
+  bulkUpdateReplyStatus: (ids, status) => request('/api/admin/replies/bulk/status', {
+    method: 'PATCH', body: JSON.stringify({ ids, status }),
+  }),
+  deleteReply: (id) => request(`/api/admin/replies/${id}`, { method: 'DELETE' }),
   getStats: () => request('/api/admin/stats'),
   // Lịch sử Face ID: chỉ kết quả và con số của từng khung hình, không ảnh
   getFaceSummary: () => request('/api/admin/face/summary'),
