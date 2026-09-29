@@ -7,11 +7,13 @@ import { cld, CLD_TINY } from '../../lib/cloudinary'
 
 const EMPTY_FORM = {
   full_name: '', nickname: '', avatar_url: '', intro_message: '', admin_wish: '', class_name: 'A1', access_code: '', is_active: true,
+  member_type: 'class',
 }
 const FILTERS = [
   { value: 'all', label: 'Tất cả' },
   { value: 'active', label: 'Đang hoạt động' },
   { value: 'friend', label: 'Bạn ngoài lớp' },
+  { value: 'test', label: 'Tài khoản thử' },
   { value: 'noimg', label: 'Chưa có ảnh' },
   { value: 'noavatar', label: 'Chưa có ảnh đại diện' },
 ]
@@ -138,8 +140,10 @@ function StudentManager() {
     return students.filter((student) => {
       if (filter === 'active' && !student.is_active) return false
       if (filter === 'friend' && student.member_type !== 'friend') return false
-      if (filter === 'noimg' && (student.member_type === 'friend' || Number(student.gallery_count) > 0)) return false
-      if (filter === 'noavatar' && (student.member_type === 'friend' || student.avatar_url)) return false
+      if (filter === 'test' && student.member_type !== 'test') return false
+      // Chỉ thành viên lớp cần ảnh: bạn ngoài lớp và tài khoản thử thì không
+      if (filter === 'noimg' && (student.member_type !== 'class' || Number(student.gallery_count) > 0)) return false
+      if (filter === 'noavatar' && (student.member_type !== 'class' || student.avatar_url)) return false
       if (!keyword) return true
       return `${student.full_name || ''} ${student.nickname || ''} ${student.class_name || ''} ${accessCodeOf(student)}`
         .toLowerCase().includes(keyword)
@@ -159,6 +163,8 @@ function StudentManager() {
         admin_wish: form.admin_wish.trim() || null,
         class_name: form.class_name.trim() || null,
       }
+      // Hồ sơ bạn ngoài lớp giữ nguyên loại; còn lại admin chọn lớp hay thử
+      if (form.member_type !== 'friend') data.member_type = form.member_type
       if (editingId) {
         const current = students.find((student) => student.id === editingId)
         await adminApi.updateStudent(editingId, data)
@@ -194,6 +200,7 @@ function StudentManager() {
       class_name: student.class_name || 'A1',
       access_code: accessCodeOf(student),
       is_active: Boolean(student.is_active),
+      member_type: student.member_type || 'class',
     })
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
@@ -269,8 +276,10 @@ function StudentManager() {
     finally { setExporting(false) }
   }
 
-  const classMembers = students.filter((student) => student.member_type !== 'friend').length
-  const withoutAvatar = students.filter((student) => student.member_type !== 'friend' && !student.avatar_url).length
+  // Sĩ số chỉ tính thành viên lớp thật: tài khoản thử đứng riêng một con số
+  const classMembers = students.filter((student) => student.member_type === 'class').length
+  const testAccounts = students.filter((student) => student.member_type === 'test').length
+  const withoutAvatar = students.filter((student) => student.member_type === 'class' && !student.avatar_url).length
 
   return (
     <section>
@@ -279,6 +288,7 @@ function StudentManager() {
           <p className="admin-kicker">Học sinh</p>
           <h2>
             Danh sách lớp · {classMembers} bạn
+            {testAccounts > 0 && <small> · {testAccounts} tài khoản thử</small>}
             {withoutAvatar > 0 && <small className="is-clay"> · {withoutAvatar} chưa có ảnh đại diện</small>}
           </h2>
         </div>
@@ -332,6 +342,14 @@ function StudentManager() {
               <option value="inactive">Đã tắt</option>
             </select>
           </label>
+          {form.member_type !== 'friend' && (
+            <label className="admin-field">Loại
+              <select className="input-hand" value={form.member_type} onChange={(e) => setForm({ ...form, member_type: e.target.value })}>
+                <option value="class">Thành viên lớp</option>
+                <option value="test">Tài khoản thử (không tính vào lớp)</option>
+              </select>
+            </label>
+          )}
           <label className="admin-field">Lớp<input className="input-hand" maxLength={20} value={form.class_name} onChange={(e) => setForm({ ...form, class_name: e.target.value })} /></label>
           <label className="admin-field">
             Ảnh đại diện (link ảnh trong thư viện)
@@ -388,17 +406,19 @@ function StudentManager() {
           : filteredStudents.length === 0 ? <p className="admin-loading" style={{ padding: '16px 18px' }}>Không có học sinh phù hợp.</p>
           : filteredStudents.map((student) => {
             const isFriend = student.member_type === 'friend'
+            const isTest = student.member_type === 'test'
             const photos = Number(student.gallery_count ?? 0)
-            const noImage = !isFriend && photos === 0
-            const noAvatar = !isFriend && !student.avatar_url
+            const noImage = !isFriend && !isTest && photos === 0
+            const noAvatar = !isFriend && !isTest && !student.avatar_url
             const seat = seatLabel(student.seat_row, student.seat_col)
             const initial = (student.nickname || student.full_name || '?').trim().charAt(0).toUpperCase()
             const statusLine = [
               student.nickname && student.nickname !== student.full_name ? `"${student.nickname}"` : null,
               isFriend ? 'bạn ngoài lớp · tự tạo khi có lời chúc'
                 : !student.is_active ? 'đã tắt'
-                  : noImage ? 'chưa có ảnh'
-                    : noAvatar ? 'chưa chọn ảnh đại diện' : 'đang hoạt động',
+                  : isTest ? 'tài khoản thử · không tính vào lớp'
+                    : noImage ? 'chưa có ảnh'
+                      : noAvatar ? 'chưa chọn ảnh đại diện' : 'đang hoạt động',
             ].filter(Boolean).join(' · ')
             return (
               <div key={student.id} className={`stu-row${noImage ? ' stu-row--noimg' : ''}`} role="row">
@@ -408,7 +428,7 @@ function StudentManager() {
                   </span>
                   <div>
                     <b>{student.full_name}</b>
-                    <small className={isFriend ? 'is-moss' : (noImage || noAvatar) ? 'is-clay' : ''}>{statusLine}</small>
+                    <small className={isFriend || isTest ? 'is-moss' : (noImage || noAvatar) ? 'is-clay' : ''}>{statusLine}</small>
                   </div>
                 </div>
                 <span className={`stu-cell${seat ? '' : ' stu-cell--muted'}`} role="cell">{seat ? capitalize(seat) : '—'}</span>

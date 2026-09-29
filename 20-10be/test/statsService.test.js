@@ -71,6 +71,9 @@ test('dashboard stats normalizes aggregate values and reaction totals', async ()
     assert.match(seen[3], /member_type = 'class'/);
     assert.match(seen[4], /member_type = 'class'/);
     assert.match(seen[4], /avatar_url IS NULL/);
+    // Tài khoản thử không nằm trong sĩ số, lượt xem hay bảng xem nhiều nhất
+    assert.match(seen[0], /member_type <> 'test'/);
+    assert.match(seen[5], /member_type <> 'test'/);
     assert.deepEqual(result.letters, { pending: 1, approved: 4, rejected: 0, scheduled: 0 });
     assert.deepEqual(result.reactions, { byEmoji: { love: 3, think: 1 }, total: 4 });
     assert.equal(result.gallery.studentsWithoutImages, 19);

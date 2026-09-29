@@ -11,7 +11,9 @@ async function exportStudentsCsv() {
        s.full_name,
        s.nickname,
        s.class_name,
-       IF(s.is_active, 'Hoạt động', 'Đã tắt')     AS status,
+       CASE WHEN NOT s.is_active THEN 'Đã tắt'
+            WHEN s.member_type = 'test' THEN 'Tài khoản thử'
+            ELSE 'Hoạt động' END                  AS status,
        s.view_count,
        COUNT(DISTINCT l.id)                         AS total_letters,
        COUNT(DISTINCT CASE WHEN l.status = 'approved' THEN l.id END)

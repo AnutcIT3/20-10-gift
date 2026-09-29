@@ -155,7 +155,7 @@ qua HTTPS/localhost không.
 
 ## Ngày 20/10: hẹn giờ tự mở, bông hoa, hồi âm, bản lưu
 
-Cần migration 020 (bảng `letter_replies` và `gift_opens`). `start-dev.bat` không
+Cần migration 020 (bảng `letter_replies` và `gift_opens`) và 021 (tài khoản thử). `start-dev.bat` không
 tự chạy migrate, nên sau khi kéo code về hãy chạy một lần trong `20-10be`:
 
 ```powershell
@@ -184,6 +184,13 @@ không được tính, để admin kiểm tra trang quà không làm hoa nở th
 hoa tự bắt đầu đếm lại từ đúng giờ đó (các lượt mở thử trước ngày không tính).
 Mở tay thì nhớ bấm **Đặt lại bông hoa** ở thẻ Ngày 20/10 — chỉ dời mốc đếm
 (`gift_opens_since`), không xoá dữ liệu nào.
+
+**Tài khoản thử.** Hồ sơ tạo ra để thử (gõ tên, Face ID, gửi thư) thì vào
+Admin → Học sinh → **Sửa thông tin** → ô **Loại** chọn *Tài khoản thử* (cần
+migration 021). Tài khoản thử vẫn mở quà như thành viên lớp, nhưng không nằm
+trong bông hoa, sĩ số, thẻ Học sinh / Lượt xem ở Tổng quan và danh sách Face ID
+của lớp. Trước 20/10 nếu không muốn ai mở được nữa thì **Tắt trang** các tài
+khoản này.
 
 **Thư hồi âm.** Dưới mỗi lá thư trên trang quà có nút **✉ Hồi âm**; lời chúc
 riêng của admin cũng có, và cuối trang có ô gửi cả lớp. Hồi âm chờ duyệt ở
@@ -392,7 +399,7 @@ Public:
 - `GET /api/gifts/:accessCode/content` — student, gallery, letters (kèm cảm xúc) và `replies` (hồi âm chủ trang đã viết, trừ bị từ chối)
 - `POST /api/gifts/:accessCode/letters`
 - `GET /api/event` — `{ locked, unlockAt, serverNow }`, đã mở thì thêm `{ opened, total, replies }` (bông hoa 12A1 và số hồi âm đã duyệt); hạn mức riêng 10000/15 phút/IP, kết quả đệm 5 giây
-- `POST /api/gifts/:accessCode/open` — JSON `{ via: 'name' | 'face' }`, ghi một lượt mở quà từ trang chủ → `{ counted, rank, opened, total }`; hồ sơ bạn ngoài lớp trả `counted: false`
+- `POST /api/gifts/:accessCode/open` — JSON `{ via: 'name' | 'face' }`, ghi một lượt mở quà từ trang chủ → `{ counted, rank, opened, total }`; hồ sơ bạn ngoài lớp và tài khoản thử trả `counted: false`
 - `POST /api/gifts/:accessCode/replies` — JSON `{ target: 'letter' | 'class' | 'admin', letter_id?, content ≤ 2000 }`, luôn vào `pending`; chỉ trả lời được thư đã duyệt, đã tới giờ hiện của chính trang đó; 60 lượt/giờ/(trang, IP)
 - `POST /api/gifts/:accessCode/keepsake` — JSON `{ greeting? }`, trả file `.html` tự chứa (`Content-Disposition: attachment`); 300 lượt/15 phút/IP
 - `GET /api/replies?to=&exact=1` — Hộp thư hồi âm: hồi âm đã duyệt (trừ thư riêng gửi admin), mới nhất trước; `to` ≥ 2 ký tự, khớp từ đầu chữ, `exact=1` khớp trọn chữ

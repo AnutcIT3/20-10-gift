@@ -33,12 +33,14 @@ async function recordView(studentId, sessionId) {
  * Tổng hợp toàn bộ thống kê cho admin dashboard.
  */
 async function getDashboardStats() {
+  // Tài khoản thử không tính vào sĩ số lẫn lượt xem: chúng chỉ để thử trang
   const [[studentRow]] = await pool.execute(
     `SELECT
        COUNT(*)                          AS total,
        SUM(is_active = TRUE)             AS active,
        SUM(view_count)                   AS totalViews
-     FROM students`,
+     FROM students
+     WHERE member_type <> 'test'`,
   );
 
   const [[letterRow]] = await pool.execute(
@@ -77,7 +79,7 @@ async function getDashboardStats() {
   const [topViewed] = await pool.execute(
     `SELECT id, full_name, nickname, avatar_url, view_count
      FROM students
-     WHERE is_active = TRUE
+     WHERE is_active = TRUE AND member_type <> 'test'
      ORDER BY view_count DESC
      LIMIT 5`,
   );

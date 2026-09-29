@@ -192,6 +192,7 @@ function ReplyManager() {
                     <span className="letter-row__to">→ <b>{recipientOf(reply)}</b></span>
                     <span className="chip chip--beige">{TARGET_LABELS[reply.target] || reply.target}</span>
                     {reply.member_type === 'friend' && <span className="chip chip--moss">bạn ngoài lớp</span>}
+                    {reply.member_type === 'test' && <span className="chip chip--moss">tài khoản thử</span>}
                     <span className={`admin-badge ${reply.status}`}>
                       {STATUSES.find((item) => item.value === reply.status)?.label || reply.status}
                     </span>

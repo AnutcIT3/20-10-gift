@@ -216,7 +216,7 @@ async function embedImage(buffer, mimetype, maxFaces) {
 const GALLERY_SQL = `SELECT fp.student_id, fp.kind, fp.embedding, s.full_name, s.nickname, s.access_code
      FROM face_profiles fp
      JOIN students s ON s.id = fp.student_id
-     WHERE fp.model = ? AND s.is_active = TRUE AND s.member_type = 'class'`;
+     WHERE fp.model = ? AND s.is_active = TRUE AND s.member_type IN ('class', 'test')`;
 
 async function loadGallery() {
   const now = Date.now();
@@ -475,7 +475,7 @@ async function claimScans(tokens, accessCode) {
 
   const [students] = await pool.execute(
     `SELECT id FROM students
-     WHERE access_code = ? AND is_active = TRUE AND member_type = 'class' LIMIT 1`,
+     WHERE access_code = ? AND is_active = TRUE AND member_type IN ('class', 'test') LIMIT 1`,
     [accessCode],
   );
   const studentId = students[0]?.id;
