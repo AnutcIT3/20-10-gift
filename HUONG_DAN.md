@@ -18,6 +18,7 @@ link, Face ID, cấu hình, API và scripts. Món quà này là gì và vì sao 
 - Frontend dùng API thật qua Axios.
 - Tên không thuộc danh sách nhận lời chúc vui từ Gemini; nếu Gemini lỗi hoặc chưa cấu hình, backend dùng lời chúc tĩnh.
 - Face ID (tùy chọn): bạn trong lớp có thể mở trang quà bằng camera thay vì gõ tên. Tính năng tự ẩn khi service Python không chạy hoặc admin tắt công tắc — xem mục [Face ID](#face-id-tùy-chọn).
+- Ngày 20/10: hẹn giờ quà tự mở (cả lớp cùng đếm ngược), bông hoa 12A1 đếm từng bạn mở quà, thư hồi âm và bản lưu quà tải về máy — xem mục [Ngày 20/10](#ngày-2010-hẹn-giờ-tự-mở-bông-hoa-hồi-âm-bản-lưu).
 
 ## Chạy nhanh trên Windows
 
@@ -152,6 +153,65 @@ Thẻ không hiện? Kiểm tra theo thứ tự: `/health` của face-service, c
 `face_enabled`, số `profiles` trong `GET /api/face/status`, và trang có đang mở
 qua HTTPS/localhost không.
 
+## Ngày 20/10: hẹn giờ tự mở, bông hoa, hồi âm, bản lưu
+
+Cần migration 020 (bảng `letter_replies` và `gift_opens`). `start-dev.bat` không
+tự chạy migrate, nên sau khi kéo code về hãy chạy một lần trong `20-10be`:
+
+```powershell
+npm run migrate
+```
+
+Máy chưa migrate thì trang quà vẫn mở bình thường — chỉ thiếu bông hoa và hồi âm.
+
+**Hẹn giờ quà tự mở.** Admin → Tổng quan → thẻ **🎉 Ngày 20/10** (chỉ hiện phần
+hẹn giờ khi trang quà đang khoá): chọn giờ hoặc bấm **Hẹn đúng 00:00 · 20/10**.
+Từ đó trang chủ và màn "Chưa đến ngày" đếm ngược tới từng giây theo đồng hồ máy
+chủ (điện thoại chạy lệch giờ cũng không mở sớm). Không cần tiến trình nào chạy
+nền: quá giờ hẹn thì request đầu tiên tự gạt khoá (key `gift_unlock_at` trong
+`app_settings`), nên máy chủ khởi động lại giữa chừng cũng không lỡ giờ. Gạt
+công tắc (mở hay khoá) bằng tay thì lịch hẹn bị huỷ, và chỉ hẹn được lúc trang
+quà đang khoá (đang mở thì máy chủ trả 409). **Laptop vẫn phải bật lúc 00:00.**
+
+**Bông hoa 12A1.** Trang chủ có một bông hoa, mỗi cánh là một thành viên lớp;
+bạn nào mở quà từ trang chủ (gõ tên hoặc Face ID) thì cánh đó nở, và màn mở quà
+báo "bạn thứ mấy của lớp mở quà" (xếp theo thứ tự ghi, hai bạn mở cùng giây
+vẫn khác hạng). Gõ tên lúc quà còn khoá rồi chờ ở màn "Chưa đến ngày" tới giờ
+hẹn cũng được tính, ngay khi quà mở ra; màn chờ tự hỏi lại trạng thái 30 giây
+một lần nên admin hẹn, đổi giờ hay mở tay lúc bạn đang chờ thì màn chờ vẫn theo
+kịp. Mở thẳng bằng link
+không được tính, để admin kiểm tra trang quà không làm hoa nở thay các bạn. Lúc quà tự mở theo giờ hẹn,
+hoa tự bắt đầu đếm lại từ đúng giờ đó (các lượt mở thử trước ngày không tính).
+Mở tay thì nhớ bấm **Đặt lại bông hoa** ở thẻ Ngày 20/10 — chỉ dời mốc đếm
+(`gift_opens_since`), không xoá dữ liệu nào.
+
+**Thư hồi âm.** Dưới mỗi lá thư trên trang quà có nút **✉ Hồi âm**; lời chúc
+riêng của admin cũng có, và cuối trang có ô gửi cả lớp. Hồi âm chờ duyệt ở
+admin → **Hồi âm** (badge đỏ trên thanh bên), duyệt xong hiện ở **Hộp thư hồi
+âm** `/hoi-am` — ai có link trang đều đọc được, kể cả khách, ô viết hồi âm nói
+rõ điều đó. Riêng hồi âm **gửi admin** là thư riêng: nội dung chỉ hiện ở trang
+admin (nút "✓ Đã đọc"), không lên Hộp thư, không vào bản lưu; trang quà chỉ báo
+"cậu đã gửi admin một lá thư riêng". Bạn nam gõ tên mình ở trang chủ (luồng
+"thành viên trong lớp", sang trang chúc chung) sẽ thấy "📬 Có N thư hồi âm gửi
+…" khi tên khớp **trọn chữ và đúng dấu** với người ký thư ("An" không đếm thư
+gửi "Anh" hay "Ân", "Hưng" không đếm "Hùng"; thư ký không dấu "Tuan" vẫn tính
+cho "Tuấn"); ô tìm ở Hộp thư thì bỏ dấu và khớp từ đầu chữ, gõ tới đâu lọc tới
+đó, từ 2 ký tự. Người gửi ẩn danh
+không bao giờ lộ tên: hộp thư chỉ ghi "một người bạn ẩn danh" kèm lúc họ gửi
+thư để chính họ nhận ra. Hộp thư hồi âm khoá cùng trang quà. Ai gõ được tên một
+bạn cũng mở được trang quà của bạn ấy, nên cũng viết được hồi âm dưới tên bạn
+ấy — hồi âm lạ giọng thì cứ từ chối như lời chúc lạ.
+
+**Cất quà vào máy.** Cuối trang quà có nút **💾 Tải bản lưu**: máy chủ gói cả
+trang (ảnh, thư, lời chúc AI đang hiện, hồi âm, font, logo) thành **một file
+`.html` tự chứa**, không JavaScript, mở được bằng trình duyệt bất kỳ và không cần
+mạng — in hay lưu PDF bằng Ctrl + P. Ảnh được máy chủ tải từ Cloudinary (bản
+1280 px, JPEG) rồi nhúng thẳng vào file, nên lúc bấm tải máy chủ phải có mạng;
+ảnh nào tải lỗi thì giữ link mạng thay vì làm hỏng cả file. Máy chủ chỉ gọi tới
+`res.cloudinary.com`, không bao giờ tải một địa chỉ tuỳ ý. Trình duyệt nhúng
+trong Zalo/Messenger thường không lưu được file — trang tự nhắc mở bằng
+Safari/Chrome.
+
 ## Yêu cầu
 
 - Node.js >= 20
@@ -263,8 +323,8 @@ chạy lại được trong vài phút.
 
 Repository lưu một snapshot dữ liệu dùng chung tại
 `20-10be/backups/current-data.sql`. Snapshot gồm học sinh, gallery, lời chúc,
-reaction, lượt xem và các mã truy cập trang quà; không gồm tài khoản admin, mật
-khẩu, secret hoặc lịch sử migration. Chỉ commit snapshot này vào repository riêng
+reaction, lượt xem, thư hồi âm, lượt mở quà và các mã truy cập trang quà; không
+gồm tài khoản admin, mật khẩu, secret hoặc lịch sử migration. Chỉ commit snapshot này vào repository riêng
 tư và giới hạn người được cấp quyền đọc.
 
 Sau khi thay đổi dữ liệu trên máy chính:
@@ -293,7 +353,10 @@ npm run create-admin
 
 Hoặc double-click `sync-data.bat` và chọn `2`.
 
-`npm run restore` thay thế dữ liệu hiện có trong năm bảng dùng chung bằng nội
+`npm run restore` chạy phiên MySQL ở UTC (snapshot ghi giờ dạng UTC) rồi dọn hồi
+âm, lượt mở quà trỏ vào thư hay học sinh không còn (snapshot cũ hơn migration 020
+không mang theo hai bảng này). Máy chưa chạy migration 020 thì backup bỏ qua hai
+bảng mới thay vì báo lỗi. Lệnh thay thế dữ liệu hiện có trong các bảng dùng chung bằng nội
 dung snapshot. Hãy chạy `npm run backup` trước để tạo một bản phục hồi cục bộ
 nếu máy đích có dữ liệu riêng cần giữ lại. Các file backup cục bộ được Git bỏ qua.
 
@@ -309,11 +372,13 @@ các admin dùng cùng URL public không cần pull Git để thấy thay đổi
 | `/` | Tìm tên và mở quà |
 | `/gift/:accessCode` | Không gian cá nhân, chỉ xem lời chúc đã duyệt |
 | `/celebrate/:name` | Lời chúc Gemini/fallback cho tên ngoài danh sách |
+| `/hoi-am` | Hộp thư hồi âm (`?to=Tên` lọc hồi âm gửi đích danh một người) |
 | `/admin/login` | Đăng nhập admin |
 | `/admin` | Tổng quan |
 | `/admin/students` | Quản lý học sinh |
 | `/admin/gallery` | Upload, sắp xếp, xóa ảnh |
 | `/admin/letters` | Duyệt, từ chối, xóa lời chúc |
+| `/admin/replies` | Duyệt, từ chối, xóa thư hồi âm |
 | `/admin/seating` | Sơ đồ lớp, xếp chỗ ngồi |
 
 ## API chính
@@ -324,7 +389,15 @@ Public:
 - `GET /api/gifts/:accessCode`
 - `GET /api/gifts/:accessCode/gallery`
 - `GET /api/gifts/:accessCode/letters`
+- `GET /api/gifts/:accessCode/content` — student, gallery, letters (kèm cảm xúc) và `replies` (hồi âm chủ trang đã viết, trừ bị từ chối)
 - `POST /api/gifts/:accessCode/letters`
+- `GET /api/event` — `{ locked, unlockAt, serverNow }`, đã mở thì thêm `{ opened, total, replies }` (bông hoa 12A1 và số hồi âm đã duyệt); hạn mức riêng 10000/15 phút/IP, kết quả đệm 5 giây
+- `POST /api/gifts/:accessCode/open` — JSON `{ via: 'name' | 'face' }`, ghi một lượt mở quà từ trang chủ → `{ counted, rank, opened, total }`; hồ sơ bạn ngoài lớp trả `counted: false`
+- `POST /api/gifts/:accessCode/replies` — JSON `{ target: 'letter' | 'class' | 'admin', letter_id?, content ≤ 2000 }`, luôn vào `pending`; chỉ trả lời được thư đã duyệt, đã tới giờ hiện của chính trang đó; 60 lượt/giờ/(trang, IP)
+- `POST /api/gifts/:accessCode/keepsake` — JSON `{ greeting? }`, trả file `.html` tự chứa (`Content-Disposition: attachment`); 300 lượt/15 phút/IP
+- `GET /api/replies?to=&exact=1` — Hộp thư hồi âm: hồi âm đã duyệt (trừ thư riêng gửi admin), mới nhất trước; `to` ≥ 2 ký tự, khớp từ đầu chữ, `exact=1` khớp trọn chữ
+- Khi trang quà khoá, các route xem/hồi âm/bản lưu/mở quà trả 423 kèm `unlockAt` và `serverNow`
+- Mọi route `/api/gifts/:accessCode/*` trả 404 ngay khi mã không phải chữ-số ASCII (`[A-Za-z0-9_-]`) — MySQL so khớp bỏ qua hoa/thường, dấu và dấu cách cuối, nên chặn trước để hạn mức theo trang không bị né bằng biến thể của mã
 - `POST /api/greetings/generate`
 - `GET /api/face/status` — `{ enabled, model, profiles }`; trang chủ dựa vào đây để hiện/ẩn thẻ Face ID, không bao giờ lỗi (mọi sự cố → `enabled: false`)
 - `POST /api/face/match` — multipart, một file `frame` (JPEG/PNG/WebP ≤ 1 MB), tùy chọn `scan` (mã lượt quét 32 ký tự hex) và `t` (ms từ lúc camera chạy); trả `decision` là `match` (kèm `matchId`, `giftPath`, `displayName`, `score`, `margin`), `reject`, `no_face`, `low_quality` (`reason`: `small`/`dark`/`blurry`) hoặc `many_faces`; 503 khi Face ID tắt hoặc service không trả lời, 429 khi quá 10000 request/15 phút. Có `scan` thì mọi khung (kể cả bị cổng chất lượng chặn) được ghi số vào lượt đó
@@ -340,7 +413,8 @@ Admin — yêu cầu `Authorization: Bearer <token>`:
 - `/api/gallery/*`
 - `/api/admin/letters`
 - `/api/letters/*`
-- `GET/PATCH /api/admin/settings` — khóa/mở trang quà chờ ngày 20/10 (`gift_pages_locked`) và bật/tắt Face ID (`face_enabled`); PATCH gửi một trong hai key
+- `GET/PATCH /api/admin/settings` — khóa/mở trang quà chờ ngày 20/10 (`gift_pages_locked`), giờ tự mở (`gift_unlock_at`: ISO ở tương lai, `null` để huỷ), đặt lại bông hoa (`reset_gift_opens: true`) và bật/tắt Face ID (`face_enabled`); PATCH gửi một key mỗi lần
+- `GET /api/admin/replies?status=pending|approved|rejected&page=&pageSize=` — hồi âm kèm trích lá thư gốc; `PATCH /api/admin/replies/:id/status`, `PATCH /api/admin/replies/bulk/status`, `DELETE /api/admin/replies/:id`
 - `GET /api/admin/face/summary` — tổng theo kết quả, thời gian nhận ra (trung vị), nguyên nhân các lượt chưa thành, từng thành viên lớp
 - `GET /api/admin/face/scans?filter=all|ok|fail&studentId=&before=&limit=` — lịch sử lượt quét, mới nhất trước
 - `GET /api/admin/face/scans/:id` — một lượt kèm từng khung hình; `DELETE /api/admin/face/scans` — xoá sạch lịch sử quét
