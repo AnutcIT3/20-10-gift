@@ -28,19 +28,21 @@ function saveBlob(blob, filename) {
 }
 
 /**
- * "Cất quà vào máy": tải một file .html tự chứa (ảnh, thư, lời chúc, font) để
- * vài năm nữa vẫn mở lại được, không cần mạng hay chiếc laptop chạy trang này.
+ * "Cất quà vào máy": tải bản lưu PDF (ảnh, thư, lời chúc) để vài năm nữa vẫn
+ * mở lại được, không cần mạng hay chiếc laptop chạy trang này. Máy chủ không
+ * in được PDF thì trả file .html — đuôi file đặt theo thứ thật sự nhận về.
  * Gửi kèm lời chúc AI đang hiện để bản lưu giữ đúng câu cậu đã đọc.
  */
 function KeepsakeCard({ accessCode, studentName, greeting }) {
   const [state, setState] = useState({ status: 'idle', message: '' })
   const inApp = typeof navigator !== 'undefined' && IN_APP_BROWSER.test(navigator.userAgent || '')
-  const filename = `qua-20-10-${slugify(studentName) || 'cua-ban'}.html`
+  const baseName = `qua-20-10-${slugify(studentName) || 'cua-ban'}`
 
   const download = async () => {
     setState({ status: 'working', message: '' })
     try {
       const blob = await giftRepository.downloadKeepsake(accessCode, greeting)
+      const filename = `${baseName}.${blob.type === 'application/pdf' ? 'pdf' : 'html'}`
       saveBlob(blob, filename)
       setState({ status: 'done', message: filename })
     } catch (err) {
@@ -56,8 +58,7 @@ function KeepsakeCard({ accessCode, studentName, greeting }) {
         <Stamp variant="date" rotate={-6} className="keepsake__stamp" />
         <h2 id="keepsake-title" className="keepsake__title">Cất quà vào máy</h2>
         <p className="keepsake__text">
-          Trang này chạy nhờ một chiếc laptop của lớp. Tải bản lưu về để vài năm nữa vẫn mở lại được:
-          ảnh, thư và lời chúc gói gọn trong một file, mở bằng trình duyệt nào cũng được, không cần mạng.
+          Cậu có thể tải bản lưu pdf về để lưu giữ làm kỉ niệm nhé, hết hôm nay là chúng ta lại hẹn 1 năm nữa rồi :(
         </p>
         <button type="button" className="btn-stamp btn-stamp--fill keepsake__button" onClick={download} disabled={working} aria-busy={working}>
           {working ? 'Đang gói quà…' : '💾 Tải bản lưu'}

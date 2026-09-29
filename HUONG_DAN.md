@@ -210,9 +210,14 @@ bạn cũng mở được trang quà của bạn ấy, nên cũng viết đượ
 ấy — hồi âm lạ giọng thì cứ từ chối như lời chúc lạ.
 
 **Cất quà vào máy.** Cuối trang quà có nút **💾 Tải bản lưu**: máy chủ gói cả
-trang (ảnh, thư, lời chúc AI đang hiện, hồi âm, font, logo) thành **một file
-`.html` tự chứa**, không JavaScript, mở được bằng trình duyệt bất kỳ và không cần
-mạng — in hay lưu PDF bằng Ctrl + P. Ảnh được máy chủ tải từ Cloudinary (bản
+trang (ảnh, thư, lời chúc AI đang hiện, hồi âm, font, logo) thành một trang HTML
+tự chứa, không JavaScript, rồi dùng Chrome (không có thì Edge) đã cài trên máy in
+ra **file PDF khổ A4** qua `puppeteer-core` — không tải thêm Chromium nào. Máy
+chủ in tối đa 2 bản cùng lúc, thêm 20 bạn xếp hàng; đông hơn thì trang báo chờ
+một phút rồi bấm lại (503). Máy không có Chrome/Edge chạy được thì trả chính file
+`.html` tự chứa (mở bằng trình duyệt nào cũng được, không cần mạng) và trang quà
+tự đặt đuôi file cho đúng. Trình duyệt nằm chỗ lạ thì đặt `PDF_BROWSER_PATH`
+trong `20-10be/.env`. Ảnh được máy chủ tải từ Cloudinary (bản
 1280 px, JPEG) rồi nhúng thẳng vào file, nên lúc bấm tải máy chủ phải có mạng;
 ảnh nào tải lỗi thì giữ link mạng thay vì làm hỏng cả file. Máy chủ chỉ gọi tới
 `res.cloudinary.com`, không bao giờ tải một địa chỉ tuỳ ý. Trình duyệt nhúng
@@ -401,7 +406,7 @@ Public:
 - `GET /api/event` — `{ locked, unlockAt, serverNow }`, đã mở thì thêm `{ opened, total, replies }` (bông hoa 12A1 và số hồi âm đã duyệt); hạn mức riêng 10000/15 phút/IP, kết quả đệm 5 giây
 - `POST /api/gifts/:accessCode/open` — JSON `{ via: 'name' | 'face' }`, ghi một lượt mở quà từ trang chủ → `{ counted, rank, opened, total }`; hồ sơ bạn ngoài lớp và tài khoản thử trả `counted: false`
 - `POST /api/gifts/:accessCode/replies` — JSON `{ target: 'letter' | 'class' | 'admin', letter_id?, content ≤ 2000 }`, luôn vào `pending`; chỉ trả lời được thư đã duyệt, đã tới giờ hiện của chính trang đó; 60 lượt/giờ/(trang, IP)
-- `POST /api/gifts/:accessCode/keepsake` — JSON `{ greeting? }`, trả file `.html` tự chứa (`Content-Disposition: attachment`); 300 lượt/15 phút/IP
+- `POST /api/gifts/:accessCode/keepsake` — JSON `{ greeting?, format? }`; `format: 'pdf'` trả file PDF (không in được thì trả `.html`, hàng chờ đầy thì 503 + `Retry-After`), bỏ trống thì trả file `.html` tự chứa (`Content-Disposition: attachment`); 300 lượt/15 phút/IP
 - `GET /api/replies?to=&exact=1` — Hộp thư hồi âm: hồi âm đã duyệt (trừ thư riêng gửi admin), mới nhất trước; `to` ≥ 2 ký tự, khớp từ đầu chữ, `exact=1` khớp trọn chữ
 - Khi trang quà khoá, các route xem/hồi âm/bản lưu/mở quà trả 423 kèm `unlockAt` và `serverNow`
 - Mọi route `/api/gifts/:accessCode/*` trả 404 ngay khi mã không phải chữ-số ASCII (`[A-Za-z0-9_-]`) — MySQL so khớp bỏ qua hoa/thường, dấu và dấu cách cuối, nên chặn trước để hạn mức theo trang không bị né bằng biến thể của mã

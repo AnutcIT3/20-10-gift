@@ -207,11 +207,11 @@ function cleanGreeting(value) {
   return text.length > MAX_GREETING_LENGTH ? `${text.slice(0, MAX_GREETING_LENGTH).trim()}…` : text;
 }
 
-function keepsakeFilename(student) {
+function keepsakeFilename(student, format = 'html') {
   const slug = normalizeName(student.nickname || student.full_name || '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
-  return `qua-20-10-${slug || 'cua-ban'}.html`;
+  return `qua-20-10-${slug || 'cua-ban'}.${format === 'pdf' ? 'pdf' : 'html'}`;
 }
 
 const CSS = `
@@ -298,6 +298,11 @@ html,body{background:#fff}
 .letter,.note,.reply{border:1px solid var(--beige)}
 .polaroid{border:1px solid var(--beige-2)}
 h2{break-after:avoid}
+.tape{top:2px}
+.letter:nth-child(n){--rot:0deg}
+.photos{grid-template-columns:repeat(3,1fr);gap:24px 16px}
+.photos figcaption{font-size:16px}
+.letter .polaroid{width:min(280px,100%)}
 }
 `;
 
@@ -355,7 +360,7 @@ function replyRecipient(reply, lettersById) {
  */
 function renderKeepsake({
   student, gallery = [], letters = [], replies = [], greeting = null,
-  srcOf = (url) => remoteSrc(url), logo = null, fontCss = '', now = new Date(),
+  srcOf = (url) => remoteSrc(url), logo = null, fontCss = '', now = new Date(), format = 'html',
 }) {
   const displayName = student.nickname || student.full_name;
   const isFriend = student.member_type === 'friend';
@@ -421,8 +426,10 @@ ${brand}
 ${sections.join('\n')}
 <footer>
 ${brand}
-<p>Bản lưu tải về lúc ${escapeHtml(formatStamp(now))}. Mở bằng trình duyệt nào cũng được, không cần mạng.</p>
-<p>Muốn in hay lưu PDF: mở file bằng trình duyệt, chọn In (Ctrl + P) rồi Lưu thành PDF.</p>
+${format === 'pdf'
+    ? `<p>Bản lưu tải về lúc ${escapeHtml(formatStamp(now))}.</p>`
+    : `<p>Bản lưu tải về lúc ${escapeHtml(formatStamp(now))}. Mở bằng trình duyệt nào cũng được, không cần mạng.</p>
+<p>Muốn in hay lưu PDF: mở file bằng trình duyệt, chọn In (Ctrl + P) rồi Lưu thành PDF.</p>`}
 </footer>
 </main>
 </body>
@@ -430,9 +437,10 @@ ${brand}
 `;
 }
 
-// Dựng bản lưu hoàn chỉnh: nhúng ảnh, font, logo rồi gọi renderKeepsake
+// Dựng bản lưu hoàn chỉnh: nhúng ảnh, font, logo rồi gọi renderKeepsake.
+// format 'pdf' chỉ đổi lời cuối trang và đuôi file; HTML này sẽ được in ra PDF
 async function buildKeepsake({
-  student, gallery = [], letters = [], replies = [], greeting = null,
+  student, gallery = [], letters = [], replies = [], greeting = null, format = 'html',
 }, { fetchImpl = fetch, now = new Date(), logger = console } = {}) {
   const wanted = [
     cloudinaryVariant(student.avatar_url, TRANSFORMS.avatar),
@@ -455,8 +463,9 @@ async function buildKeepsake({
     logo: loadLogo(),
     fontCss: loadFontCss(),
     now,
+    format,
   });
-  return { html, filename: keepsakeFilename(student), embedded: embedded.size };
+  return { html, filename: keepsakeFilename(student, format), embedded: embedded.size };
 }
 
 function clearCache() {

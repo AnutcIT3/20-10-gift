@@ -75,8 +75,8 @@ và **máy phải bật suốt ngày 20/10**.
 - [ ] Nhờ 1-2 bạn đã biết bí mật thử trên điện thoại của họ, buổi tối, mạng 4G
 - [ ] Diễn tập nửa đêm: hẹn giờ tự mở sau vài phút, để sẵn trang chủ và một màn
   "Chưa đến ngày" — về 0 phải tự mở; xong thì khoá lại và hẹn lại 00:00 · 20/10
-- [ ] Thử **💾 Tải bản lưu** trên iPhone (Safari) và Android (Chrome), mở file
-  vừa tải khi đã tắt mạng
+- [ ] Thử **💾 Tải bản lưu** trên iPhone (Safari) và Android (Chrome): phải ra
+  file `.pdf` (ra `.html` là máy chủ không mở được Chrome), mở lại khi đã tắt mạng
 - [ ] Thử **✉ Hồi âm** một lá thư rồi xem ở admin → Hồi âm và `/hoi-am`; xoá các
   hồi âm thử
 - [ ] Sau khi thử xong: thẻ Ngày 20/10 → **Đặt lại bông hoa** (hẹn giờ tự mở thì

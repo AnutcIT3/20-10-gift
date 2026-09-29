@@ -28,8 +28,8 @@ chỉ mở ra đúng vào ngày 20/10.
 4. **Viết lại đôi dòng:** dưới mỗi lá thư có nút **✉ Hồi âm** — cảm ơn người đã
    viết, kể cả người bạn ẩn danh. Cuối trang còn chỗ để gửi vài chữ cho các bạn nam.
 5. **Cất quà vào máy:** bấm **💾 Tải bản lưu** là cả trang quà — ảnh, thư, lời
-   chúc — gói gọn trong một file. Vài năm nữa mở lại vẫn nguyên vẹn, không cần
-   mạng, không cần chiếc laptop đang chạy trang này.
+   chúc — gói gọn trong một file PDF. Vài năm nữa mở lại vẫn nguyên vẹn, không
+   cần mạng, không cần chiếc laptop đang chạy trang này.
 
 Trước ngày 20/10, bấm vào trang quà chỉ thấy *"Chưa đến ngày 20/10"* — bất ngờ
 thì phải giữ tới đúng ngày. Đêm 19/10 các bạn nữ cùng nhìn đồng hồ đếm ngược tới
