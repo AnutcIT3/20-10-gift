@@ -26,13 +26,13 @@ chỉ mở ra đúng vào ngày 20/10.
    chúc AI viết theo tên cậu, và một bản nhạc để bật lên khi muốn. Đọc xong thì
    thả cảm xúc cho từng lá thư 😍
 4. **Viết lại đôi dòng:** dưới mỗi lá thư có nút **✉ Hồi âm** — cảm ơn người đã
-   viết, kể cả người bạn ẩn danh. Cuối trang còn chỗ để gửi vài chữ cho cả lớp.
+   viết, kể cả người bạn ẩn danh. Cuối trang còn chỗ để gửi vài chữ cho các bạn nam.
 5. **Cất quà vào máy:** bấm **💾 Tải bản lưu** là cả trang quà — ảnh, thư, lời
    chúc — gói gọn trong một file. Vài năm nữa mở lại vẫn nguyên vẹn, không cần
    mạng, không cần chiếc laptop đang chạy trang này.
 
 Trước ngày 20/10, bấm vào trang quà chỉ thấy *"Chưa đến ngày 20/10"* — bất ngờ
-thì phải giữ tới đúng ngày. Đêm 19/10 cả lớp cùng nhìn đồng hồ đếm ngược tới
+thì phải giữ tới đúng ngày. Đêm 19/10 các bạn nữ cùng nhìn đồng hồ đếm ngược tới
 từng giây; **đúng 00:00, quà tự mở** — ai đang để sẵn trang sẽ thấy phong bì tự
 bung ra.
 
@@ -59,7 +59,7 @@ bung ra.
 - **Riêng tư cũng là một phần của quà:** camera chỉ dùng để so khớp ngay lúc đó
   rồi bỏ — không ảnh, không video nào được lưu. Hồ sơ khuôn mặt chỉ là một dãy
   số, không phải tấm ảnh.
-- **Cả lớp mở cùng lúc cũng không sao:** đã thử 40 người quét mặt cùng một lúc —
+- **Các bạn nữ mở quà cùng lúc cũng không sao:** đã thử 40 người quét mặt cùng một lúc —
   không ai bị bỏ lại phía sau.
 - **Bông hoa 12A1:** trang chủ có một bông hoa, mỗi cánh là một bạn nữ. Bạn nào
   mở quà thì cánh đó nở — và biết mình là *bạn thứ mấy* của lớp mở quà đêm ấy.

@@ -97,30 +97,30 @@ function GiftFooter({ openRank }) {
   )
 }
 
-// Cuối trang: vài dòng gửi lại cả lớp, và lối sang Hộp thư hồi âm
+// Cuối trang: vài dòng gửi lại các bạn nam (người làm món quà), và lối sang Hộp thư hồi âm
 function ThanksSection({ accessCode, replies, onReplied }) {
   return (
     <section className="gift__section thanks" aria-labelledby="thanks-title">
       <h2 id="thanks-title" className="section-title">
         Gửi lại đôi dòng
-        <span className="section-title__count">cho cả lớp {CLASS_NAME}</span>
+        <span className="section-title__count">cho các bạn nam {CLASS_NAME}</span>
       </h2>
       <div className="thanks__card letter-paper">
         <p className="thanks__intro">
-          Đọc xong rồi thì để lại vài chữ cho cả lớp nhé: một lời cảm ơn, một kỷ niệm, hay chỉ một cái mặt cười 😊
+          Đọc xong rồi thì để lại vài chữ cho chúng tớ nhé: một lời cảm ơn, một kỷ niệm, hay chỉ một cái mặt cười 😊
         </p>
         <ReplyBox
           accessCode={accessCode}
           target="class"
-          recipient={`cả lớp ${CLASS_NAME}`}
+          recipient={`các bạn nam ${CLASS_NAME}`}
           replies={replies}
           onSent={onReplied}
-          openLabel="✉ Viết cho cả lớp"
-          moreLabel="✉ Viết thêm cho cả lớp"
+          openLabel="✉ Viết cho chúng tớ"
+          moreLabel="✉ Viết thêm cho chúng tớ"
         />
       </div>
       <p className="thanks__board">
-        <Link to="/hoi-am" className="link-dashed">📬 Xem Hộp thư hồi âm của lớp</Link>
+        <Link to="/hoi-am" className="link-dashed">📬 Xem Hộp thư hồi âm</Link>
       </p>
     </section>
   )

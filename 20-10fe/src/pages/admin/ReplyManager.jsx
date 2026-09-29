@@ -8,10 +8,10 @@ const STATUSES = [
   { value: 'approved', label: 'Đã duyệt' },
   { value: 'rejected', label: 'Từ chối' },
 ]
-const TARGET_LABELS = { letter: 'trả lời thư', class: 'gửi cả lớp', admin: 'gửi admin' }
+const TARGET_LABELS = { letter: 'trả lời thư', class: 'gửi các bạn nam', admin: 'gửi admin' }
 
 function recipientOf(reply) {
-  if (reply.target === 'class') return `Cả lớp ${CLASS_NAME}`
+  if (reply.target === 'class') return `Các bạn nam ${CLASS_NAME}`
   if (reply.target === 'admin') return 'Admin'
   if (reply.to?.kind === 'missing') return 'Lá thư đã bị gỡ'
   if (reply.letter_is_anonymous || !reply.letter_sender_name) return 'Người bạn ẩn danh'
@@ -143,7 +143,7 @@ function ReplyManager() {
       </header>
 
       <p className="admin-hint reply-manager__hint">
-        Các bạn nữ đọc thư xong viết lại cho người gửi, cho cả lớp hoặc cho admin. Hồi âm đã
+        Các bạn nữ đọc thư xong viết lại cho người gửi, cho các bạn nam hoặc cho admin. Hồi âm đã
         duyệt hiện ở{' '}
         <a href="/hoi-am" target="_blank" rel="noreferrer">Hộp thư hồi âm</a> — ai có link trang đều đọc được;
         riêng hồi âm <b>gửi admin</b> là thư riêng, chỉ hiện ở đây. Ai gõ được tên một bạn cũng mở được trang

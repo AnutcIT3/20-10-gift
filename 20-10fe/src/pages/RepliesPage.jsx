@@ -23,7 +23,7 @@ function recipientLabel(to) {
   if (to?.kind === 'person') return to.name
   if (to?.kind === 'anonymous') return 'một người bạn ẩn danh'
   if (to?.kind === 'admin') return 'admin'
-  return `cả lớp ${CLASS_NAME}`
+  return `các bạn nam ${CLASS_NAME}`
 }
 
 // Tấm bưu thiếp hồi âm: "Vy ✉ → Tuấn", nội dung, dấu ngày

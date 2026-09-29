@@ -33,10 +33,10 @@ test('viết hồi âm cho một lá thư: gửi đúng người nhận rồi b�
 })
 
 test('bấm "Thôi" thì focus trở lại nút mở ô viết, không rơi về đầu trang', () => {
-  render(<ReplyBox accessCode="12a1-vy" target="class" recipient="cả lớp 12A1" openLabel="✉ Viết cho cả lớp" />)
-  fireEvent.click(screen.getByRole('button', { name: '✉ Viết cho cả lớp' }))
+  render(<ReplyBox accessCode="12a1-vy" target="class" recipient="các bạn nam 12A1" openLabel="✉ Viết cho chúng tớ" />)
+  fireEvent.click(screen.getByRole('button', { name: '✉ Viết cho chúng tớ' }))
   fireEvent.click(screen.getByRole('button', { name: 'Thôi' }))
-  expect(document.activeElement).toBe(screen.getByRole('button', { name: '✉ Viết cho cả lớp' }))
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: '✉ Viết cho chúng tớ' }))
 })
 
 test('thư riêng gửi admin: trang quà chỉ báo đã gửi / đã đọc, không hiện lại nội dung', () => {
@@ -61,20 +61,20 @@ test('hồi âm gửi admin là thư riêng: ô viết nói rõ chỉ admin đ�
   expect(screen.getByText(/chỉ/).textContent).toMatch(/Thư riêng: chỉ admin đọc được/)
 })
 
-test('hồi âm cả lớp không gửi kèm lá thư; ô trống thì nhắc chứ không gọi máy chủ', async () => {
+test('hồi âm gửi các bạn nam không gửi kèm lá thư; ô trống thì nhắc chứ không gọi máy chủ', async () => {
   giftRepository.createReply.mockRejectedValue(new Error('Cậu hồi âm nhiều quá rồi'))
-  render(<ReplyBox accessCode="12a1-vy" target="class" letterId={5} recipient="cả lớp 12A1" openLabel="✉ Viết cho cả lớp" />)
+  render(<ReplyBox accessCode="12a1-vy" target="class" letterId={5} recipient="các bạn nam 12A1" openLabel="✉ Viết cho chúng tớ" />)
 
-  fireEvent.click(screen.getByRole('button', { name: '✉ Viết cho cả lớp' }))
+  fireEvent.click(screen.getByRole('button', { name: '✉ Viết cho chúng tớ' }))
   fireEvent.click(screen.getByRole('button', { name: 'Gửi hồi âm ✉' }))
   expect(screen.getByRole('alert').textContent).toMatch(/Viết vài chữ/)
   expect(giftRepository.createReply).not.toHaveBeenCalled()
 
-  fireEvent.change(screen.getByLabelText('Gửi cả lớp 12A1:'), { target: { value: 'Yêu cả lớp' } })
+  fireEvent.change(screen.getByLabelText('Gửi các bạn nam 12A1:'), { target: { value: 'Cảm ơn các cậu' } })
   fireEvent.click(screen.getByRole('button', { name: 'Gửi hồi âm ✉' }))
   await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/nhiều quá/))
   expect(giftRepository.createReply).toHaveBeenCalledWith('12a1-vy', {
-    target: 'class', letter_id: undefined, content: 'Yêu cả lớp',
+    target: 'class', letter_id: undefined, content: 'Cảm ơn các cậu',
   })
 })
 

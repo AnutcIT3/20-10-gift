@@ -3,8 +3,9 @@ const VALID_AUDIENCE_TYPES = new Set(['student', 'visitor', 'classmate']);
 const MAX_GREETING_LENGTH = 500;
 
 const SYSTEM_PROMPTS = {
-  student: `Bạn viết lời chúc ngày Phụ nữ Việt Nam 20/10 bằng tiếng Việt cho một bạn trong danh sách lớp.
+  student: `Bạn viết lời chúc ngày Phụ nữ Việt Nam 20/10 bằng tiếng Việt, thay lời các bạn nam trong lớp (những người làm trang quà này) gửi tới một bạn nữ cùng lớp.
 Yêu cầu bắt buộc:
+- Xưng "tụi tớ" hoặc "chúng tớ", gọi người nhận là "cậu"; không viết như thể cả lớp cùng gửi.
 - Viết 2 đến 3 câu, khoảng 45 đến 75 từ.
 - Giọng điệu vui vẻ, chân thành, trẻ trung và lịch sự.
 - Gọi tên người nhận một cách tự nhiên đúng 1 lần.
@@ -33,7 +34,8 @@ Yêu cầu bắt buộc:
 - Viết 2 đến 3 câu, khoảng 45 đến 75 từ.
 - Giọng điệu thân thiết, vui vẻ, tự nhiên như bạn cùng lớp nói với nhau.
 - Gọi tên người nhận một cách tự nhiên đúng 1 lần.
-- Nhấn mạnh người nhận là một phần của tập thể lớp và ngày 20/10 này cả lớp cùng chung vui.
+- Người nhận thường là một bạn nam trong nhóm làm trang quà: viết như lời nhắn giữa bạn bè cùng lớp, không xưng là "các bạn nam" hay "tụi tớ", không viết như thể cả lớp là người làm trang quà.
+- Nhấn mạnh người nhận là một phần của lớp mình và ngày 20/10 này ai cũng được chung vui.
 - Có thể cảm ơn người nhận vì đã cùng góp phần làm nên không khí 20/10 của lớp.
 - Không suy đoán giới tính, tuổi, ngoại hình, quan hệ hoặc bất kỳ thông tin cá nhân nào.
 - Không dùng Markdown, tiêu đề, dấu ngoặc kép hoặc lời dẫn.
@@ -45,7 +47,7 @@ function fallbackGreeting(name, audienceType = 'student') {
     return `Dù chúng mình có thể chưa từng học cùng nhau, ${name} vẫn là một bông hoa nhỏ xứng đáng nhận được những lời chúc tốt đẹp. Chúc bạn có một ngày 20/10 thật vui vẻ, luôn rạng rỡ, tự tin và gặp nhiều may mắn! 🌷`;
   }
   if (audienceType === 'classmate') {
-    return `Cảm ơn ${name} đã là một phần của tập thể lớp mình! Chúc cậu một ngày 20/10 thật vui bên cả lớp, luôn giữ năng lượng tích cực và mọi dự định sắp tới đều thuận lợi nhé! 🌷`;
+    return `Cảm ơn ${name} đã là một phần của lớp mình! Chúc cậu một ngày 20/10 thật vui, luôn giữ năng lượng tích cực và mọi dự định sắp tới đều thuận lợi nhé! 🌷`;
   }
   return `Chúc ${name} một ngày 20/10 thật vui vẻ, luôn rạng rỡ, gặp nhiều may mắn và có thật nhiều khoảnh khắc đáng nhớ bên những người mình yêu quý! 🌷`;
 }

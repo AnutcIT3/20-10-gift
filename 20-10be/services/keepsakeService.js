@@ -340,7 +340,8 @@ function renderLetters(letters, srcOf) {
 }
 
 function replyRecipient(reply, lettersById) {
-  if (reply.target === 'class') return `Gửi cả lớp ${CLASS_NAME}`;
+  // Món quà do các bạn nam làm: hồi âm "chung" là gửi các bạn ấy, không phải cả lớp
+  if (reply.target === 'class') return `Gửi các bạn nam ${CLASS_NAME}`;
   if (reply.target === 'admin') return 'Gửi admin';
   const letter = lettersById.get(Number(reply.letter_id));
   if (!letter) return 'Gửi người viết thư';

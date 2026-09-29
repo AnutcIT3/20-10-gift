@@ -123,7 +123,7 @@ async function generateGreeting(name, audienceType = 'student') {
     return { greeting: `Dù chúng mình có thể chưa từng học cùng nhau, ${name} vẫn là một bông hoa nhỏ xứng đáng nhận được những lời chúc tốt đẹp. Chúc bạn có một ngày 20/10 thật vui vẻ, luôn rạng rỡ và gặp nhiều may mắn! 🌷` }
   }
   if (audienceType === 'classmate') {
-    return { greeting: `Cảm ơn ${name} đã là một phần của tập thể lớp mình! Chúc cậu một ngày 20/10 thật vui bên cả lớp nhé! 🌷` }
+    return { greeting: `Cảm ơn ${name} đã là một phần của lớp mình! Chúc cậu một ngày 20/10 thật vui nhé! 🌷` }
   }
   return { greeting: `Chúc ${name} một ngày 20/10 thật vui vẻ và rạng rỡ! 🌷` }
 }
@@ -152,7 +152,7 @@ async function faceScanClaim() {
 // ── Ngày 20/10 ──────────────────────────────────────────────────────────────
 async function getEventStatus() {
   await delay(100)
-  return { locked: false, unlockAt: null, serverNow: new Date().toISOString(), opened: 5, total: 23, replies: 2 }
+  return { locked: false, unlockAt: null, serverNow: new Date().toISOString(), opened: 5, total: 18, replies: 2 }
 }
 
 async function recordOpen() {
@@ -186,7 +186,7 @@ async function listReplies({ to, exact = false } = {}) {
     },
     {
       id: 1,
-      content: 'Cảm ơn cả lớp đã làm món quà dễ thương thế này 🌷',
+      content: 'Cảm ơn các bạn nam đã làm món quà dễ thương thế này 🌷',
       created_at: '2026-10-20T00:10:00Z',
       from: { name: 'Anh', fullName: 'Trần Mai Anh', friend: false },
       to: { kind: 'class' },

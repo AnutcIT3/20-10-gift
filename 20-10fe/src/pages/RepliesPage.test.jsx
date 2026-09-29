@@ -21,7 +21,7 @@ test('mỗi hồi âm là một bưu thiếp: ai gửi ai, người ẩn danh ch
     items: [
       { id: 3, content: 'Cảm ơn Tuấn!', created_at: '2026-10-20T01:00:00.000Z', from: { name: 'Vy' }, to: { kind: 'person', name: 'Tuấn' } },
       { id: 2, content: 'Ai vậy ta?', created_at: '2026-10-20T00:30:00.000Z', from: { name: 'Mai Anh' }, to: { kind: 'anonymous', letterSentAt: '2026-10-18T14:30:00.000Z' } },
-      { id: 1, content: 'Yêu cả lớp', created_at: '2026-10-20T00:10:00.000Z', from: { name: 'Hà' }, to: { kind: 'class' } },
+      { id: 1, content: 'Cảm ơn các cậu', created_at: '2026-10-20T00:10:00.000Z', from: { name: 'Hà' }, to: { kind: 'class' } },
     ],
   })
   renderPage()
@@ -30,7 +30,7 @@ test('mỗi hồi âm là một bưu thiếp: ai gửi ai, người ẩn danh ch
   expect(screen.getByText('Tuấn')).toBeTruthy()
   expect(screen.getByText('một người bạn ẩn danh')).toBeTruthy()
   expect(screen.getByText(/người đã gửi thư lúc/)).toBeTruthy()
-  expect(screen.getByText('cả lớp 12A1')).toBeTruthy()
+  expect(screen.getByText('các bạn nam 12A1')).toBeTruthy()
   expect(screen.getByText('3 hồi âm')).toBeTruthy()
   expect(giftRepository.listReplies).toHaveBeenCalledWith({ to: undefined, exact: false })
 })
@@ -61,7 +61,7 @@ test('gõ một ký tự thì chưa lọc (máy chủ cũng không nhận), tran
 test('hơn 300 hồi âm: đếm theo tổng (khớp trang chủ) và nói rõ chỉ hiện phần mới nhất', async () => {
   giftRepository.listReplies.mockResolvedValue({
     total: 320,
-    items: [{ id: 1, content: 'Yêu cả lớp', created_at: '2026-10-20T00:10:00.000Z', from: { name: 'Hà' }, to: { kind: 'class' } }],
+    items: [{ id: 1, content: 'Cảm ơn các cậu', created_at: '2026-10-20T00:10:00.000Z', from: { name: 'Hà' }, to: { kind: 'class' } }],
   })
   renderPage()
   expect(await screen.findByText('320 hồi âm · hiện 1 lá mới nhất')).toBeTruthy()

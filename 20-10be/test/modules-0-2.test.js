@@ -977,7 +977,9 @@ test('Gemini greeting uses safe static fallbacks by audience type when API key i
     assert.match(visitor.greeting, /Minh Anh/);
     assert.match(visitor.greeting, /chưa từng học cùng nhau/);
     assert.match(classmate.greeting, /Tuấn/);
-    assert.match(classmate.greeting, /tập thể lớp/);
+    assert.match(classmate.greeting, /một phần của lớp mình/);
+    // Người đọc trang này thường là chính các bạn nam làm quà: không xưng "tụi tớ"
+    assert.equal(/tụi tớ/i.test(classmate.greeting), false);
   } finally {
     if (original !== undefined) process.env.GEMINI_API_KEY = original;
   }

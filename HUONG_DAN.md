@@ -17,8 +17,8 @@ link, Face ID, cấu hình, API và scripts. Món quà này là gì và vì sao 
 - Admin Dashboard hoàn chỉnh trên frontend.
 - Frontend dùng API thật qua Axios.
 - Tên không thuộc danh sách nhận lời chúc vui từ Gemini; nếu Gemini lỗi hoặc chưa cấu hình, backend dùng lời chúc tĩnh.
-- Face ID (tùy chọn): bạn trong lớp có thể mở trang quà bằng camera thay vì gõ tên. Tính năng tự ẩn khi service Python không chạy hoặc admin tắt công tắc — xem mục [Face ID](#face-id-tùy-chọn).
-- Ngày 20/10: hẹn giờ quà tự mở (cả lớp cùng đếm ngược), bông hoa 12A1 đếm từng bạn mở quà, thư hồi âm và bản lưu quà tải về máy — xem mục [Ngày 20/10](#ngày-2010-hẹn-giờ-tự-mở-bông-hoa-hồi-âm-bản-lưu).
+- Face ID (tùy chọn): các bạn nữ có thể mở trang quà của mình bằng camera thay vì gõ tên. Tính năng tự ẩn khi service Python không chạy hoặc admin tắt công tắc — xem mục [Face ID](#face-id-tùy-chọn).
+- Ngày 20/10: hẹn giờ quà tự mở (các bạn nữ cùng đếm ngược), bông hoa 12A1 đếm từng bạn nữ mở quà, thư hồi âm và bản lưu quà tải về máy — xem mục [Ngày 20/10](#ngày-2010-hẹn-giờ-tự-mở-bông-hoa-hồi-âm-bản-lưu).
 
 ## Chạy nhanh trên Windows
 
@@ -89,7 +89,7 @@ ID tự ẩn ở đó.
 
 ## Face ID (tùy chọn)
 
-Bạn trong lớp đứng trước camera là mở được trang quà của mình, không cần gõ
+Các bạn nữ chỉ cần đứng trước camera là mở được trang quà của mình, không cần gõ
 tên. Thiết kế và các quyết định nằm trong `FACE_PLAN.md`; số đo chọn model nằm
 trong `face-service/RESULTS.md` (ArcFace w600k_r50, ngưỡng τ = 0,45, margin
 top1 − top2 ≥ 0,10).
@@ -173,7 +173,7 @@ nền: quá giờ hẹn thì request đầu tiên tự gạt khoá (key `gift_un
 công tắc (mở hay khoá) bằng tay thì lịch hẹn bị huỷ, và chỉ hẹn được lúc trang
 quà đang khoá (đang mở thì máy chủ trả 409). **Laptop vẫn phải bật lúc 00:00.**
 
-**Bông hoa 12A1.** Trang chủ có một bông hoa, mỗi cánh là một thành viên lớp;
+**Bông hoa 12A1.** Trang chủ có một bông hoa, mỗi cánh là một bạn nữ (hồ sơ loại *Thành viên lớp*);
 bạn nào mở quà từ trang chủ (gõ tên hoặc Face ID) thì cánh đó nở, và màn mở quà
 báo "bạn thứ mấy của lớp mở quà" (xếp theo thứ tự ghi, hai bạn mở cùng giây
 vẫn khác hạng). Gõ tên lúc quà còn khoá rồi chờ ở màn "Chưa đến ngày" tới giờ
@@ -193,7 +193,7 @@ của lớp. Trước 20/10 nếu không muốn ai mở được nữa thì **T�
 khoản này.
 
 **Thư hồi âm.** Dưới mỗi lá thư trên trang quà có nút **✉ Hồi âm**; lời chúc
-riêng của admin cũng có, và cuối trang có ô gửi cả lớp. Hồi âm chờ duyệt ở
+riêng của admin cũng có, và cuối trang có ô **Gửi lại đôi dòng** cho các bạn nam. Hồi âm chờ duyệt ở
 admin → **Hồi âm** (badge đỏ trên thanh bên), duyệt xong hiện ở **Hộp thư hồi
 âm** `/hoi-am` — ai có link trang đều đọc được, kể cả khách, ô viết hồi âm nói
 rõ điều đó. Riêng hồi âm **gửi admin** là thư riêng: nội dung chỉ hiện ở trang
@@ -452,7 +452,7 @@ Frontend:
 - Nhạc không autoplay; người dùng bấm nút **Bật nhạc** ở góc phải dưới.
 - GiftPage không có form gửi lời chúc để tránh sai ngữ cảnh người nhận.
 - Lời chúc mới qua public API có trạng thái `pending` và chỉ xuất hiện sau khi admin duyệt.
-- Mọi tên được nhập đều nhận một lời chúc Gemini: người trong lớp xem trên GiftPage cá nhân, người ngoài danh sách xem trang chúc chung. Gemini key chỉ nằm ở backend để không lộ trên trình duyệt.
+- Mọi tên được nhập đều nhận một lời chúc Gemini: người có trang quà riêng (các bạn nữ, người ngoài lớp được gửi thư) xem trên GiftPage cá nhân; các bạn nam và người ngoài danh sách xem trang chúc chung. Gemini key chỉ nằm ở backend để không lộ trên trình duyệt.
 - Tên ngoài danh sách được hỏi "thành viên trong lớp hay khách ghé thăm" trước khi hiện lời chúc — hai kiểu lời chúc khác nhau (`classmate` / `visitor`).
 - Admin có thể **khóa trang quà chờ ngày 20/10** bằng công tắc **Trang quà** ở sidebar admin: người mở trang quà thấy "Chưa đến ngày 20/10, vui lòng chờ thêm", nhưng gửi lời chúc vẫn hoạt động — gửi link cho các bạn nam chúc trước, đến ngày admin gạt công tắc để mở.
 - Công tắc **✨ Face ID** nằm ngay dưới công tắc Trang quà, mặc định tắt. Quét mặt vẫn chạy khi trang quà đang khóa (nhận ra rồi mới gặp màn "chưa đến ngày"), nên bật Face ID sớm để thử không làm lộ quà. Dashboard có thẻ ✨ Face ID đếm số lượt quét nhận đúng / nhầm người / chưa thành, bấm vào để mở trang Lịch sử quét.

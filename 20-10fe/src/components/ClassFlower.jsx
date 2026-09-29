@@ -58,7 +58,7 @@ function ClassFlower({
       {caption && (
         <figcaption className="flower__caption">
           {complete
-            ? <>Cả lớp đã mở quà rồi! 🌸</>
+            ? <>Cả {total} bạn nữ đã mở quà rồi! 🌸</>
             : <><b>{filled}/{total}</b> bạn đã mở quà</>}
         </figcaption>
       )}
