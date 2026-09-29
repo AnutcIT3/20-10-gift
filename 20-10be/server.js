@@ -189,6 +189,9 @@ if (require.main === module) {
     } catch (error) {
       console.error('Graceful shutdown failed:', error.message);
       process.exitCode = 1;
+    } finally {
+      // Chrome in bản lưu PDF (nếu đang mở) giữ tiến trình sống: đóng nốt
+      await require('./services/pdfService').shutdown().catch(() => {});
     }
   };
   process.once('SIGINT', () => handleShutdown('SIGINT'));

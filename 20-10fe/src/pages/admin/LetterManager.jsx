@@ -476,6 +476,7 @@ function LetterManager() {
                     {letter.reveal_at && <span className="chip chip--peach">⏰ hiện {formatReveal(letter.reveal_at)}</span>}
                     {letter.image_url && <span className="chip chip--beige">📷 1 ảnh</span>}
                     {letter.member_type === 'friend' && <span className="chip chip--moss">bạn ngoài lớp</span>}
+                    {letter.member_type === 'test' && <span className="chip chip--moss">tài khoản thử</span>}
                     {letter.sender_kind === 'classmate' && <span className="chip chip--beige">bạn nam 12A1</span>}
                     <span className={`admin-badge ${letter.status}`}>
                       {STATUSES.find((item) => item.value === letter.status)?.label || letter.status}

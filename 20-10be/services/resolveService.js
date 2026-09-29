@@ -8,8 +8,8 @@ async function resolve(name, scope = 'class') {
 
   // scope tách hẳn hai không gian tên: 'class' cho thành viên lớp, 'friend'
   // cho hồ sơ bạn bè ngoài lớp — khách trùng tên với thành viên không bao giờ
-  // mở nhầm trang của bạn ấy
-  const memberType = scope === 'friend' ? 'friend' : 'class';
+  // mở nhầm trang của bạn ấy. Tài khoản thử nằm chung không gian với lớp.
+  const memberTypes = scope === 'friend' ? ['friend'] : ['class', 'test'];
 
   const normalized = normalizeName(trimmed);
   // Chặn input chỉ gồm dấu kết hợp (normalize xong thành rỗng/1 ký tự):
@@ -22,8 +22,8 @@ async function resolve(name, scope = 'class') {
   // người dùng tìm ("vy", "thuy vy"), vừa chặn dò quét access code bằng cặp
   // ký tự bất kỳ qua LIKE '%..%'.
   const [rows] = await pool.execute(
-    'SELECT full_name, nickname, avatar_url, access_code, seat_row, seat_col FROM students WHERE (normalized_name LIKE ? OR normalized_name LIKE ?) AND is_active = TRUE AND member_type = ? ORDER BY full_name ASC LIMIT 10',
-    [`${escaped}%`, `% ${escaped}%`, memberType],
+    `SELECT full_name, nickname, avatar_url, access_code, seat_row, seat_col FROM students WHERE (normalized_name LIKE ? OR normalized_name LIKE ?) AND is_active = TRUE AND member_type IN (${memberTypes.map(() => '?').join(', ')}) ORDER BY full_name ASC LIMIT 10`,
+    [`${escaped}%`, `% ${escaped}%`, ...memberTypes],
   );
 
   if (rows.length === 0) {

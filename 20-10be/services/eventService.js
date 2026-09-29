@@ -76,7 +76,8 @@ async function getStatus(now = new Date()) {
 }
 
 // Ghi một lượt mở quà từ trang chủ và cho biết bạn ấy là người thứ mấy. Hồ sơ
-// bạn ngoài lớp không nằm trong bông hoa của lớp nên không được đếm.
+// bạn ngoài lớp và tài khoản thử không nằm trong bông hoa của lớp nên không
+// được đếm.
 async function recordOpen(student, via) {
   if (student.member_type !== 'class') return { counted: false };
   const method = OPEN_METHODS.has(via) ? via : 'name';

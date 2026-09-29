@@ -318,7 +318,7 @@ function GalleryManager() {
           <option value="">— Chọn học sinh —</option>
           {students.map((student) => (
             <option key={student.id} value={student.id}>
-              {student.full_name}{student.gallery_count !== undefined ? ` · ${student.gallery_count} ảnh` : ''}{student.member_type !== 'friend' && !student.avatar_url ? ' · chưa có ảnh đại diện' : ''}
+              {student.full_name}{student.gallery_count !== undefined ? ` · ${student.gallery_count} ảnh` : ''}{student.member_type === 'class' && !student.avatar_url ? ' · chưa có ảnh đại diện' : ''}
             </option>
           ))}
         </select>

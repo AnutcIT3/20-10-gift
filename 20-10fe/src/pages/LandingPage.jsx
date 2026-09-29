@@ -494,8 +494,8 @@ function LandingPage() {
             <>
               <p className="kicker">20 · 10 · {EVENT_YEAR}</p>
               <h1 className="landing__title">Một món quà nhỏ dành riêng cho bạn</h1>
-              <p className="landing__intro">Nhập tên để mở không gian lưu bút và những lời chúc từ lớp mình.</p>
-              {/* Admin hẹn giờ tự mở → cả lớp cùng đếm ngược; về 0 thì quà mở */}
+              <p className="landing__intro">Nhập tên để mở góc lưu bút các bạn nam {CLASS_NAME} làm tặng, cùng những lời chúc gửi tới bạn.</p>
+              {/* Admin hẹn giờ tự mở → các bạn nữ cùng đếm ngược; về 0 thì quà mở */}
               {eventStatus?.locked && eventStatus.unlockAt && (
                 <EventCountdown unlockAt={eventStatus.unlockAt} offset={eventOffset} onDone={handleCountdownDone} />
               )}
@@ -587,7 +587,7 @@ function LandingPage() {
                 <p className="landing-flower__title">Bông hoa {CLASS_NAME}</p>
                 <p className="landing-flower__count" aria-live="polite">
                   {eventStatus.opened >= eventStatus.total
-                    ? 'Cả lớp đã mở quà rồi! 🌸'
+                    ? `Cả ${eventStatus.total} bạn nữ đã mở quà rồi! 🌸`
                     : <><b>{eventStatus.opened}/{eventStatus.total}</b> bạn đã mở quà</>}
                 </p>
                 <p className="landing-flower__note">Mỗi bạn mở quà, hoa nở thêm một cánh.</p>

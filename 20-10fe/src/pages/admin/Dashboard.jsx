@@ -249,6 +249,7 @@ function Dashboard() {
                     {letter.reveal_at && <span className="chip chip--peach">⏰ hiện {formatReveal(letter.reveal_at)}</span>}
                     {letter.image_url && <span className="chip chip--beige">📷 1 ảnh</span>}
                     {letter.member_type === 'friend' && <span className="chip chip--moss">bạn ngoài lớp</span>}
+                    {letter.member_type === 'test' && <span className="chip chip--moss">tài khoản thử</span>}
                   </div>
                   <p className="inbox-row__text">{letter.content}</p>
                 </div>

@@ -42,7 +42,7 @@ nhưng các bạn nữ **chưa xem được**.
 - [ ] Gửi link cho các bạn nam kèm hướng dẫn ngắn (dùng nút "Gửi lời chúc")
 - [ ] Duyệt lời chúc dần mỗi vài ngày (Admin → Lời chúc → Duyệt nhanh)
 - [ ] Nhắc lại đợt 2 khoảng đầu tháng 10 cho những bạn chưa gửi
-- [ ] Theo dõi: bạn nào chưa có lời chúc nào thì nhờ người thân trong lớp viết hộ
+- [ ] Theo dõi: bạn nữ nào chưa có lời chúc nào thì nhờ một bạn nam chơi thân với bạn ấy viết một lá
 
 ## GIAI ĐOẠN 3 — FACE ID (tùy chọn, song song, quyết định trước 30/09)
 
@@ -75,8 +75,8 @@ và **máy phải bật suốt ngày 20/10**.
 - [ ] Nhờ 1-2 bạn đã biết bí mật thử trên điện thoại của họ, buổi tối, mạng 4G
 - [ ] Diễn tập nửa đêm: hẹn giờ tự mở sau vài phút, để sẵn trang chủ và một màn
   "Chưa đến ngày" — về 0 phải tự mở; xong thì khoá lại và hẹn lại 00:00 · 20/10
-- [ ] Thử **💾 Tải bản lưu** trên iPhone (Safari) và Android (Chrome), mở file
-  vừa tải khi đã tắt mạng
+- [ ] Thử **💾 Tải bản lưu** trên iPhone (Safari) và Android (Chrome): phải ra
+  file `.pdf` (ra `.html` là máy chủ không mở được Chrome), mở lại khi đã tắt mạng
 - [ ] Thử **✉ Hồi âm** một lá thư rồi xem ở admin → Hồi âm và `/hoi-am`; xoá các
   hồi âm thử
 - [ ] Sau khi thử xong: thẻ Ngày 20/10 → **Đặt lại bông hoa** (hẹn giờ tự mở thì
@@ -91,7 +91,7 @@ và **máy phải bật suốt ngày 20/10**.
 
 - [ ] Tối 19/10: mở web, kiểm tra `/api/ready` trả `ready`, thẻ Ngày 20/10 báo
   "Tự mở lúc 00:00 · 20/10" — **laptop bật qua đêm**
-- [ ] Gửi link trang chủ cho các bạn nữ từ tối 19/10 để cả lớp cùng đếm ngược
+- [ ] Gửi link trang chủ cho các bạn nữ từ tối 19/10 để các bạn ấy cùng đếm ngược
 - [ ] Chưa hẹn giờ thì sáng 20/10 gạt công tắc **Trang quà** để mở, rồi bấm
   **Đặt lại bông hoa**
 - [ ] Trực máy: theo dõi lỗi, duyệt lời chúc và **thư hồi âm** phát sinh trong ngày

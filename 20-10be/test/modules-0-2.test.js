@@ -65,7 +65,7 @@ test('module 2: resolve normalizes input, returns at most 10 active matches', as
   pool.execute = async (sql, params) => {
     assert.match(sql, /is_active = TRUE/);
     assert.match(sql, /LIMIT 10/);
-    assert.deepEqual(params, ['nguyen%', '% nguyen%', 'class']);
+    assert.deepEqual(params, ['nguyen%', '% nguyen%', 'class', 'test']);
     return [[
       { full_name: 'Nguyễn A', nickname: 'A', avatar_url: null, access_code: 'code-a' },
       { full_name: 'Nguyễn B', nickname: 'B', avatar_url: null, access_code: 'code-b' },
@@ -133,7 +133,7 @@ test('module 2: resolve escapes LIKE wildcards so input cannot match everything'
   };
   try {
     await resolveService.resolve('%_');
-    assert.deepEqual(captured, ['\\%\\_%', '% \\%\\_%', 'class']);
+    assert.deepEqual(captured, ['\\%\\_%', '% \\%\\_%', 'class', 'test']);
 
     await resolveService.resolve('minh thư', 'friend');
     assert.deepEqual(captured, ['minh thu%', '% minh thu%', 'friend']);
@@ -977,7 +977,9 @@ test('Gemini greeting uses safe static fallbacks by audience type when API key i
     assert.match(visitor.greeting, /Minh Anh/);
     assert.match(visitor.greeting, /chưa từng học cùng nhau/);
     assert.match(classmate.greeting, /Tuấn/);
-    assert.match(classmate.greeting, /tập thể lớp/);
+    assert.match(classmate.greeting, /một phần của lớp mình/);
+    // Người đọc trang này thường là chính các bạn nam làm quà: không xưng "tụi tớ"
+    assert.equal(/tụi tớ/i.test(classmate.greeting), false);
   } finally {
     if (original !== undefined) process.env.GEMINI_API_KEY = original;
   }

@@ -167,7 +167,7 @@ async function saveProfile(studentId, vector, sourceCount) {
 
 async function loadClassStudents() {
   const [rows] = await pool.execute(
-    "SELECT id, full_name, is_active FROM students WHERE member_type = 'class' ORDER BY id",
+    "SELECT id, full_name, is_active FROM students WHERE member_type IN ('class', 'test') ORDER BY id",
   );
   return rows;
 }
@@ -271,7 +271,7 @@ async function main() {
   const [[count]] = await pool.execute(
     `SELECT COUNT(DISTINCT fp.student_id) AS students
      FROM face_profiles fp JOIN students s ON s.id = fp.student_id
-     WHERE fp.model = ? AND s.is_active = TRUE AND s.member_type = 'class'`,
+     WHERE fp.model = ? AND s.is_active = TRUE AND s.member_type IN ('class', 'test')`,
     [FACE_MODEL],
   );
   console.log(`\nThư viện Face ID hiện có ${count.students} bạn (model ${FACE_MODEL}).`);

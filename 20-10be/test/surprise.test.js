@@ -506,7 +506,7 @@ test('bản lưu quà là một file HTML tự chứa, không script, mọi ch�
     replies: [
       { id: 1, target: 'letter', letter_id: 5, content: 'Cảm ơn Tuấn!', created_at: '2026-10-20T01:00:00.000Z' },
       { id: 2, target: 'letter', letter_id: 6, content: 'Cảm ơn bạn bí mật', created_at: '2026-10-20T01:05:00.000Z' },
-      { id: 3, target: 'class', content: 'Yêu cả lớp', created_at: '2026-10-20T01:10:00.000Z' },
+      { id: 3, target: 'class', content: 'Cảm ơn các cậu', created_at: '2026-10-20T01:10:00.000Z' },
     ],
     greeting: 'Chúc Vy một ngày 20/10 thật vui',
     srcOf: (url) => (url ? `data:image/jpeg;base64,${Buffer.from(url).toString('base64')}` : null),
@@ -524,7 +524,7 @@ test('bản lưu quà là một file HTML tự chứa, không script, mọi ch�
   assert.match(html, /Một người bạn ẩn danh/);
   assert.match(html, /Gửi Tuấn/);
   assert.match(html, /Gửi người bạn ẩn danh/);
-  assert.match(html, /Gửi cả lớp 12A1/);
+  assert.match(html, /Gửi các bạn nam 12A1/);
   // Giờ Việt Nam, không phải giờ máy chủ
   assert.match(html, /18\.10\.2026 · 21:30/);
   assert.match(html, /20\.10\.2026 · 10:00/);
@@ -647,13 +647,13 @@ test('thư riêng gửi admin không trả nội dung ra trang quà và không v
     if (query.includes('FROM letter_replies')) {
       return [[
         { id: 1, target: 'admin', content: null, status: 'pending', created_at: '2026-10-20T01:00:00.000Z' },
-        { id: 2, target: 'class', content: 'Yêu cả lớp', status: 'approved', created_at: '2026-10-20T01:05:00.000Z' },
+        { id: 2, target: 'class', content: 'Cảm ơn các cậu', status: 'approved', created_at: '2026-10-20T01:05:00.000Z' },
       ]];
     }
     return undefined;
   });
   const html = await (await fetch(`${base}/api/gifts/vy1020/keepsake`, { method: 'POST' })).text();
-  assert.match(html, /Yêu cả lớp/);
+  assert.match(html, /Cảm ơn các cậu/);
   assert.equal(html.includes('Gửi admin'), false);
 });
 

@@ -10,7 +10,7 @@ import '../styles/celebration.css'
 // Fallback khi API lỗi — khớp nội dung tĩnh phía backend
 const FALLBACKS = {
   visitor: (name) => `Dù chúng mình có thể chưa từng học cùng nhau, ${name} vẫn là một bông hoa nhỏ xứng đáng nhận được những lời chúc tốt đẹp. Chúc bạn có một ngày 20/10 thật vui vẻ, luôn rạng rỡ, tự tin và gặp nhiều may mắn! 🌷`,
-  classmate: (name) => `Cảm ơn ${name} đã là một phần của tập thể lớp mình! Chúc cậu một ngày 20/10 thật vui bên cả lớp, luôn giữ năng lượng tích cực và mọi dự định sắp tới đều thuận lợi nhé! 🌷`,
+  classmate: (name) => `Cảm ơn ${name} đã là một phần của lớp mình! Chúc cậu một ngày 20/10 thật vui, luôn giữ năng lượng tích cực và mọi dự định sắp tới đều thuận lợi nhé! 🌷`,
 }
 
 function CelebrationPage() {
@@ -123,7 +123,7 @@ function CelebrationPage() {
             )}
             <div className="postcard__foot">
               {hasGreeting
-                ? <span className="postcard__sign">— Tập thể lớp {CLASS_NAME}</span>
+                ? <span className="postcard__sign">— {audience === 'classmate' ? `Lớp ${CLASS_NAME}` : `Các bạn nam ${CLASS_NAME}`}</span>
                 : <span />}
               <div className="postcard__foot-actions">
                 {hasGreeting && (

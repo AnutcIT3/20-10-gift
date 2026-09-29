@@ -17,8 +17,8 @@ link, Face ID, cấu hình, API và scripts. Món quà này là gì và vì sao 
 - Admin Dashboard hoàn chỉnh trên frontend.
 - Frontend dùng API thật qua Axios.
 - Tên không thuộc danh sách nhận lời chúc vui từ Gemini; nếu Gemini lỗi hoặc chưa cấu hình, backend dùng lời chúc tĩnh.
-- Face ID (tùy chọn): bạn trong lớp có thể mở trang quà bằng camera thay vì gõ tên. Tính năng tự ẩn khi service Python không chạy hoặc admin tắt công tắc — xem mục [Face ID](#face-id-tùy-chọn).
-- Ngày 20/10: hẹn giờ quà tự mở (cả lớp cùng đếm ngược), bông hoa 12A1 đếm từng bạn mở quà, thư hồi âm và bản lưu quà tải về máy — xem mục [Ngày 20/10](#ngày-2010-hẹn-giờ-tự-mở-bông-hoa-hồi-âm-bản-lưu).
+- Face ID (tùy chọn): các bạn nữ có thể mở trang quà của mình bằng camera thay vì gõ tên. Tính năng tự ẩn khi service Python không chạy hoặc admin tắt công tắc — xem mục [Face ID](#face-id-tùy-chọn).
+- Ngày 20/10: hẹn giờ quà tự mở (các bạn nữ cùng đếm ngược), bông hoa 12A1 đếm từng bạn nữ mở quà, thư hồi âm và bản lưu quà tải về máy — xem mục [Ngày 20/10](#ngày-2010-hẹn-giờ-tự-mở-bông-hoa-hồi-âm-bản-lưu).
 
 ## Chạy nhanh trên Windows
 
@@ -89,7 +89,7 @@ ID tự ẩn ở đó.
 
 ## Face ID (tùy chọn)
 
-Bạn trong lớp đứng trước camera là mở được trang quà của mình, không cần gõ
+Các bạn nữ chỉ cần đứng trước camera là mở được trang quà của mình, không cần gõ
 tên. Thiết kế và các quyết định nằm trong `FACE_PLAN.md`; số đo chọn model nằm
 trong `face-service/RESULTS.md` (ArcFace w600k_r50, ngưỡng τ = 0,45, margin
 top1 − top2 ≥ 0,10).
@@ -155,7 +155,7 @@ qua HTTPS/localhost không.
 
 ## Ngày 20/10: hẹn giờ tự mở, bông hoa, hồi âm, bản lưu
 
-Cần migration 020 (bảng `letter_replies` và `gift_opens`). `start-dev.bat` không
+Cần migration 020 (bảng `letter_replies` và `gift_opens`) và 021 (tài khoản thử). `start-dev.bat` không
 tự chạy migrate, nên sau khi kéo code về hãy chạy một lần trong `20-10be`:
 
 ```powershell
@@ -173,7 +173,7 @@ nền: quá giờ hẹn thì request đầu tiên tự gạt khoá (key `gift_un
 công tắc (mở hay khoá) bằng tay thì lịch hẹn bị huỷ, và chỉ hẹn được lúc trang
 quà đang khoá (đang mở thì máy chủ trả 409). **Laptop vẫn phải bật lúc 00:00.**
 
-**Bông hoa 12A1.** Trang chủ có một bông hoa, mỗi cánh là một thành viên lớp;
+**Bông hoa 12A1.** Trang chủ có một bông hoa, mỗi cánh là một bạn nữ (hồ sơ loại *Thành viên lớp*);
 bạn nào mở quà từ trang chủ (gõ tên hoặc Face ID) thì cánh đó nở, và màn mở quà
 báo "bạn thứ mấy của lớp mở quà" (xếp theo thứ tự ghi, hai bạn mở cùng giây
 vẫn khác hạng). Gõ tên lúc quà còn khoá rồi chờ ở màn "Chưa đến ngày" tới giờ
@@ -185,8 +185,15 @@ hoa tự bắt đầu đếm lại từ đúng giờ đó (các lượt mở th�
 Mở tay thì nhớ bấm **Đặt lại bông hoa** ở thẻ Ngày 20/10 — chỉ dời mốc đếm
 (`gift_opens_since`), không xoá dữ liệu nào.
 
+**Tài khoản thử.** Hồ sơ tạo ra để thử (gõ tên, Face ID, gửi thư) thì vào
+Admin → Học sinh → **Sửa thông tin** → ô **Loại** chọn *Tài khoản thử* (cần
+migration 021). Tài khoản thử vẫn mở quà như thành viên lớp, nhưng không nằm
+trong bông hoa, sĩ số, thẻ Học sinh / Lượt xem ở Tổng quan và danh sách Face ID
+của lớp. Trước 20/10 nếu không muốn ai mở được nữa thì **Tắt trang** các tài
+khoản này.
+
 **Thư hồi âm.** Dưới mỗi lá thư trên trang quà có nút **✉ Hồi âm**; lời chúc
-riêng của admin cũng có, và cuối trang có ô gửi cả lớp. Hồi âm chờ duyệt ở
+riêng của admin cũng có, và cuối trang có ô **Gửi lại đôi dòng** cho các bạn nam. Hồi âm chờ duyệt ở
 admin → **Hồi âm** (badge đỏ trên thanh bên), duyệt xong hiện ở **Hộp thư hồi
 âm** `/hoi-am` — ai có link trang đều đọc được, kể cả khách, ô viết hồi âm nói
 rõ điều đó. Riêng hồi âm **gửi admin** là thư riêng: nội dung chỉ hiện ở trang
@@ -203,9 +210,14 @@ bạn cũng mở được trang quà của bạn ấy, nên cũng viết đượ
 ấy — hồi âm lạ giọng thì cứ từ chối như lời chúc lạ.
 
 **Cất quà vào máy.** Cuối trang quà có nút **💾 Tải bản lưu**: máy chủ gói cả
-trang (ảnh, thư, lời chúc AI đang hiện, hồi âm, font, logo) thành **một file
-`.html` tự chứa**, không JavaScript, mở được bằng trình duyệt bất kỳ và không cần
-mạng — in hay lưu PDF bằng Ctrl + P. Ảnh được máy chủ tải từ Cloudinary (bản
+trang (ảnh, thư, lời chúc AI đang hiện, hồi âm, font, logo) thành một trang HTML
+tự chứa, không JavaScript, rồi dùng Chrome (không có thì Edge) đã cài trên máy in
+ra **file PDF khổ A4** qua `puppeteer-core` — không tải thêm Chromium nào. Máy
+chủ in tối đa 2 bản cùng lúc, thêm 20 bạn xếp hàng; đông hơn thì trang báo chờ
+một phút rồi bấm lại (503). Máy không có Chrome/Edge chạy được thì trả chính file
+`.html` tự chứa (mở bằng trình duyệt nào cũng được, không cần mạng) và trang quà
+tự đặt đuôi file cho đúng. Trình duyệt nằm chỗ lạ thì đặt `PDF_BROWSER_PATH`
+trong `20-10be/.env`. Ảnh được máy chủ tải từ Cloudinary (bản
 1280 px, JPEG) rồi nhúng thẳng vào file, nên lúc bấm tải máy chủ phải có mạng;
 ảnh nào tải lỗi thì giữ link mạng thay vì làm hỏng cả file. Máy chủ chỉ gọi tới
 `res.cloudinary.com`, không bao giờ tải một địa chỉ tuỳ ý. Trình duyệt nhúng
@@ -392,9 +404,9 @@ Public:
 - `GET /api/gifts/:accessCode/content` — student, gallery, letters (kèm cảm xúc) và `replies` (hồi âm chủ trang đã viết, trừ bị từ chối)
 - `POST /api/gifts/:accessCode/letters`
 - `GET /api/event` — `{ locked, unlockAt, serverNow }`, đã mở thì thêm `{ opened, total, replies }` (bông hoa 12A1 và số hồi âm đã duyệt); hạn mức riêng 10000/15 phút/IP, kết quả đệm 5 giây
-- `POST /api/gifts/:accessCode/open` — JSON `{ via: 'name' | 'face' }`, ghi một lượt mở quà từ trang chủ → `{ counted, rank, opened, total }`; hồ sơ bạn ngoài lớp trả `counted: false`
+- `POST /api/gifts/:accessCode/open` — JSON `{ via: 'name' | 'face' }`, ghi một lượt mở quà từ trang chủ → `{ counted, rank, opened, total }`; hồ sơ bạn ngoài lớp và tài khoản thử trả `counted: false`
 - `POST /api/gifts/:accessCode/replies` — JSON `{ target: 'letter' | 'class' | 'admin', letter_id?, content ≤ 2000 }`, luôn vào `pending`; chỉ trả lời được thư đã duyệt, đã tới giờ hiện của chính trang đó; 60 lượt/giờ/(trang, IP)
-- `POST /api/gifts/:accessCode/keepsake` — JSON `{ greeting? }`, trả file `.html` tự chứa (`Content-Disposition: attachment`); 300 lượt/15 phút/IP
+- `POST /api/gifts/:accessCode/keepsake` — JSON `{ greeting?, format? }`; `format: 'pdf'` trả file PDF (không in được thì trả `.html`, hàng chờ đầy thì 503 + `Retry-After`), bỏ trống thì trả file `.html` tự chứa (`Content-Disposition: attachment`); 300 lượt/15 phút/IP
 - `GET /api/replies?to=&exact=1` — Hộp thư hồi âm: hồi âm đã duyệt (trừ thư riêng gửi admin), mới nhất trước; `to` ≥ 2 ký tự, khớp từ đầu chữ, `exact=1` khớp trọn chữ
 - Khi trang quà khoá, các route xem/hồi âm/bản lưu/mở quà trả 423 kèm `unlockAt` và `serverNow`
 - Mọi route `/api/gifts/:accessCode/*` trả 404 ngay khi mã không phải chữ-số ASCII (`[A-Za-z0-9_-]`) — MySQL so khớp bỏ qua hoa/thường, dấu và dấu cách cuối, nên chặn trước để hạn mức theo trang không bị né bằng biến thể của mã
@@ -445,7 +457,7 @@ Frontend:
 - Nhạc không autoplay; người dùng bấm nút **Bật nhạc** ở góc phải dưới.
 - GiftPage không có form gửi lời chúc để tránh sai ngữ cảnh người nhận.
 - Lời chúc mới qua public API có trạng thái `pending` và chỉ xuất hiện sau khi admin duyệt.
-- Mọi tên được nhập đều nhận một lời chúc Gemini: người trong lớp xem trên GiftPage cá nhân, người ngoài danh sách xem trang chúc chung. Gemini key chỉ nằm ở backend để không lộ trên trình duyệt.
+- Mọi tên được nhập đều nhận một lời chúc Gemini: người có trang quà riêng (các bạn nữ, người ngoài lớp được gửi thư) xem trên GiftPage cá nhân; các bạn nam và người ngoài danh sách xem trang chúc chung. Gemini key chỉ nằm ở backend để không lộ trên trình duyệt.
 - Tên ngoài danh sách được hỏi "thành viên trong lớp hay khách ghé thăm" trước khi hiện lời chúc — hai kiểu lời chúc khác nhau (`classmate` / `visitor`).
 - Admin có thể **khóa trang quà chờ ngày 20/10** bằng công tắc **Trang quà** ở sidebar admin: người mở trang quà thấy "Chưa đến ngày 20/10, vui lòng chờ thêm", nhưng gửi lời chúc vẫn hoạt động — gửi link cho các bạn nam chúc trước, đến ngày admin gạt công tắc để mở.
 - Công tắc **✨ Face ID** nằm ngay dưới công tắc Trang quà, mặc định tắt. Quét mặt vẫn chạy khi trang quà đang khóa (nhận ra rồi mới gặp màn "chưa đến ngày"), nên bật Face ID sớm để thử không làm lộ quà. Dashboard có thẻ ✨ Face ID đếm số lượt quét nhận đúng / nhầm người / chưa thành, bấm vào để mở trang Lịch sử quét.

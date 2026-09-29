@@ -12,11 +12,11 @@ test('mỗi thành viên lớp là một cánh, bạn nào mở quà thì cánh 
   expect(screen.getByText('3/23')).toBeTruthy()
 })
 
-test('cả lớp mở quà thì hoa nở trọn và đổi lời', () => {
+test('mọi bạn nữ mở quà thì hoa nở trọn và đổi lời', () => {
   const { container } = render(<ClassFlower opened={25} total={23} />)
   expect(container.querySelectorAll('.flower__petal.is-open')).toHaveLength(23)
   expect(container.querySelector('.flower').classList.contains('is-complete')).toBe(true)
-  expect(screen.getByText(/Cả lớp đã mở quà rồi/)).toBeTruthy()
+  expect(screen.getByText(/Cả 23 bạn nữ đã mở quà rồi/)).toBeTruthy()
 })
 
 test('chưa có thành viên nào thì không vẽ hoa; tắt caption thì chỉ còn hình', () => {

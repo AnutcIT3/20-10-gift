@@ -3,7 +3,10 @@ const pool = require('../config/db');
 const { cloudinary } = require('../config/cloudinary');
 const normalizeName = require('../utils/normalizeName');
 
-const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'admin_wish', 'class_name'];
+const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'admin_wish', 'class_name', 'member_type'];
+// Admin chỉ đổi qua lại giữa thành viên lớp và tài khoản thử; hồ sơ bạn ngoài
+// lớp do lời chúc tự sinh và nằm ở không gian tên riêng
+const ADMIN_MEMBER_TYPES = ['class', 'test'];
 const SPECIAL_SEAT = { row: 0, column: 9 };
 
 function httpError(message, statusCode) {
@@ -68,6 +71,10 @@ function sanitizeInput(data, requireName = false) {
   clean.intro_message = validateText(data.intro_message, 'intro_message', 65535);
   clean.admin_wish = validateText(data.admin_wish, 'admin_wish', 65535);
   clean.class_name = validateText(data.class_name, 'class_name', 20);
+  if (data.member_type !== undefined) {
+    if (!ADMIN_MEMBER_TYPES.includes(data.member_type)) throw httpError('Loại thành viên không hợp lệ', 400);
+    clean.member_type = data.member_type;
+  }
   if (Object.prototype.hasOwnProperty.call(data, 'seat_row')
     || Object.prototype.hasOwnProperty.call(data, 'seat_col')) {
     Object.assign(clean, parseSeatPosition(data));
@@ -137,8 +144,9 @@ async function assertNoDuplicateVisibleName(fullName, excludeId = null) {
   const normalized = normalizeName(fullName);
   const params = [normalized];
   // Chỉ so với thành viên LỚP: hồ sơ "bạn bè" (do người ngoài tạo khi gửi lời
-  // chúc) không được phép chặn admin thêm/kích hoạt học sinh trùng tên
-  let sql = "SELECT id, full_name FROM students WHERE normalized_name = ? AND is_active = TRUE AND member_type = 'class'";
+  // chúc) không được phép chặn admin thêm/kích hoạt học sinh trùng tên. Tài
+  // khoản thử thì có: gõ tên tìm cả hai loại, trùng tên là mở nhầm trang
+  let sql = "SELECT id, full_name FROM students WHERE normalized_name = ? AND is_active = TRUE AND member_type IN ('class', 'test')";
   if (excludeId) {
     sql += ' AND id <> ?';
     params.push(excludeId);
@@ -184,11 +192,11 @@ async function createStudent(data) {
     try {
       const [result] = await pool.execute(
         `INSERT INTO students
-          (full_name, normalized_name, nickname, avatar_url, intro_message, admin_wish, class_name, access_code, seat_row, seat_col)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (full_name, normalized_name, nickname, avatar_url, intro_message, admin_wish, class_name, access_code, seat_row, seat_col, member_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [clean.full_name, clean.normalized_name, clean.nickname || null,
           clean.avatar_url || null, clean.intro_message || null, clean.admin_wish || null, clean.class_name || 'A1', accessCode,
-          clean.seat_row ?? null, clean.seat_col ?? null],
+          clean.seat_row ?? null, clean.seat_col ?? null, clean.member_type || 'class'],
       );
       return getStudent(result.insertId);
     } catch (error) {
@@ -211,10 +219,13 @@ async function updateStudent(id, data) {
   if (!entries.length) throw httpError('Không có dữ liệu để cập nhật', 400);
 
   const assignments = entries.map(([key]) => `${key} = ?`).join(', ');
+  // Đổi loại chỉ áp cho thành viên lớp / tài khoản thử, không bao giờ biến hồ
+  // sơ bạn ngoài lớp thành người trong lớp
+  const guard = clean.member_type ? " AND member_type <> 'friend'" : '';
   let result;
   try {
     [result] = await pool.execute(
-      `UPDATE students SET ${assignments} WHERE id = ?`,
+      `UPDATE students SET ${assignments} WHERE id = ?${guard}`,
       [...entries.map(([, value]) => value), id],
     );
   } catch (error) {
@@ -223,7 +234,10 @@ async function updateStudent(id, data) {
     }
     throw error;
   }
-  if (!result.affectedRows) throw httpError('Không tìm thấy học sinh', 404);
+  if (!result.affectedRows) {
+    if (guard && await getStudent(id)) throw httpError('Hồ sơ bạn ngoài lớp không đổi loại được', 400);
+    throw httpError('Không tìm thấy học sinh', 404);
+  }
   return getStudent(id);
 }
 

@@ -137,7 +137,7 @@ async function downloadKeepsake(accessCode, greeting = '') {
     response = await fetch(`${api.defaults.baseURL}/api/gifts/${encodeURIComponent(accessCode)}/keepsake`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ greeting: greeting || undefined }),
+      body: JSON.stringify({ greeting: greeting || undefined, format: 'pdf' }),
       signal: timeout,
     })
   } catch (error) {

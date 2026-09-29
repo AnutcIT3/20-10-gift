@@ -31,7 +31,7 @@ function EventCountdown({ unlockAt, offset = 0, onDone }) {
         {done ? 'Tới giờ rồi! Đang mở quà…' : <>Quà tự mở lúc <b>{formatClock(unlockAt)}</b></>}
       </p>
       {!done && <Countdown remainingMs={remaining} />}
-      <p className="event-countdown__note">Cả lớp cùng chờ, cùng mở một lúc nhé 🌸</p>
+      <p className="event-countdown__note">Các cậu cùng chờ nhé, tới giờ là cùng mở quà một lúc 🌸</p>
     </section>
   )
 }
