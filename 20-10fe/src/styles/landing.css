@@ -131,6 +131,94 @@
   font: 18px var(--font-hand);
 }
 
+/* ── Đếm ngược tới giờ quà tự mở ── */
+.event-countdown {
+  margin: -6px 0 24px;
+  padding: 16px 18px 14px;
+  border: 1.5px dashed var(--line);
+  border-radius: 10px;
+  background: rgba(251, 246, 238, .75);
+  text-align: center;
+  animation: fadeUp .6s ease both;
+}
+
+.event-countdown.is-done {
+  border-color: var(--clay);
+  background: var(--peach-soft);
+}
+
+.event-countdown__label {
+  margin: 0;
+  font: 18px var(--font-hand);
+  color: var(--ink-2);
+}
+
+.event-countdown__label b {
+  font-weight: 400;
+  color: var(--clay);
+}
+
+.event-countdown .countdown {
+  margin-top: 10px;
+}
+
+.event-countdown__note {
+  margin: 10px 0 0;
+  font: italic 13px var(--font-body);
+  color: var(--muted);
+}
+
+/* Khoảnh khắc đồng hồ về 0 và quà mở ngay trước mắt */
+.event-opened {
+  margin: -6px 0 22px;
+  padding: 12px 14px;
+  background: var(--moss-soft);
+  border-left: 3px solid var(--moss);
+  font: 18px/1.45 var(--font-write);
+  color: #3f5236;
+  animation: fadeUp .5s ease both;
+}
+
+/* ── Bông hoa 12A1 + lối sang Hộp thư hồi âm ── */
+.landing__replies {
+  display: block;
+  width: fit-content;
+  margin-top: 12px;
+  text-decoration: none;
+}
+
+.landing-flower {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1.5px dashed var(--beige);
+}
+
+.landing-flower__title {
+  margin: 0;
+  font: 20px var(--font-hand);
+  color: var(--clay);
+}
+
+.landing-flower__count {
+  margin: 2px 0 0;
+  font: 17px var(--font-hand);
+  color: var(--muted);
+}
+
+.landing-flower__count b {
+  font-weight: 400;
+  color: var(--clay);
+}
+
+.landing-flower__note {
+  margin: 2px 0 0;
+  font: italic 13px var(--font-body);
+  color: var(--muted);
+}
+
 /* ── Trùng tên ── */
 .match-list {
   display: grid;

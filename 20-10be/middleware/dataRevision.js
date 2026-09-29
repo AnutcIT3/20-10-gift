@@ -9,13 +9,17 @@ const SHARED_DATA_PREFIXES = [
   '/api/letters',
   '/api/gifts',
   '/api/admin/settings',
+  '/api/admin/replies',
   '/api/friends',
 ];
+// POST không đổi dữ liệu admin đang xem: thả cảm xúc, ghi lượt mở quà (bông
+// hoa tự làm mới ở trang Tổng quan) và tải bản lưu quà
+const NON_SHARED_SUFFIXES = ['/react', '/open', '/keepsake'];
 
 function isSharedDataMutation(req) {
   if (!MUTATION_METHODS.has(req.method)) return false;
   const requestPath = req.originalUrl.split('?')[0];
-  if (requestPath.endsWith('/react')) return false;
+  if (NON_SHARED_SUFFIXES.some((suffix) => requestPath.endsWith(suffix))) return false;
   return SHARED_DATA_PREFIXES.some(
     (prefix) => requestPath === prefix || requestPath.startsWith(`${prefix}/`),
   );

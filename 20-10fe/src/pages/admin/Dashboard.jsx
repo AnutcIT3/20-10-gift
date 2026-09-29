@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { adminApi } from '../../api/adminApi'
+import EventCard from './EventCard'
 
 const EMOJI_MAP = {
   smile: '🙂', laugh: '😄', angry: '😠', kiss: '😘',
@@ -43,6 +44,8 @@ function StatCard({ to, value, label, tone = '' }) {
 
 function Dashboard() {
   const [stats, setStats] = useState(null)
+  // Khoá/giờ tự mở/mốc đếm bông hoa — cho thẻ "Ngày 20/10"
+  const [settings, setSettings] = useState(null)
   const [inbox, setInbox] = useState({ items: [], total: 0 })
   const [selectedIds, setSelectedIds] = useState([])
   const [error, setError] = useState('')
@@ -60,12 +63,14 @@ function Dashboard() {
     const seq = ++loadSeq.current
     if (!silent) setLoading(true)
     try {
-      const [statsData, pending] = await Promise.all([
+      const [statsData, pending, settingsData] = await Promise.all([
         adminApi.getStats(),
         adminApi.listLetters({ status: 'pending', page: 1, pageSize: INBOX_PREVIEW }),
+        adminApi.getSettings(),
       ])
       if (seq !== loadSeq.current) return
       setStats(statsData)
+      setSettings(settingsData)
       setInbox({ items: pending?.items || [], total: Number(pending?.pagination?.total || 0) })
       setSelectedIds((current) => current.filter((id) => (pending?.items || []).some((letter) => letter.id === id)))
       setLastRefresh(new Date())
@@ -80,9 +85,14 @@ function Dashboard() {
   useEffect(() => {
     const initialLoad = setTimeout(() => load(), 0)
     timerRef.current = setInterval(() => load(true), AUTO_REFRESH_MS)
+    // Gạt công tắc khoá ở thanh bên (hay thao tác nào khác trên máy này) thì
+    // thẻ "Ngày 20/10" cập nhật ngay, không chờ 30 giây
+    const handleRevision = () => load(true)
+    window.addEventListener('gift-admin-revision', handleRevision)
     return () => {
       clearTimeout(initialLoad)
       clearInterval(timerRef.current)
+      window.removeEventListener('gift-admin-revision', handleRevision)
     }
   }, [load])
 
@@ -186,6 +196,12 @@ function Dashboard() {
           label={stats ? `Ảnh · ${stats.gallery?.studentsWithoutImages ?? 0} bạn chưa có` : 'Ảnh'}
         />
         <StatCard
+          to="/admin/replies"
+          value={stats?.replies ? stats.replies.pending : undefined}
+          label="Hồi âm chờ duyệt"
+          tone={stats?.replies?.pending ? 'clay' : 'moss'}
+        />
+        <StatCard
           to="/admin/students?filter=noavatar"
           value={stats?.students?.withoutAvatar}
           label="Bạn chưa có ảnh đại diện"
@@ -251,6 +267,21 @@ function Dashboard() {
         </section>
 
         <div className="dash-side">
+          {settings && (
+            <EventCard
+              key={`${settings.gift_pages_locked}-${settings.gift_unlock_at}`}
+              settings={settings}
+              opens={stats?.opens}
+              onBusy={() => {
+                setMessage('')
+                setError('')
+              }}
+              onChanged={(doneMessage) => {
+                setMessage(doneMessage || '')
+                load(true)
+              }}
+            />
+          )}
           <section className="admin-card admin-card--pad" aria-labelledby="top-title">
             <h3 id="top-title">Được xem nhiều</h3>
             {loading && !stats ? <p className="admin-loading">Đang tải…</p> : topViewed.length === 0 ? (

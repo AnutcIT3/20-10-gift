@@ -1,3 +1,6 @@
+// Tên lớp in trên bản lưu quà (khớp CLASS_NAME của frontend, src/lib/event.js)
+const CLASS_NAME = '12A1';
+
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 // heic/heif là mặc định của iPhone; Cloudinary nhận được và f_auto lúc hiển thị
@@ -32,6 +35,7 @@ const FACE_HEALTH_TTL_MS = 10000;
 const FACE_GALLERY_TTL_MS = 30000;
 
 module.exports = {
+  CLASS_NAME,
   MAX_IMAGE_SIZE,
   ALLOWED_IMAGE_TYPES,
   FACE_SERVICE_URL,

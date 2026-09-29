@@ -195,3 +195,22 @@
     font-size: 15px;
   }
 }
+
+/* Bạn cùng lớp có thư hồi âm gửi đích danh: tem dán nổi trên bưu thiếp */
+.postcard__replies {
+  display: inline-block;
+  margin: 16px 0 0;
+  padding: 8px 14px;
+  border: 1.5px dashed var(--clay);
+  border-radius: 6px;
+  background: var(--peach-soft);
+  font: 18px var(--font-hand);
+  color: var(--clay);
+  text-decoration: none;
+  transform: rotate(-1deg);
+  animation: stampIn .6s cubic-bezier(.2, .9, .3, 1.2) .8s both;
+}
+
+.postcard__replies:hover {
+  background: #fff;
+}

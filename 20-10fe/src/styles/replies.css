@@ -1,0 +1,240 @@
+/* ===========================================
+   Hộp thư hồi âm (/hoi-am): bưu thiếp các bạn nữ gửi lại
+   =========================================== */
+.replies-page {
+  padding-bottom: 80px;
+}
+
+.replies-page__inner {
+  position: relative;
+  z-index: 1;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0 44px;
+}
+
+.replies-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 22px;
+}
+
+.replies-page__back {
+  font: 20px var(--font-hand);
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 2px solid var(--beige);
+}
+
+.replies-page__back:hover {
+  color: var(--clay);
+  border-color: var(--clay);
+}
+
+.replies-page__brand,
+.replies-page__footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font: 18px var(--font-hand);
+  color: var(--muted);
+}
+
+.replies-page__brand img,
+.replies-page__footer img {
+  width: 34px;
+  height: 34px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 2px 6px rgba(61, 47, 40, .2);
+}
+
+.replies-hero {
+  position: relative;
+  padding: 40px 0 8px;
+  animation: fadeUp .7s ease both;
+}
+
+.replies-hero__postmark {
+  position: absolute;
+  right: 6px;
+  top: 30px;
+}
+
+.replies-hero h1 {
+  margin: 0;
+  font-size: 64px;
+  line-height: 1.05;
+}
+
+.replies-hero__intro {
+  max-width: 560px;
+  margin: 14px 0 0;
+  font: italic 18px/1.6 var(--font-body);
+  color: var(--ink-2);
+}
+
+.replies-search {
+  max-width: 420px;
+  margin-top: 22px;
+}
+
+.replies-search__hint {
+  margin: 6px 0 0;
+  font: italic 13px var(--font-body);
+  color: var(--muted);
+}
+
+.replies-count {
+  margin: 28px 0 0;
+  font: 16px var(--font-hand);
+  color: var(--muted);
+  letter-spacing: .04em;
+}
+
+.reply-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 30px 26px;
+  align-items: start;
+  margin-top: 22px;
+  transition: opacity .2s ease;
+}
+
+.reply-cards.is-refreshing {
+  opacity: .6;
+}
+
+.reply-card {
+  position: relative;
+  padding: 26px 26px 18px;
+  background: var(--cream);
+  box-shadow: var(--shadow-soft);
+  transform: rotate(var(--rot, 0deg));
+  animation: fadeUp .6s ease var(--delay, 0s) both;
+}
+
+.reply-card .tape--center {
+  width: 84px;
+  height: 22px;
+}
+
+.reply-card__route {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: 0;
+  font: 24px/1.25 var(--font-write);
+}
+
+.reply-card__from {
+  font-weight: 400;
+  color: var(--clay);
+}
+
+.reply-card__arrow {
+  font: 15px var(--font-hand);
+  color: var(--muted);
+}
+
+.reply-card__to {
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.reply-card__to--anon {
+  font-style: italic;
+  color: var(--moss);
+}
+
+.reply-card__hint {
+  margin: 2px 0 0;
+  font: italic 13px var(--font-body);
+  color: var(--muted);
+}
+
+.reply-card__body {
+  margin: 12px 0 10px;
+  font: 21px/1.5 var(--font-write);
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.reply-card__time {
+  font: 14px var(--font-hand);
+  color: var(--muted);
+}
+
+.replies-empty {
+  margin-top: 22px;
+  padding: 18px 26px;
+  transform: rotate(-.5deg);
+}
+
+.replies-all {
+  margin: 26px 0 0;
+  text-align: center;
+}
+
+.replies-page__footer {
+  justify-content: center;
+  margin-top: 56px;
+  font-size: 16px;
+}
+
+@media (max-width: 719px) {
+  .replies-page__inner {
+    padding: 0 18px;
+  }
+
+  .replies-page__header {
+    padding-top: 18px;
+  }
+
+  .replies-page__back {
+    font-size: 18px;
+  }
+
+  .replies-page__brand {
+    display: none;
+  }
+
+  .replies-hero {
+    padding-top: 30px;
+  }
+
+  .replies-hero__postmark {
+    display: none;
+  }
+
+  .replies-hero h1 {
+    font-size: 44px;
+  }
+
+  .replies-hero__intro {
+    font-size: 16px;
+  }
+
+  .reply-cards {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .reply-card {
+    padding: 22px 20px 16px;
+  }
+
+  .reply-card__route {
+    font-size: 22px;
+  }
+
+  .reply-card__body {
+    font-size: 20px;
+  }
+}

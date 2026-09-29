@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import giftRepository from '../api/giftRepository'
+import ClassFlower from '../components/ClassFlower'
+import EventCountdown from '../components/EventCountdown'
 import GiftReveal from '../components/GiftReveal'
 import Petals from '../components/paper/Petals'
 import Envelope from '../components/paper/Envelope'
@@ -8,11 +10,17 @@ import Stamp from '../components/paper/Stamp'
 import Postmark from '../components/paper/Postmark'
 import Polaroid from '../components/paper/Polaroid'
 import useDialogA11y from '../hooks/useDialogA11y'
+import useEventStatus from '../hooks/useEventStatus'
 import useFaceScan from '../hooks/useFaceScan'
-import { EVENT_YEAR, formatStamp } from '../lib/event'
+import { CLASS_NAME, EVENT_YEAR, formatStamp } from '../lib/event'
 import { greetingFor, showCountdown } from '../lib/faceVote'
 import { seatLabel } from '../lib/seat'
 import '../styles/landing.css'
+
+// Đồng hồ về 0 mà máy chủ vẫn báo khoá (đồng hồ hai bên lệch nhau vài giây):
+// hỏi lại mỗi 2 giây, tối đa 10 lần, rồi để nhịp hỏi 30 giây thường lo tiếp
+const OPEN_RETRY_MS = 2000
+const OPEN_RETRIES = 10
 
 // Face-service có thể còn đang nạp model khi trang vừa mở (start-dev mở trình
 // duyệt sau 4 giây): hỏi lại status sau 5 giây rồi 15 giây trước khi thôi
@@ -35,6 +43,12 @@ const EMPTY_WISH = {
   revealAt: '',
 }
 const MATCH_ROTATIONS = [-1, 0.8, -0.5]
+
+// Lượt mở chờ ghi (xem GiftPage): kèm lúc tạo để một tab thử cũ được khôi
+// phục vài ngày sau không lén góp cánh hoa
+function pendingOpenFor(via) {
+  return { via: via === 'face' ? 'face' : 'name', at: Date.now() }
+}
 
 function computeRevealLimits() {
   const now = Date.now()
@@ -107,6 +121,19 @@ function LandingPage() {
   const [revealStudent, setRevealStudent] = useState(null)
   // 'face' khi quà được mở bằng Face ID → GiftReveal thêm huy hiệu nhỏ
   const [revealVia, setRevealVia] = useState('')
+  // Bạn thứ mấy của lớp mở quà (bông hoa 12A1) → GiftReveal và trang quà
+  const [revealRank, setRevealRank] = useState(null)
+  // Lượt mở chưa ghi được (mạng chập, hay trượt đúng khoảnh khắc quà mở):
+  // GiftPage ghi bù một lần khi quà đã hiện ra
+  const [revealPendingOpen, setRevealPendingOpen] = useState(null)
+
+  // Ngày 20/10: đếm ngược tới giờ tự mở, bông hoa 12A1, số thư hồi âm
+  const {
+    status: eventStatus,
+    offset: eventOffset,
+    justOpened,
+    refresh: refreshEvent,
+  } = useEventStatus()
 
   // Face ID: thẻ ✨ chỉ hiện khi admin bật, service sống, đã có hồ sơ và máy
   // có camera trên kết nối an toàn. Thiếu một điều kiện → thẻ không hề xuất hiện.
@@ -234,25 +261,55 @@ function LandingPage() {
     // biết các lượt đó là của ai (không có lượt nào thì không gửi gì)
     claimFaceScans(accessCode)
     let studentData = null
+    // Thành viên lớp tự mở quà (gõ tên hay Face ID) thì góp một cánh cho bông
+    // hoa 12A1. Chạy song song với getGift; quà còn khoá thì máy chủ trả 423 và
+    // không ghi gì. Lỗi gì cũng bỏ qua — hoa chỉ là phần trang trí.
+    const opening = visitorRole === 'classmate' && accessCode
+      ? giftRepository.recordOpen(accessCode, via === 'face' ? 'face' : 'name').catch(() => null)
+      : Promise.resolve(null)
 
     try {
       studentData = accessCode ? await giftRepository.getGift(accessCode) : null
     } catch (err) {
       if (err?.status === 423) {
         // Trang quà đang khóa chờ 20/10 — bỏ hiệu ứng mở quà, đưa thẳng tới
-        // màn "Chưa đến ngày" của GiftPage
-        navigate(giftPath)
+        // màn "Chưa đến ngày" của GiftPage. Bạn trong lớp chờ ở đó tới giờ
+        // hẹn thì quà tự mở: GiftPage ghi lượt mở giùm (pendingOpen) để bạn ấy
+        // vẫn góp một cánh cho bông hoa và biết mình là bạn thứ mấy
+        navigate(giftPath, visitorRole === 'classmate'
+          ? { state: { pendingOpen: pendingOpenFor(via) } }
+          : undefined)
         return
       }
       // Vẫn mở quà nếu không tải được thông tin chỗ ngồi.
     }
 
+    const opened = await opening
     setRevealName(displayName || studentData?.nickname || studentData?.full_name || '')
     setRevealVia(via)
+    setRevealRank(opened?.counted ? opened.rank : null)
+    setRevealPendingOpen(visitorRole === 'classmate' && opened === null ? pendingOpenFor(via) : null)
     // Truyền student sang GiftReveal (sơ đồ lớp + thư bay từ đúng bàn) và sang
     // GiftPage qua router state để hero hiện ngay, không fetch lại
     setRevealStudent(studentData)
     setRevealPath(giftPath)
+  }
+
+  // Đồng hồ về 0: hỏi lại tới khi máy chủ báo quà đã mở. Mỗi lần hỏi làm
+  // trang render lại; cờ này giữ cho chỉ MỘT vòng hỏi lại chạy tại một lúc
+  const retryingRef = useRef(false)
+  const handleCountdownDone = async () => {
+    if (retryingRef.current) return
+    retryingRef.current = true
+    try {
+      for (let attempt = 0; attempt < OPEN_RETRIES; attempt += 1) {
+        const status = await refreshEvent()
+        if (status && !status.locked) return
+        await new Promise((resolve) => { setTimeout(resolve, OPEN_RETRY_MS) })
+      }
+    } finally {
+      retryingRef.current = false
+    }
   }
 
   const openFace = () => {
@@ -422,7 +479,10 @@ function LandingPage() {
           student={revealStudent}
           recipientName={revealName}
           via={revealVia}
-          onComplete={() => navigate(revealPath, revealStudent ? { state: { student: revealStudent } } : undefined)}
+          openRank={revealRank}
+          onComplete={() => navigate(revealPath, revealStudent || revealRank || revealPendingOpen
+            ? { state: { student: revealStudent, openRank: revealRank, pendingOpen: revealPendingOpen } }
+            : undefined)}
         />
       )}
       <div className="landing__grid">
@@ -435,6 +495,15 @@ function LandingPage() {
               <p className="kicker">20 · 10 · {EVENT_YEAR}</p>
               <h1 className="landing__title">Một món quà nhỏ dành riêng cho bạn</h1>
               <p className="landing__intro">Nhập tên để mở không gian lưu bút và những lời chúc từ lớp mình.</p>
+              {/* Admin hẹn giờ tự mở → cả lớp cùng đếm ngược; về 0 thì quà mở */}
+              {eventStatus?.locked && eventStatus.unlockAt && (
+                <EventCountdown unlockAt={eventStatus.unlockAt} offset={eventOffset} onDone={handleCountdownDone} />
+              )}
+              {justOpened && (
+                <p className="event-opened" role="status">
+                  🎉 Quà đã mở rồi! Cho tụi mình biết bạn là ai để mở tiếp nhé.
+                </p>
+              )}
               <p className="landing__ask">Trước tiên, cho tụi mình biết bạn là ai nhé:</p>
               <div className="landing__roles">
                 <button type="button" className="btn-stamp" style={{ '--rot': '-1deg' }} onClick={() => chooseRole('classmate')}>
@@ -505,8 +574,30 @@ function LandingPage() {
           <button type="button" className="landing__wish" onClick={openWish}>
             <span className="link-dashed">✉ Mình muốn gửi lời chúc cho một bạn</span>
           </button>
+          {eventStatus && !eventStatus.locked && eventStatus.replies > 0 && (
+            <Link to="/hoi-am" className="landing__wish landing__replies">
+              <span className="link-dashed">📬 Hộp thư hồi âm · {eventStatus.replies} lá</span>
+            </Link>
+          )}
+          {/* Bông hoa 12A1: mỗi bạn mở quà, hoa nở thêm một cánh */}
+          {eventStatus && !eventStatus.locked && eventStatus.total > 0 && (
+            <section className="landing-flower" aria-label={`Bông hoa ${CLASS_NAME}`}>
+              <ClassFlower opened={eventStatus.opened} total={eventStatus.total} compact caption={false} />
+              <div className="landing-flower__text">
+                <p className="landing-flower__title">Bông hoa {CLASS_NAME}</p>
+                <p className="landing-flower__count" aria-live="polite">
+                  {eventStatus.opened >= eventStatus.total
+                    ? 'Cả lớp đã mở quà rồi! 🌸'
+                    : <><b>{eventStatus.opened}/{eventStatus.total}</b> bạn đã mở quà</>}
+                </p>
+                <p className="landing-flower__note">Mỗi bạn mở quà, hoa nở thêm một cánh.</p>
+              </div>
+            </section>
+          )}
         </div>
       </div>
+      {/* Khoảnh khắc quà mở ngay trước mắt: thêm một đợt cánh hoa */}
+      {justOpened && <Petals count={4} fast />}
 
       {wishOpen && (
         <div className="wish-backdrop" role="presentation" onClick={closeWish}>

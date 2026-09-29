@@ -19,3 +19,32 @@ export function formatStamp(value, { time = true } = {}) {
   const day = `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
   return time ? `${day} · ${pad(date.getHours())}:${pad(date.getMinutes())}` : day
 }
+
+export const pad2 = (n) => String(n).padStart(2, '0')
+
+// Tách khoảng thời gian (ms) thành ngày/giờ/phút/giây cho đồng hồ đếm ngược
+export function splitDuration(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  return {
+    days: Math.floor(total / 86_400),
+    hours: Math.floor((total % 86_400) / 3_600),
+    minutes: Math.floor((total % 3_600) / 60),
+    seconds: total % 60,
+  }
+}
+
+// "00:00 · 20/10" — giờ quà tự mở, theo giờ máy người xem
+export function formatClock(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())} · ${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}`
+}
+
+// Độ lệch đồng hồ máy người xem so với máy chủ (ms): lấy giữa lúc gửi và lúc
+// nhận để bù độ trễ mạng. Đồng hồ điện thoại chạy nhanh vài phút cũng không làm
+// quà "mở" sớm trên màn hình.
+export function serverOffset(serverNow, sentAt, receivedAt = sentAt) {
+  const server = new Date(serverNow).getTime()
+  if (!Number.isFinite(server)) return 0
+  return server - (sentAt + receivedAt) / 2
+}

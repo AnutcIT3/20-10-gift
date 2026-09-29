@@ -19,6 +19,8 @@ const friendRoutes = require('./routes/friends');
 const faceRoutes = require('./routes/face');
 const adminFaceRoutes = require('./routes/admin-face');
 const adminStatsRoutes = require('./routes/admin-stats');
+const eventRoutes = require('./routes/event');
+const { repliesRouter, adminRepliesRouter } = require('./routes/replies');
 const { generalLimiter, revisionLimiter } = require('./middleware/rateLimit');
 
 const app = express();
@@ -99,6 +101,9 @@ app.use('/api/admin/letters', adminLettersRouter);
 app.use('/api/letters', lettersRouter);
 app.use('/api/greetings', greetingRoutes);
 app.use('/api/friends', friendRoutes);
+// Đếm ngược 20/10 + bông hoa 12A1, và Hộp thư hồi âm công khai
+app.use('/api/event', eventRoutes);
+app.use('/api/replies', repliesRouter);
 // Face ID: public, không qua giftLockGuard và không nằm trong data-revision
 // (khung hình không phải dữ liệu dùng chung)
 app.use('/api/face', faceRoutes);
@@ -106,6 +111,7 @@ app.use('/api/face', faceRoutes);
 // đứng trước auth để cả request chưa xác thực cũng bị giới hạn
 app.use('/api/admin/data-revision', revisionLimiter);
 app.use('/api/admin/face', adminFaceRoutes);
+app.use('/api/admin/replies', adminRepliesRouter);
 app.use('/api/admin', adminStatsRoutes);
 
 // ── Serve frontend build (kích hoạt khi SERVE_STATIC=true hoặc NODE_ENV=production) ──

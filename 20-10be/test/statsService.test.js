@@ -57,6 +57,10 @@ test('dashboard stats normalizes aggregate values and reaction totals', async ()
     [[{ id: 20, full_name: 'Hùng', view_count: 10 }]],
     [[{ emoji_key: 'love', cnt: '3' }, { emoji_key: 'think', cnt: '1' }]],
     [[{ scans: '9', confirmed: '5', denied: null }]],
+    [[{ pending: '2', approved: '3', rejected: null }]],
+    [[{ setting_value: '2026-10-19T17:00:00.000Z' }]],
+    [[{ student_id: 4, first_at: new Date() }, { student_id: 9, first_at: new Date() }]],
+    [[{ total: '23' }]],
   ];
   const seen = [];
   pool.execute = async (sql) => { seen.push(sql); return results.shift(); };
@@ -73,6 +77,11 @@ test('dashboard stats normalizes aggregate values and reaction totals', async ()
     // Đếm theo lượt quét: 9 lượt, 5 nhận đúng, 0 nhầm → 4 chưa thành
     assert.deepEqual(result.face, { scans: 9, confirmed: 5, denied: 0, failed: 4 });
     assert.match(seen[7], /FROM face_scans/);
+    assert.deepEqual(result.replies, { pending: 2, approved: 3, rejected: 0 });
+    // Bông hoa đếm từ mốc đặt lại, chỉ thành viên lớp đang hoạt động
+    assert.deepEqual(result.opens, { opened: 2, total: 23, since: '2026-10-19T17:00:00.000Z' });
+    assert.match(seen[10], /FROM gift_opens/);
+    assert.match(seen[10], /member_type = 'class'/);
   } finally {
     pool.execute = original;
   }

@@ -43,3 +43,20 @@ test('hộp thư trống thì không hiện tiêu đề nhóm nào', () => {
   expect(screen.getByText('hộp thư còn trống')).toBeTruthy()
   expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0)
 })
+
+test('trang quà cho hồi âm thì mỗi lá thư có nút "Hồi âm", hồi âm đã gửi hiện đúng dưới thư của nó', () => {
+  render(<LetterSection
+    letters={[letter(1, 'classmate', 'Tuấn'), letter(2, 'guest', 'Lan')]}
+    accessCode="12a1-thuy"
+    replies={[{ id: 7, target: 'letter', letter_id: 2, content: 'Cảm ơn Lan!', status: 'pending' }]}
+    onReplied={() => {}}
+  />)
+  expect(screen.getAllByRole('button', { name: '✉ Hồi âm' })).toHaveLength(1)
+  expect(screen.getByRole('button', { name: '✉ Viết thêm' })).toBeTruthy()
+  expect(screen.getByText('Cảm ơn Lan!')).toBeTruthy()
+})
+
+test('không truyền onReplied thì không có nút hồi âm nào', () => {
+  render(<LetterSection letters={[letter(1, 'guest', 'Lan')]} accessCode="12a1-thuy" />)
+  expect(screen.queryByRole('button', { name: '✉ Hồi âm' })).toBeNull()
+})

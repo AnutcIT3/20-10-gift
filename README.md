@@ -25,9 +25,16 @@ chỉ mở ra đúng vào ngày 20/10.
    dán băng keo, thư các bạn gửi — thư ký tên có, thư ẩn danh cũng có — một lời
    chúc AI viết theo tên cậu, và một bản nhạc để bật lên khi muốn. Đọc xong thì
    thả cảm xúc cho từng lá thư 😍
+4. **Viết lại đôi dòng:** dưới mỗi lá thư có nút **✉ Hồi âm** — cảm ơn người đã
+   viết, kể cả người bạn ẩn danh. Cuối trang còn chỗ để gửi vài chữ cho cả lớp.
+5. **Cất quà vào máy:** bấm **💾 Tải bản lưu** là cả trang quà — ảnh, thư, lời
+   chúc — gói gọn trong một file. Vài năm nữa mở lại vẫn nguyên vẹn, không cần
+   mạng, không cần chiếc laptop đang chạy trang này.
 
 Trước ngày 20/10, bấm vào trang quà chỉ thấy *"Chưa đến ngày 20/10"* — bất ngờ
-thì phải giữ tới đúng ngày.
+thì phải giữ tới đúng ngày. Đêm 19/10 cả lớp cùng nhìn đồng hồ đếm ngược tới
+từng giây; **đúng 00:00, quà tự mở** — ai đang để sẵn trang sẽ thấy phong bì tự
+bung ra.
 
 ## 💌 Dành cho người gửi
 
@@ -39,6 +46,9 @@ thì phải giữ tới đúng ngày.
   riêng; họ chọn "Mình là khách ghé thăm", tìm tên mình là thấy.
 - **Khách ghé thăm** không có tên trong danh sách cũng không về tay không: gõ tên
   là nhận một lời chúc 20/10 dành riêng cho mình.
+- **Rồi tới lượt các bạn nam bất ngờ:** các bạn nữ đọc thư xong sẽ hồi âm. Ghé
+  **📬 Hộp thư hồi âm**, gõ tên mình là thấy ai đã viết lại cho cậu — người gửi
+  ẩn danh thì nhận ra thư của mình qua lúc đã gửi.
 
 ## 🌸 Những điều nhỏ mà có ý
 
@@ -51,6 +61,8 @@ thì phải giữ tới đúng ngày.
   số, không phải tấm ảnh.
 - **Cả lớp mở cùng lúc cũng không sao:** đã thử 40 người quét mặt cùng một lúc —
   không ai bị bỏ lại phía sau.
+- **Bông hoa 12A1:** trang chủ có một bông hoa, mỗi cánh là một bạn nữ. Bạn nào
+  mở quà thì cánh đó nở — và biết mình là *bạn thứ mấy* của lớp mở quà đêm ấy.
 
 ## 💭 Vì sao có trang này
 

@@ -1,4 +1,6 @@
 const pool = require('../config/db');
+const replyService = require('./replyService');
+const eventService = require('./eventService');
 
 const SESSION_ID_RE = /^[a-zA-Z0-9_-]{16,64}$/;
 
@@ -106,6 +108,11 @@ async function getDashboardStats() {
   } catch (error) {
     if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
   }
+  // Thư hồi âm chờ duyệt và bông hoa 12A1 (migration 020) — cả hai trả null
+  // khi máy chưa migrate, để trang Tổng quan vẫn mở được
+  const replies = await replyService.countByStatus();
+  const opens = await eventService.openSummary();
+
   const faceScans = Number(faceRow?.scans || 0);
   const faceConfirmed = Number(faceRow?.confirmed || 0);
   const faceDenied = Number(faceRow?.denied || 0);
@@ -133,6 +140,8 @@ async function getDashboardStats() {
       byEmoji: reactions,
       total: totalReactions,
     },
+    replies,
+    opens,
     face: faceRow ? {
       scans: faceScans,
       confirmed: faceConfirmed,

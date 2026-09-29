@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import EmptyState from './EmptyState'
+import ReplyBox from './ReplyBox'
 import Polaroid from './paper/Polaroid'
 import Stamp from './paper/Stamp'
 import api from '../services/api'
@@ -104,7 +105,7 @@ function ReactionBar({ letter, accessCode }) {
 }
 
 // ── Letter Card: tờ giấy kẻ dòng có tem ─────────────────────────────────────
-function LetterCard({ letter, accessCode, index }) {
+function LetterCard({ letter, accessCode, index, replies, onReplied }) {
   const anonymous = letter.is_anonymous || !letter.sender_name
   // Thư đầu mỗi hàng nghiêng nhẹ; thư thứ hai nghiêng ngược và hạ thấp
   const rotate = index === 1 ? 0.8 : index % 2 === 0 ? -0.6 : 0
@@ -128,6 +129,17 @@ function LetterCard({ letter, accessCode, index }) {
         <time dateTime={letter.created_at}>{formatStamp(letter.created_at)}</time>
         <ReactionBar letter={letter} accessCode={accessCode} />
       </div>
+      {onReplied && (
+        <ReplyBox
+          accessCode={accessCode}
+          target="letter"
+          letterId={letter.id}
+          recipient={anonymous ? 'người bạn ẩn danh' : letter.sender_name}
+          replies={replies}
+          onSent={onReplied}
+          className="letter__reply"
+        />
+      )}
     </article>
   )
 }
@@ -141,14 +153,15 @@ const GROUPS = [
   { kind: 'guest', title: 'Từ khách ghé thăm' },
 ]
 
-function LetterSection({ letters = [], accessCode }) {
+// replies: hồi âm chủ trang đã viết; onReplied có thì mỗi thư có nút "Hồi âm"
+function LetterSection({ letters = [], accessCode, replies = [], onReplied }) {
   const groups = GROUPS
     .map((group) => ({ ...group, items: letters.filter((letter) => (letter.sender_kind || 'guest') === group.kind) }))
     .filter((group) => group.items.length > 0)
   const grouped = groups.length > 1 || groups[0]?.kind === 'classmate'
 
   return (
-    <section className="gift__section gift__section--last" aria-labelledby="letters-title">
+    <section className="gift__section" aria-labelledby="letters-title">
       <h2 id="letters-title" className="section-title">
         Những lời chúc dành cho bạn
         <span className="section-title__count">{letters.length ? `${letters.length} bức thư` : 'hộp thư còn trống'}</span>
@@ -159,7 +172,14 @@ function LetterSection({ letters = [], accessCode }) {
             {grouped && <h3 className="letters-group__title">{group.title}</h3>}
             <div className="letters">
               {group.items.map((letter, index) => (
-                <LetterCard key={letter.id} letter={letter} accessCode={accessCode} index={index} />
+                <LetterCard
+                  key={letter.id}
+                  letter={letter}
+                  accessCode={accessCode}
+                  index={index}
+                  replies={replies.filter((reply) => reply.target === 'letter' && reply.letter_id === letter.id)}
+                  onReplied={onReplied}
+                />
               ))}
             </div>
           </div>

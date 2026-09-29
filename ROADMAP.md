@@ -37,6 +37,7 @@ nên gom một lần dùng hai việc.
 nhưng các bạn nữ **chưa xem được**.
 
 - [ ] Vào Tổng quan → bấm **🔒 Khóa chờ 20/10**
+- [ ] Thẻ **🎉 Ngày 20/10** → **Hẹn đúng 00:00 · 20/10** (trang chủ đếm ngược, đúng giờ quà tự mở)
 - [ ] Kiểm chứng: mở một trang quà bất kỳ phải thấy màn "Chưa đến ngày 20/10"
 - [ ] Gửi link cho các bạn nam kèm hướng dẫn ngắn (dùng nút "Gửi lời chúc")
 - [ ] Duyệt lời chúc dần mỗi vài ngày (Admin → Lời chúc → Duyệt nhanh)
@@ -72,6 +73,14 @@ và **máy phải bật suốt ngày 20/10**.
 ## GIAI ĐOẠN 5 — TỔNG DUYỆT (15/10 → 19/10)
 
 - [ ] Nhờ 1-2 bạn đã biết bí mật thử trên điện thoại của họ, buổi tối, mạng 4G
+- [ ] Diễn tập nửa đêm: hẹn giờ tự mở sau vài phút, để sẵn trang chủ và một màn
+  "Chưa đến ngày" — về 0 phải tự mở; xong thì khoá lại và hẹn lại 00:00 · 20/10
+- [ ] Thử **💾 Tải bản lưu** trên iPhone (Safari) và Android (Chrome), mở file
+  vừa tải khi đã tắt mạng
+- [ ] Thử **✉ Hồi âm** một lá thư rồi xem ở admin → Hồi âm và `/hoi-am`; xoá các
+  hồi âm thử
+- [ ] Sau khi thử xong: thẻ Ngày 20/10 → **Đặt lại bông hoa** (hẹn giờ tự mở thì
+  hoa cũng tự đếm lại từ 00:00)
 - [ ] Kiểm tra trên iPhone lẫn Android (camera, nhạc, chia sẻ link)
 - [ ] Duyệt nốt lời chúc tồn đọng
 - [ ] Kiểm tra từng trang quà một lượt: đủ ảnh, đúng người, lời chúc hiển thị đúng
@@ -80,10 +89,14 @@ và **máy phải bật suốt ngày 20/10**.
 
 ## NGÀY 20/10
 
-- [ ] Sáng sớm: mở web, kiểm tra `/api/ready` trả `ready`
-- [ ] Tổng quan → bấm **🎉 Mở trang quà**
-- [ ] Gửi link cho các bạn nữ
-- [ ] Trực máy: theo dõi lỗi, duyệt lời chúc phát sinh trong ngày
+- [ ] Tối 19/10: mở web, kiểm tra `/api/ready` trả `ready`, thẻ Ngày 20/10 báo
+  "Tự mở lúc 00:00 · 20/10" — **laptop bật qua đêm**
+- [ ] Gửi link trang chủ cho các bạn nữ từ tối 19/10 để cả lớp cùng đếm ngược
+- [ ] Chưa hẹn giờ thì sáng 20/10 gạt công tắc **Trang quà** để mở, rồi bấm
+  **Đặt lại bông hoa**
+- [ ] Trực máy: theo dõi lỗi, duyệt lời chúc và **thư hồi âm** phát sinh trong ngày
+- [ ] Nhắc các bạn nữ bấm **💾 Tải bản lưu** — trang chạy trên laptop, file thì ở lại
+- [ ] Gửi link `/hoi-am` cho các bạn nam khi đã có vài hồi âm
 - [ ] Cuối ngày: `npm run backup:shared` + push để lưu kỷ niệm
 
 ---

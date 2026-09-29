@@ -532,7 +532,9 @@ test('admin settings expose and toggle the Face ID switch separately from the lo
   const headers = { Authorization: `Bearer ${signToken({ sub: 1 })}`, 'Content-Type': 'application/json' };
 
   const initial = await (await fetch(`${base}/api/admin/settings`, { headers })).json();
-  assert.deepEqual(initial.data, { gift_pages_locked: false, face_enabled: false });
+  assert.deepEqual(initial.data, {
+    gift_pages_locked: false, gift_unlock_at: null, gift_opens_since: null, face_enabled: false,
+  });
 
   const toggled = await fetch(`${base}/api/admin/settings`, {
     method: 'PATCH', headers, body: JSON.stringify({ face_enabled: true }),

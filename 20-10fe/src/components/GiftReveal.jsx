@@ -21,7 +21,7 @@ function studentHasSeat(student) {
  * trồi lên). Không có chỗ ngồi (bạn ngoài lớp) thì vào thẳng `open`. Người tắt
  * chuyển động thấy ngay trạng thái cuối rồi sang trang quà.
  */
-function GiftReveal({ onComplete, recipientName, student, via = '' }) {
+function GiftReveal({ onComplete, recipientName, student, via = '', openRank = null }) {
   const [phase, setPhase] = useState(() => (
     prefersReducedMotion() || !studentHasSeat(student) ? 'open' : 'seat'
   ))
@@ -99,6 +99,8 @@ function GiftReveal({ onComplete, recipientName, student, via = '' }) {
           {recipientName ? `Dành riêng cho ${recipientName} 🌷` : 'Mở quà nào! 🌷'}
           {/* Mở quà bằng Face ID thì thêm "huy hiệu" nhỏ — chi tiết để khoe nhau */}
           {via === 'face' && <small className="reveal__via">mở bằng Mắt thần 20/10 ✨</small>}
+          {/* Bông hoa 12A1: bạn thứ mấy của lớp mở quà */}
+          {openRank && <small className="reveal__via">bạn thứ {openRank} của lớp mở quà 🌸</small>}
         </p>
       )}
     </div>
