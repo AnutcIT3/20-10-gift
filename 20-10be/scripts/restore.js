@@ -12,12 +12,32 @@ const mysql = require('mysql2/promise');
 const buildSslOption = require('../config/dbSsl');
 
 const BACKUPS_DIR = path.join(__dirname, '..', 'backups');
+// Snapshot ghi TIMESTAMP dạng chuỗi UTC (pool của backup chạy phiên +00:00).
+// Phiên restore phải cùng múi đó, nếu không MySQL hiểu chuỗi UTC theo múi giờ
+// máy (+07 ở VN) và lùi mọi created_at/opened_at 7 tiếng — bông hoa 12A1 sẽ
+// đánh rơi các lượt mở quà đầu ngày vì chúng rơi ra trước mốc đếm
+const UTC_SESSION = "SET time_zone = '+00:00'";
+
+// Snapshot cũ (trước migration 020) xoá rồi chèn lại letters/students với
+// FOREIGN_KEY_CHECKS = 0 nên ON DELETE CASCADE không chạy: dọn tay những hồi
+// âm và lượt mở quà trỏ vào thư hay học sinh không còn
+const ORPHAN_CLEANUP = [
+  `DELETE r FROM letter_replies r LEFT JOIN letters l ON l.id = r.letter_id
+   WHERE r.letter_id IS NOT NULL AND l.id IS NULL`,
+  `DELETE r FROM letter_replies r LEFT JOIN students s ON s.id = r.student_id
+   WHERE s.id IS NULL`,
+  `DELETE o FROM gift_opens o LEFT JOIN students s ON s.id = o.student_id
+   WHERE s.id IS NULL`,
+];
+
 const TABLES = [
   'students',
   'gallery',
   'letters',
   'letter_reactions',
   'student_views',
+  'letter_replies',
+  'gift_opens',
 ];
 
 function getDefaultBackup() {
@@ -75,13 +95,14 @@ async function restoreData(options = {}) {
 
   const dbConfig = options.connectionConfig || getDatabaseConfig();
 
-  // Lưới an toàn: snapshot bắt đầu bằng DELETE toàn bộ 5 bảng, nên restore
+  // Lưới an toàn: snapshot bắt đầu bằng DELETE toàn bộ các bảng dùng chung, nên restore
   // nhầm bản cũ là mất sạch ảnh và avatar vừa làm mà không có gì để lấy lại.
   // Luôn dump dữ liệu hiện có ra file cục bộ (ngoài Git) trước khi ghi đè.
   if (options.preBackup !== false) {
     const { backupData, localOutputFile } = require('./backup');
     const safetyFile = localOutputFile();
-    const pool = mysql.createPool(dbConfig);
+    const pool = mysql.createPool({ ...dbConfig, timezone: 'Z' });
+    pool.on('connection', (poolConnection) => { poolConnection.query(UTC_SESSION); });
     try {
       await backupData({ pool, outputFile: safetyFile, logger: null });
     } finally {
@@ -95,8 +116,17 @@ async function restoreData(options = {}) {
   const connection = await mysql.createConnection(dbConfig);
 
   try {
+    await connection.query(UTC_SESSION);
     await connection.beginTransaction();
     await connection.query(sql);
+    for (const cleanup of ORPHAN_CLEANUP) {
+      try {
+        await connection.query(cleanup);
+      } catch (error) {
+        // Máy chưa chạy migration 020 thì chưa có bảng để dọn
+        if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+      }
+    }
     await connection.query(
       'UPDATE app_data_revision SET revision = revision + 1 WHERE id = 1'
     );
@@ -104,11 +134,16 @@ async function restoreData(options = {}) {
 
     const counts = {};
     for (const table of TABLES) {
-      const [[result]] = await connection.query(
-        `SELECT COUNT(*) AS count FROM \`${table}\``
-      );
-      counts[table] = Number(result.count);
-      logger?.log(`- ${table}: ${result.count}`);
+      try {
+        const [[result]] = await connection.query(
+          `SELECT COUNT(*) AS count FROM \`${table}\``
+        );
+        counts[table] = Number(result.count);
+        logger?.log(`- ${table}: ${result.count}`);
+      } catch (error) {
+        if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+        logger?.log(`- ${table}: (chưa có bảng — chạy "npm run migrate")`);
+      }
     }
     logger?.log('Restore completed successfully.');
     return counts;

@@ -149,6 +149,11 @@ test('dashboard stats count scheduled letters separately from approved ones', as
     if (sql.includes('FROM gallery')) return [[{ total: 6 }]];
     if (sql.includes('ORDER BY view_count')) return [[]];
     if (sql.includes('FROM letter_reactions')) return [[]];
+    // Hồi âm và bông hoa 12A1 (migration 020)
+    if (sql.includes('FROM letter_replies')) return [[{ pending: 0, approved: 0, rejected: 0 }]];
+    if (sql.includes('FROM app_settings')) return [[]];
+    if (sql.includes('FROM gift_opens')) return [[]];
+    if (sql.includes("FROM students WHERE member_type = 'class'")) return [[{ total: 0 }]];
     throw new Error(`Unexpected query: ${sql}`);
   };
   try {

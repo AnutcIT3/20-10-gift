@@ -18,6 +18,8 @@ const TABLES = [
   'letters',
   'letter_reactions',
   'student_views',
+  'letter_replies',
+  'gift_opens',
 ];
 
 function escapeValue(value) {
@@ -28,9 +30,19 @@ function escapeValue(value) {
 }
 
 async function tableToSql(connection, table) {
-  const [rows, fields] = await connection.query(
-    `SELECT * FROM \`${table}\` ORDER BY \`id\``
-  );
+  let rows;
+  let fields;
+  try {
+    [rows, fields] = await connection.query(
+      `SELECT * FROM \`${table}\` ORDER BY \`id\``
+    );
+  } catch (error) {
+    // Bảng của migration mới mà máy chưa chạy migrate: bỏ qua, không phát
+    // DELETE/INSERT nào cho nó — backup (và bước backup an toàn của restore)
+    // không được hỏng chỉ vì chưa migrate
+    if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+    return `-- Table: ${table} (chưa có bảng — chạy "npm run migrate")\n`;
+  }
   const deleteSql = `DELETE FROM \`${table}\`;`;
 
   if (!rows.length) {

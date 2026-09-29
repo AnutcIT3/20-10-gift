@@ -1028,7 +1028,8 @@ test('gift lock: admin settings endpoint requires auth, toggles and validates in
     if (sql.includes('FROM admins')) return [[{ id: 1 }]];
     if (sql.includes('FROM app_settings')) return [[{ setting_value: storedValue }]];
     if (sql.startsWith('INSERT INTO app_settings')) {
-      storedValue = params[1];
+      // Đổi khoá còn xoá giờ tự mở (gift_unlock_at) — chỉ theo dõi công tắc khoá
+      if (params[0] === 'gift_pages_locked') storedValue = params[1];
       return [{ affectedRows: 1 }];
     }
     if (sql.includes('revision = revision + 1')) return [{ affectedRows: 1 }];

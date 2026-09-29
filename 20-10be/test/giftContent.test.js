@@ -10,6 +10,7 @@ process.env.DB_NAME ||= 'test';
 const giftController = require('../controllers/giftController');
 const giftService = require('../services/giftService');
 const reactionService = require('../services/reactionService');
+const replyService = require('../services/replyService');
 const statsService = require('../services/statsService');
 
 test('gift content resolves the student once and returns the complete initial payload', async () => {
@@ -19,6 +20,7 @@ test('gift content resolves the student once and returns the complete initial pa
     getApprovedLetters: giftService.getApprovedLetters,
     getReactionCounts: reactionService.getReactionCounts,
     getSessionReactions: reactionService.getSessionReactions,
+    listStudentReplies: replyService.listStudentReplies,
     recordView: statsService.recordView,
   };
   let studentLookups = 0;
@@ -31,6 +33,7 @@ test('gift content resolves the student once and returns the complete initial pa
   giftService.getApprovedLetters = async () => [{ id: 5, content: 'Chúc vui vẻ' }];
   reactionService.getReactionCounts = async () => ({ 5: { love: 2 } });
   reactionService.getSessionReactions = async () => ({ 5: 'love' });
+  replyService.listStudentReplies = async () => [{ id: 3, target: 'letter', letter_id: 5, status: 'pending' }];
   statsService.recordView = (studentId, sessionId) => recorded.push({ studentId, sessionId });
 
   const req = {
@@ -51,6 +54,8 @@ test('gift content resolves the student once and returns the complete initial pa
     assert.equal(res.body.data.gallery.length, 1);
     assert.deepEqual(res.body.data.letters[0].reactions, { love: 2 });
     assert.equal(res.body.data.letters[0].myReaction, 'love');
+    // Hồi âm của chính trang quà đi kèm để hiện "cậu đã hồi âm" dưới lá thư
+    assert.deepEqual(res.body.data.replies, [{ id: 3, target: 'letter', letter_id: 5, status: 'pending' }]);
     assert.deepEqual(recorded, [{ studentId: 7, sessionId: 'session_identifier_1234' }]);
   } finally {
     Object.assign(giftService, {
@@ -62,6 +67,7 @@ test('gift content resolves the student once and returns the complete initial pa
       getReactionCounts: originals.getReactionCounts,
       getSessionReactions: originals.getSessionReactions,
     });
+    replyService.listStudentReplies = originals.listStudentReplies;
     statsService.recordView = originals.recordView;
   }
 });

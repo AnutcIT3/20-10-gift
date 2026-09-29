@@ -1,6 +1,7 @@
 const { sendSuccess, sendError } = require('../utils/response');
 const giftService = require('../services/giftService');
 const reactionService = require('../services/reactionService');
+const replyService = require('../services/replyService');
 const statsService = require('../services/statsService');
 const {
   normalizeMultipartLetterBody, extractLetterImage, cleanupLetterImage,
@@ -42,14 +43,18 @@ async function getContent(req, res) {
   if (!student) return sendError(res, 'Not found', 404);
 
   const sessionId = extractSessionId(req);
-  const [gallery, letters] = await Promise.all([
+  // replies: hồi âm chủ trang đã viết, để hiện lại "cậu đã hồi âm" dưới thư
+  const [gallery, letters, replies] = await Promise.all([
     giftService.getGallery(student.id),
     giftService.getApprovedLetters(student.id),
+    replyService.listStudentReplies(student.id),
   ]);
   const enrichedLetters = await enrichLetters(letters, sessionId);
   statsService.recordView(student.id, sessionId);
 
-  return sendSuccess(res, { student, gallery, letters: enrichedLetters });
+  return sendSuccess(res, {
+    student, gallery, letters: enrichedLetters, replies,
+  });
 }
 
 async function getGallery(req, res) {
