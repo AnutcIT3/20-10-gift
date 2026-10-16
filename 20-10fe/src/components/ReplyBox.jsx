@@ -16,6 +16,7 @@ function ReplyBox({
   const fieldId = useId()
   const [open, setOpen] = useState(false)
   const [content, setContent] = useState('')
+  const [anonymous, setAnonymous] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   // Lời báo cho trình đọc màn hình sau khi gửi; focus trả về nút mở ô viết
@@ -55,9 +56,11 @@ function ReplyBox({
         target,
         letter_id: target === 'letter' ? letterId : undefined,
         content: text,
+        is_anonymous: anonymous,
       })
       onSent?.(reply)
       setContent('')
+      setAnonymous(false)
       restoreFocusRef.current = true
       setOpen(false)
       setAnnouncement(target === 'admin'
@@ -81,11 +84,12 @@ function ReplyBox({
               {reply.status === 'approved'
                 ? '✉ Admin đã đọc thư riêng của cậu'
                 : '✉ Cậu đã gửi admin một lá thư riêng'}
+              {reply.is_anonymous ? ' · ẩn danh' : ''}
             </span>
           ) : (
             <>
               <span className="reply-note__label">
-                ✉ Cậu đã hồi âm{reply.status === 'approved' ? '' : ' · chờ duyệt'}
+                ✉ Cậu đã hồi âm{reply.is_anonymous ? ' ẩn danh' : ''}{reply.status === 'approved' ? '' : ' · chờ duyệt'}
               </span>
               <p className="reply-note__text">{reply.content}</p>
             </>
@@ -105,10 +109,15 @@ function ReplyBox({
             onChange={(event) => setContent(event.target.value)}
             placeholder="Viết vài dòng gửi lại nhé…"
           />
+          <label className="reply-form__anon">
+            <input type="checkbox" checked={anonymous} onChange={(event) => setAnonymous(event.target.checked)} />
+            Gửi ẩn danh
+          </label>
           <p className="reply-form__hint">
             {target === 'admin'
               ? <>Thư riêng: chỉ <b>admin</b> đọc được — không lên Hộp thư hồi âm, trang này cũng không hiện lại.</>
               : <>Hồi âm hiện ở <b>Hộp thư hồi âm</b> sau khi admin duyệt — ai mở trang cũng đọc được, kể cả khách.</>}
+            {anonymous && <> Ẩn danh: tên cậu không hiện ở đâu cả — cả Hộp thư lẫn trang admin chỉ ghi <b>Ẩn danh</b>.</>}
           </p>
           {error && <p className="alert-note reply-form__alert" role="alert">{error}</p>}
           <div className="reply-form__actions">

@@ -36,7 +36,9 @@ function ReplyCard({ reply, index }) {
     >
       <span className="tape tape--center" aria-hidden="true" />
       <p className="reply-card__route">
-        <b className="reply-card__from">{reply.from?.name}</b>
+        {reply.from?.anonymous
+          ? <b className="reply-card__from reply-card__from--anon">Ẩn danh</b>
+          : <b className="reply-card__from">{reply.from?.name}</b>}
         <span className="reply-card__arrow" aria-hidden="true">✉ →</span>
         <span className="sr-only">gửi</span>
         <b className={`reply-card__to${anonymous ? ' reply-card__to--anon' : ''}`}>{recipientLabel(reply.to)}</b>

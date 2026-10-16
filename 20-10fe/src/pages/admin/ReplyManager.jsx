@@ -184,11 +184,11 @@ function ReplyManager() {
                   className="admin-check"
                   checked={selectedIds.includes(reply.id)}
                   onChange={() => toggleSelected(reply.id)}
-                  aria-label={`Chọn hồi âm của ${reply.student_name}`}
+                  aria-label={`Chọn hồi âm của ${reply.is_anonymous ? 'người ẩn danh' : reply.student_name}`}
                 />
                 <div className="letter-row__main">
                   <div className="letter-row__meta">
-                    <b className="letter-row__sender">{reply.student_name}</b>
+                    <b className="letter-row__sender">{reply.is_anonymous ? <i>Ẩn danh</i> : reply.student_name}</b>
                     <span className="letter-row__to">→ <b>{recipientOf(reply)}</b></span>
                     <span className="chip chip--beige">{TARGET_LABELS[reply.target] || reply.target}</span>
                     {reply.member_type === 'friend' && <span className="chip chip--moss">bạn ngoài lớp</span>}

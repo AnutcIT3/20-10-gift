@@ -398,6 +398,83 @@ test('hồi âm trỏ vào lá thư đã mất không bị đoán thành "ngư�
   );
 });
 
+test('hồi âm ẩn danh: ghi cờ khi gửi, Hộp thư và trang admin không lộ tên người gửi', async (t) => {
+  withPool(t);
+  const inserts = [];
+  pool.execute = async (sql, params) => {
+    if (sql.startsWith('INSERT INTO letter_replies')) {
+      inserts.push({ sql, params });
+      return [{ insertId: 12 }];
+    }
+    if (sql.includes('COUNT(*) AS total FROM letter_replies')) return [[{ total: 2 }]];
+    if (sql.includes('FROM letter_replies r')) {
+      return [[
+        {
+          id: 2, student_id: 7, student_name: 'Nguyễn Thúy Vy', member_type: 'class', target: 'class', content: 'Cảm ơn các cậu',
+          is_anonymous: 1, status: 'approved', created_at: '2026-10-20T01:00:00.000Z',
+          from_full_name: 'Nguyễn Thúy Vy', from_nickname: 'Vy Vy', from_member_type: 'friend',
+        },
+        {
+          id: 1, student_id: 8, student_name: 'Lê Hà', member_type: 'class', target: 'class', content: 'Vui quá',
+          is_anonymous: 0, status: 'approved', created_at: '2026-10-20T00:00:00.000Z',
+          from_full_name: 'Lê Hà', from_nickname: 'Hà', from_member_type: 'class',
+        },
+      ]];
+    }
+    throw new Error(`Unexpected query: ${sql}`);
+  };
+
+  const reply = await replyService.createReply({ id: 7 }, { target: 'class', content: 'Cảm ơn các cậu', is_anonymous: true });
+  assert.equal(reply.is_anonymous, true);
+  assert.match(inserts[0].sql, /is_anonymous, status\)\s+VALUES \(\?, \?, \?, \?, TRUE, 'pending'\)/);
+  // Không chọn ẩn danh: câu INSERT y như trước migration 022
+  await replyService.createReply({ id: 7 }, { target: 'class', content: 'Có tên' });
+  assert.doesNotMatch(inserts[1].sql, /is_anonymous/);
+  await assert.rejects(
+    () => replyService.createReply({ id: 7 }, { target: 'class', content: 'x', is_anonymous: 'true' }),
+    { statusCode: 400 },
+  );
+
+  const board = await replyService.listBoard();
+  assert.deepEqual(board.items[0].from, { name: null, fullName: null, friend: false, anonymous: true });
+  assert.equal(board.items[1].from.name, 'Hà');
+  // Tên, biệt danh và cả cờ "bạn ngoài lớp" của người ẩn danh không ra khỏi máy chủ
+  const boardJson = JSON.stringify(board);
+  assert.equal(boardJson.includes('Thúy Vy'), false);
+  assert.equal(boardJson.includes('Vy Vy'), false);
+
+  const admin = await replyService.listReplies({ status: 'approved' });
+  assert.equal(admin.items[0].is_anonymous, true);
+  assert.equal(admin.items[0].student_name, null);
+  assert.equal(admin.items[0].student_id, null);
+  assert.equal(admin.items[1].student_name, 'Lê Hà');
+  assert.equal(admin.items[1].is_anonymous, false);
+});
+
+test('máy chưa chạy migration 022 vẫn đọc được hồi âm; chỉ gửi ẩn danh là báo cần cập nhật', async (t) => {
+  withPool(t);
+  const seen = [];
+  pool.execute = async (sql) => {
+    seen.push(sql);
+    // MySQL thật chỉ báo lỗi khi đụng tới CỘT, không phải bí danh "AS is_anonymous"
+    if (sql.includes('r.is_anonymous') || sql.includes('is_anonymous, status)')) {
+      throw Object.assign(new Error("Unknown column 'r.is_anonymous' in 'field list'"), { code: 'ER_BAD_FIELD_ERROR' });
+    }
+    if (sql.startsWith('INSERT INTO letter_replies')) return [{ insertId: 13 }];
+    return [[{ id: 1, target: 'class', content: 'Có tên', status: 'pending', is_anonymous: 0 }]];
+  };
+  const own = await replyService.listStudentReplies(3);
+  assert.equal(own[0].is_anonymous, false);
+  // Lần thử lại thay cột bằng hằng 0
+  assert.match(seen.at(-1), /0 AS is_anonymous/);
+  assert.equal((await replyService.listBoard()).total, 1);
+  assert.equal((await replyService.createReply({ id: 3 }, { target: 'class', content: 'Có tên' })).id, 13);
+  await assert.rejects(
+    () => replyService.createReply({ id: 3 }, { target: 'class', content: 'Ẩn', is_anonymous: true }),
+    { statusCode: 503 },
+  );
+});
+
 test('bảng hồi âm tìm theo tên trên TOÀN BỘ hồi âm rồi mới cắt 300 dòng', async (t) => {
   withPool(t);
   const rows = Array.from({ length: 320 }, (_, index) => ({

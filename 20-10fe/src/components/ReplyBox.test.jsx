@@ -24,12 +24,38 @@ test('viết hồi âm cho một lá thư: gửi đúng người nhận rồi b�
 
   await waitFor(() => expect(onSent).toHaveBeenCalledWith(reply))
   expect(giftRepository.createReply).toHaveBeenCalledWith('12a1-vy', {
-    target: 'letter', letter_id: 5, content: 'Cảm ơn Tuấn!',
+    target: 'letter', letter_id: 5, content: 'Cảm ơn Tuấn!', is_anonymous: false,
   })
   // Gửi xong thì ô viết đóng lại, focus về nút mở ô viết và trình đọc màn hình được báo
   expect(screen.queryByRole('button', { name: 'Gửi hồi âm ✉' })).toBeNull()
   expect(document.activeElement).toBe(screen.getByRole('button', { name: '✉ Hồi âm' }))
   expect(screen.getByRole('status').textContent).toMatch(/Đã gửi hồi âm/)
+})
+
+test('chọn "Gửi ẩn danh": gửi kèm cờ, ô viết nói rõ tên không hiện, hồi âm đã gửi ghi "ẩn danh"', async () => {
+  const onSent = vi.fn()
+  const reply = { id: 10, target: 'class', content: 'Cảm ơn các cậu', is_anonymous: true, status: 'pending' }
+  giftRepository.createReply.mockResolvedValue(reply)
+  render(<ReplyBox accessCode="12a1-vy" target="class" recipient="các bạn nam 12A1" onSent={onSent} />)
+
+  fireEvent.click(screen.getByRole('button', { name: '✉ Hồi âm' }))
+  expect(screen.queryByText(/tên cậu không hiện ở đâu cả/)).toBeNull()
+  fireEvent.click(screen.getByLabelText('Gửi ẩn danh'))
+  expect(screen.getByText(/tên cậu không hiện ở đâu cả/)).toBeTruthy()
+  fireEvent.change(screen.getByLabelText('Gửi các bạn nam 12A1:'), { target: { value: 'Cảm ơn các cậu' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Gửi hồi âm ✉' }))
+
+  await waitFor(() => expect(onSent).toHaveBeenCalledWith(reply))
+  expect(giftRepository.createReply).toHaveBeenCalledWith('12a1-vy', {
+    target: 'class', letter_id: undefined, content: 'Cảm ơn các cậu', is_anonymous: true,
+  })
+  // Lần viết sau bắt đầu lại có tên — ẩn danh là chọn cho từng lần gửi
+  fireEvent.click(screen.getByRole('button', { name: '✉ Hồi âm' }))
+  expect(screen.getByLabelText('Gửi ẩn danh').checked).toBe(false)
+
+  cleanup()
+  render(<ReplyBox accessCode="12a1-vy" target="class" recipient="các bạn nam 12A1" replies={[reply]} />)
+  expect(screen.getByText('✉ Cậu đã hồi âm ẩn danh · chờ duyệt')).toBeTruthy()
 })
 
 test('bấm "Thôi" thì focus trở lại nút mở ô viết, không rơi về đầu trang', () => {
@@ -74,7 +100,7 @@ test('hồi âm gửi các bạn nam không gửi kèm lá thư; ô trống thì
   fireEvent.click(screen.getByRole('button', { name: 'Gửi hồi âm ✉' }))
   await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/nhiều quá/))
   expect(giftRepository.createReply).toHaveBeenCalledWith('12a1-vy', {
-    target: 'class', letter_id: undefined, content: 'Cảm ơn các cậu',
+    target: 'class', letter_id: undefined, content: 'Cảm ơn các cậu', is_anonymous: false,
   })
 })
 
