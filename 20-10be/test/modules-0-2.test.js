@@ -872,11 +872,124 @@ test('module 4: admin can create one letter for multiple students', async () => 
     });
     assert.deepEqual(result, { created: 2 });
     assert.equal(inserts.length, 2);
-    assert.deepEqual(inserts[0], [1, 'Admin', 'guest', '20/10', 'Chúc bạn thật vui.', false, 'approved', null]);
+    assert.deepEqual(inserts[0], [1, 'Admin', 'guest', '20/10', 'Chúc bạn thật vui.', false, 'approved', null, null, null]);
     assert.ok(calls.includes('commit'));
   } finally {
     pool.getConnection = original;
   }
+});
+
+test('module 4: an admin letter with a photo gives every recipient the same uploaded photo', async () => {
+  const original = pool.getConnection;
+  const inserts = [];
+  pool.getConnection = async () => ({
+    beginTransaction: async () => {},
+    execute: async (sql, params) => {
+      if (sql.includes('FROM students')) return [[{ id: 1 }, { id: 2 }]];
+      if (sql.includes('INSERT INTO letters')) inserts.push(params);
+      return [[]];
+    },
+    commit: async () => {},
+    rollback: async () => assert.fail('must not rollback'),
+    release: () => {},
+  });
+  try {
+    const image = { url: 'https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/a.jpg', publicId: 'gift_20_10/a' };
+    assert.deepEqual(await letterService.createLetters({
+      student_ids: [1, 2], sender_name: 'Admin', sender_kind: 'classmate', content: 'Chúc mừng 20/10!',
+    }, image), { created: 2 });
+    assert.deepEqual(inserts.map((params) => params.slice(-2)), [[image.url, image.publicId], [image.url, image.publicId]]);
+  } finally {
+    pool.getConnection = original;
+  }
+});
+
+test('module 4: deleting one copy of a shared admin photo keeps it for the other recipients', async () => {
+  const original = pool.execute;
+  const originalDestroy = cloudinary.uploader.destroy;
+  const destroyed = [];
+  // Hai thư (1, 2) dùng chung ảnh 'shared'; thư 3 có ảnh riêng 'own'
+  let letters = [
+    { id: 1, image_public_id: 'shared' },
+    { id: 2, image_public_id: 'shared' },
+    { id: 3, image_public_id: 'own' },
+  ];
+  pool.execute = async (sql, params) => {
+    if (sql.startsWith('SELECT image_public_id FROM letters WHERE id = ?')) {
+      return [letters.filter((row) => row.id === params[0])];
+    }
+    if (sql.startsWith('DELETE FROM letters WHERE id = ?')) {
+      const before = letters.length;
+      letters = letters.filter((row) => row.id !== params[0]);
+      return [{ affectedRows: before - letters.length }];
+    }
+    if (sql.startsWith('SELECT DISTINCT image_public_id')) {
+      return [[...new Set(letters.map((row) => row.image_public_id).filter((id) => params.includes(id)))]
+        .map((id) => ({ image_public_id: id }))];
+    }
+    return assert.fail(`unexpected SQL: ${sql}`);
+  };
+  cloudinary.uploader.destroy = async (publicId) => { destroyed.push(publicId); };
+  try {
+    await letterService.deleteLetter(1);
+    assert.deepEqual(destroyed, [], 'thư 2 vẫn dùng ảnh — chưa được xoá');
+    await letterService.deleteLetter(2);
+    assert.deepEqual(destroyed, ['shared'], 'thư cuối cùng dùng ảnh đã xoá — giờ mới dọn');
+    await letterService.deleteLetter(3);
+    assert.deepEqual(destroyed, ['shared', 'own']);
+  } finally {
+    pool.execute = original;
+    cloudinary.uploader.destroy = originalDestroy;
+  }
+});
+
+test('module 4: deleting a student keeps a shared admin photo another letter still uses', async () => {
+  const originalGetConnection = pool.getConnection;
+  const originalExecute = pool.execute;
+  const originalDestroy = cloudinary.uploader.destroy;
+  const destroyed = [];
+  pool.getConnection = async () => ({
+    beginTransaction: async () => {},
+    execute: async (sql) => {
+      if (sql.includes('FROM gallery')) {
+        return [[
+          { public_id: 'gift/photo-1', resource_type: 'image', from_letter: 0 },
+          { public_id: 'shared', resource_type: 'image', from_letter: 1 },
+          { public_id: 'own', resource_type: 'image', from_letter: 1 },
+        ]];
+      }
+      if (sql.startsWith('DELETE FROM students')) return [{ affectedRows: 1 }];
+      return [[]];
+    },
+    commit: async () => {},
+    rollback: async () => assert.fail('must not rollback'),
+    release: () => {},
+  });
+  // Sau khi xoá học sinh, 'shared' vẫn nằm trong thư của một bạn khác
+  pool.execute = async (sql) => {
+    assert.match(sql, /SELECT DISTINCT image_public_id/);
+    return [[{ image_public_id: 'shared' }]];
+  };
+  cloudinary.uploader.destroy = async (publicId) => { destroyed.push(publicId); };
+  try {
+    const result = await studentService.deleteStudent(7);
+    assert.deepEqual(destroyed.sort(), ['gift/photo-1', 'own']);
+    assert.equal(result.assetsDeleted, 2);
+  } finally {
+    pool.getConnection = originalGetConnection;
+    pool.execute = originalExecute;
+    cloudinary.uploader.destroy = originalDestroy;
+  }
+});
+
+test('module 4: a multipart admin letter with one recipient still reads student_ids as a list', () => {
+  const { normalizeMultipartLetterBody } = require('../utils/letterUpload');
+  const multipart = (body) => ({ is: (type) => type === 'multipart/form-data', body });
+  assert.deepEqual(normalizeMultipartLetterBody(multipart({ student_ids: '5', is_anonymous: 'false' })).student_ids, ['5']);
+  assert.deepEqual(normalizeMultipartLetterBody(multipart({ student_ids: ['5', '6'] })).student_ids, ['5', '6']);
+  // JSON thì giữ nguyên: chuỗi vẫn bị sanitize từ chối như trước
+  const json = { is: () => false, body: { student_ids: '5' } };
+  assert.equal(normalizeMultipartLetterBody(json).student_ids, '5');
 });
 
 test('module 4: admin update letter can change recipient and full content', async () => {

@@ -7,6 +7,9 @@ function normalizeMultipartLetterBody(req) {
   const body = { ...req.body };
   if (body.is_anonymous !== undefined) body.is_anonymous = body.is_anonymous === 'true';
   if (body.reveal_at === '') body.reveal_at = null;
+  // Admin gửi nhiều người nhận: field lặp lại thành mảng, chỉ một người thì
+  // multer để nguyên chuỗi
+  if (body.student_ids !== undefined && !Array.isArray(body.student_ids)) body.student_ids = [body.student_ids];
   return body;
 }
 

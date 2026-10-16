@@ -2,11 +2,14 @@ const { Router } = require('express');
 const authMiddleware = require('../middleware/auth');
 const letterController = require('../controllers/letterController');
 const { asyncHandler } = require('../utils/response');
+const { uploadImage, uploadErrorHandler } = require('../config/cloudinary');
 
 const adminLettersRouter = Router();
+// authMiddleware đứng trước multer: request chưa đăng nhập không được đẩy
+// ảnh lên Cloudinary
 adminLettersRouter.use(authMiddleware);
 adminLettersRouter.get('/', asyncHandler(letterController.list));
-adminLettersRouter.post('/', asyncHandler(letterController.create));
+adminLettersRouter.post('/', uploadImage.single('image'), uploadErrorHandler, asyncHandler(letterController.create));
 adminLettersRouter.patch('/bulk/status', asyncHandler(letterController.bulkUpdateStatus));
 adminLettersRouter.delete('/bulk', asyncHandler(letterController.bulkRemove));
 

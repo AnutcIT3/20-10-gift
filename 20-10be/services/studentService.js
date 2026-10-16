@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const { cloudinary } = require('../config/cloudinary');
 const normalizeName = require('../utils/normalizeName');
 const { accentKey } = require('../utils/nameKey');
+const letterService = require('./letterService');
 
 const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'admin_wish', 'class_name', 'member_type'];
 // Admin chỉ đổi qua lại giữa thành viên lớp và tài khoản thử; hồ sơ bạn ngoài
@@ -266,13 +267,13 @@ async function deleteStudent(id) {
   try {
     await connection.beginTransaction();
     const [assetRows] = await connection.execute(
-      `SELECT public_id, resource_type FROM gallery WHERE student_id = ? AND public_id IS NOT NULL
+      `SELECT public_id, resource_type, 0 AS from_letter FROM gallery WHERE student_id = ? AND public_id IS NOT NULL
        UNION ALL
-       SELECT public_id, resource_type FROM music WHERE student_id = ? AND public_id IS NOT NULL
+       SELECT public_id, resource_type, 0 AS from_letter FROM music WHERE student_id = ? AND public_id IS NOT NULL
        UNION ALL
-       SELECT public_id, resource_type FROM videos WHERE student_id = ? AND public_id IS NOT NULL
+       SELECT public_id, resource_type, 0 AS from_letter FROM videos WHERE student_id = ? AND public_id IS NOT NULL
        UNION ALL
-       SELECT image_public_id AS public_id, 'image' AS resource_type FROM letters WHERE student_id = ? AND image_public_id IS NOT NULL`,
+       SELECT image_public_id AS public_id, 'image' AS resource_type, 1 AS from_letter FROM letters WHERE student_id = ? AND image_public_id IS NOT NULL`,
       [id, id, id, id],
     );
     assets = assetRows;
@@ -285,6 +286,19 @@ async function deleteStudent(id) {
     throw error;
   } finally {
     connection.release();
+  }
+
+  // Ảnh trong lời chúc admin gửi nhiều người dùng chung: thư của bạn khác
+  // còn trỏ tới thì giữ ảnh lại. Không kiểm tra được thì cũng giữ lại.
+  const letterImages = assets.filter((asset) => Number(asset.from_letter) === 1).map((asset) => asset.public_id);
+  if (letterImages.length) {
+    let orphans = [];
+    try {
+      orphans = await letterService.unreferencedLetterImages(letterImages);
+    } catch (error) {
+      console.error('Letter image reference check failed:', error.message);
+    }
+    assets = assets.filter((asset) => Number(asset.from_letter) !== 1 || orphans.includes(asset.public_id));
   }
 
   const cleanupResults = await Promise.allSettled(assets.map((asset) => (

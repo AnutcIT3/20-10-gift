@@ -233,7 +233,9 @@ async function assertStudentsExist(connection, studentIds) {
   }
 }
 
-async function createLetters(data) {
+// Ảnh kèm (nếu có) được upload MỘT lần và gắn vào thư của mọi người nhận —
+// xem unreferencedLetterImages: xoá thư của một bạn không xoá ảnh của bạn khác
+async function createLetters(data, image = null) {
   const clean = sanitizeLetterPayload(data, { requireStudentIds: true });
   const connection = await pool.getConnection();
   try {
@@ -242,10 +244,10 @@ async function createLetters(data) {
 
     for (const studentId of clean.studentIds) {
       await connection.execute(
-        `INSERT INTO letters (student_id, sender_name, sender_kind, title, content, is_anonymous, status, reveal_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO letters (student_id, sender_name, sender_kind, title, content, is_anonymous, status, reveal_at, image_url, image_public_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [studentId, clean.senderName, clean.senderKind, clean.title, clean.content, clean.isAnonymous,
-          clean.status, clean.revealAt],
+          clean.status, clean.revealAt, image?.url || null, image?.publicId || null],
       );
     }
 
@@ -305,11 +307,34 @@ async function bulkUpdateStatus(ids, status) {
   return { updated: result.affectedRows };
 }
 
+// Lời chúc admin gửi nhiều người nhận dùng chung MỘT ảnh. Gọi SAU khi đã xoá
+// thư khỏi DB: chỉ trả về ảnh không còn lá thư nào trỏ tới — ảnh còn được
+// dùng thì giữ lại trên Cloudinary.
+async function unreferencedLetterImages(publicIds) {
+  const unique = [...new Set(publicIds.filter(Boolean))];
+  if (!unique.length) return [];
+  const [rows] = await pool.execute(
+    `SELECT DISTINCT image_public_id FROM letters WHERE image_public_id IN (${unique.map(() => '?').join(',')})`,
+    unique,
+  );
+  const stillUsed = new Set(rows.map((row) => row.image_public_id));
+  return unique.filter((publicId) => !stillUsed.has(publicId));
+}
+
 // Xóa DB trước, dọn ảnh Cloudinary sau (best-effort) — lỗi dọn chỉ để lại
 // file mồ côi vô hại, giống quy ước của galleryService.deleteImage
 async function cleanupLetterImages(publicIds) {
+  let orphans;
+  try {
+    orphans = await unreferencedLetterImages(publicIds);
+  } catch (error) {
+    // Không chắc ảnh còn được dùng hay không thì để lại: mồ côi vô hại hơn
+    // một lá thư mất ảnh
+    console.error('Letter image reference check failed:', error.message);
+    return;
+  }
   const results = await Promise.allSettled(
-    publicIds.filter(Boolean).map((publicId) => cloudinary.uploader.destroy(publicId)),
+    orphans.map((publicId) => cloudinary.uploader.destroy(publicId)),
   );
   const failed = results.filter((result) => result.status === 'rejected').length;
   if (failed) console.error(`Cloudinary cleanup failed for ${failed} letter image(s)`);
@@ -351,4 +376,5 @@ module.exports = {
   deleteLetter,
   bulkDelete,
   sanitizeLetterPayload,
+  unreferencedLetterImages,
 };
