@@ -62,7 +62,11 @@ test('admin can sign in, open the seating map, and assign an empty seat', async 
   await page.getByRole('button', { name: 'Ghế hàng 1, cột 1' }).click()
   await expect(page.getByRole('status')).toContainText('Đã xếp Hương vào hàng 1, cột 1.')
 
+  // Thiết bị khác đổi dữ liệu: trang không tự remount (kẻo mất form đang gõ)
+  // mà báo để admin tự tải lại
   students[1].full_name = 'Hương cập nhật'
   revision += 1
-  await expect(page.getByRole('button', { name: 'Hương cập nhật (12A1)' })).toBeVisible({ timeout: 7000 })
+  await expect(page.getByRole('status').filter({ hasText: 'Có thay đổi mới từ thiết bị khác' })).toBeVisible({ timeout: 7000 })
+  await page.getByRole('button', { name: 'Tải lại trang này' }).click()
+  await expect(page.getByRole('button', { name: 'Hương cập nhật (12A1)' })).toBeVisible()
 })
