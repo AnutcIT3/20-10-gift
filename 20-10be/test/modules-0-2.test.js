@@ -87,6 +87,55 @@ test('module 2: resolve rejects empty and one-character input', async () => {
   assert.equal((await resolveService.resolve('́́')).status, 400);
 });
 
+test('module 0: accentKey keeps diacritics but ignores where the tone mark was typed', () => {
+  const { accentKey, hasDiacritics, sameName } = require('../utils/nameKey');
+  assert.notEqual(accentKey('Thúy'), accentKey('Thủy'));
+  assert.notEqual(accentKey('Phương'), accentKey('Phượng'));
+  assert.equal(accentKey('Thủy'), accentKey('Thuỷ'));
+  assert.equal(accentKey('  Hòa  Bình '), accentKey('hoà bình'));
+  // Chuỗi NFD (bàn phím macOS, dán từ nơi khác) ra cùng khoá với NFC
+  assert.equal(accentKey('Thủy'.normalize('NFD')), accentKey('Thủy'));
+  assert.equal(hasDiacritics('thuy'), false);
+  assert.equal(hasDiacritics('Thủy'), true);
+  assert.equal(hasDiacritics('Đan'), true);
+  assert.equal(sameName('Thủy', 'thuy'), true);
+  assert.equal(sameName('Phuong', 'Phượng'), true);
+  assert.equal(sameName('Thúy', 'Thủy'), false);
+});
+
+test('module 2: resolve tells Thúy from Thủy and Phương from Phượng by the accents typed', async () => {
+  const original = pool.execute;
+  const classRows = [
+    { full_name: 'Phương', nickname: '', avatar_url: null, access_code: 'phuong' },
+    { full_name: 'Phương Anh', nickname: '', avatar_url: null, access_code: 'phuong-anh' },
+    { full_name: 'Phượng', nickname: '', avatar_url: null, access_code: 'phuong2' },
+    { full_name: 'Thúy', nickname: '', avatar_url: null, access_code: 'thuy-sac' },
+    { full_name: 'Thủy', nickname: '', avatar_url: null, access_code: 'thuy-hoi' },
+  ];
+  // Giả lập SQL: lọc thô theo tên bỏ dấu, từ đầu một chữ
+  pool.execute = async (sql, params) => {
+    const prefix = params[0].slice(0, -1);
+    return [classRows.filter((row) => ` ${normalizeName(row.full_name)}`.includes(` ${prefix}`))];
+  };
+  try {
+    assert.deepEqual(await resolveService.resolve('Thủy'), { giftPath: '/gift/thuy-hoi' });
+    assert.deepEqual(await resolveService.resolve('Thuỷ'), { giftPath: '/gift/thuy-hoi' });
+    assert.deepEqual(await resolveService.resolve('thúy'), { giftPath: '/gift/thuy-sac' });
+    assert.deepEqual(await resolveService.resolve('Phượng'), { giftPath: '/gift/phuong2' });
+    assert.deepEqual(await resolveService.resolve('Phương'), { giftPath: '/gift/phuong' });
+    // Gõ dở nhưng đã có dấu: chỉ còn tên bắt đầu đúng như vậy
+    assert.deepEqual(await resolveService.resolve('Phượ'), { giftPath: '/gift/phuong2' });
+    // Không dấu thì không đoán: vẫn hỏi lại giữa hai bạn
+    const thuy = await resolveService.resolve('thuy');
+    assert.deepEqual(thuy.matches.map((m) => m.displayName).sort(), ['Thúy', 'Thủy']);
+    // Dấu không khớp ai ("Thùy") thì lùi về danh sách, không báo "không tìm thấy"
+    const typo = await resolveService.resolve('Thùy');
+    assert.deepEqual(typo.matches.map((m) => m.displayName).sort(), ['Thúy', 'Thủy']);
+  } finally {
+    pool.execute = original;
+  }
+});
+
 test('module 2: resolve endpoint stays public despite sharing /api/students with admin routes', async (t) => {
   const original = pool.execute;
   pool.execute = async () => [[{
@@ -1093,7 +1142,7 @@ test('friend letters: creates a friend profile once and reuses it for later lett
     execute: async (sql, params) => {
       calls.push({ sql, params });
       if (sql.startsWith('SELECT') && sql.includes("member_type = 'friend'")) {
-        return friendExists ? [[{ id: 77 }]] : [[]];
+        return friendExists ? [[{ id: 77, full_name: 'Minh Thư' }]] : [[]];
       }
       if (sql.includes('INSERT INTO students')) {
         friendExists = true;
@@ -1124,6 +1173,39 @@ test('friend letters: creates a friend profile once and reuses it for later lett
     });
     assert.deepEqual(second, { status: 'pending', friend_created: false });
     assert.equal(calls.includes('rollback'), false);
+  } finally {
+    pool.getConnection = original;
+  }
+});
+
+test('friend letters: a letter to "Phượng" never lands in the profile of "Phương"', async () => {
+  const friendService = require('../services/friendService');
+  const original = pool.getConnection;
+  const friends = [{ id: 40, full_name: 'Phương' }];
+  const letterTargets = [];
+  pool.getConnection = async () => ({
+    beginTransaction: async () => {},
+    execute: async (sql, params) => {
+      if (sql.startsWith('SELECT') && sql.includes("member_type = 'friend'")) {
+        return [friends.filter((row) => normalizeName(row.full_name) === params[0])];
+      }
+      if (sql.includes('INSERT INTO students')) {
+        friends.push({ id: 41, full_name: params[0] });
+        return [{ insertId: 41 }];
+      }
+      if (sql.includes('INSERT INTO letters')) { letterTargets.push(params[0]); return [{ insertId: 1 }]; }
+      return [[]];
+    },
+    commit: async () => {},
+    rollback: async () => {},
+    release: () => {},
+  });
+  try {
+    assert.equal((await friendService.createFriendLetter({ receiver_name: 'Phượng', content: 'Chúc 20/10!', is_anonymous: true })).friend_created, true);
+    // Không dấu thì vẫn gộp như trước; đúng dấu thì về đúng hồ sơ
+    assert.equal((await friendService.createFriendLetter({ receiver_name: 'phuong', content: 'Chúc 20/10!', is_anonymous: true })).friend_created, false);
+    assert.equal((await friendService.createFriendLetter({ receiver_name: 'PHƯỢNG', content: 'Chúc 20/10!', is_anonymous: true })).friend_created, false);
+    assert.deepEqual(letterTargets, [41, 40, 41]);
   } finally {
     pool.getConnection = original;
   }

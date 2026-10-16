@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const pool = require('../config/db');
 const normalizeName = require('../utils/normalizeName');
+const { accentKey, sameName } = require('../utils/nameKey');
 const { sanitizeLetterPayload } = require('./letterService');
 
 function httpError(message, statusCode) {
@@ -36,15 +37,19 @@ async function createFriendLetter(data, image = null) {
   try {
     await connection.beginTransaction();
 
-    // Cùng tên (đã chuẩn hóa) → gộp về một hồ sơ bạn bè.
+    // Cùng tên → gộp về một hồ sơ bạn bè. SQL lọc thô theo tên bỏ dấu, rồi
+    // giữ dấu khi chọn: thư gửi "Phượng" không được gộp vào hồ sơ "Phương".
     // KHÔNG dùng FOR UPDATE: tên chưa tồn tại thì FOR UPDATE tạo gap lock,
     // hai request song song sẽ deadlock. Race hiếm hoi chỉ tạo ra hai hồ sơ
     // trùng tên (vô hại, admin xóa được) — đánh đổi hợp lý hơn 500.
     const [rows] = await connection.execute(
-      "SELECT id FROM students WHERE member_type = 'friend' AND normalized_name = ? LIMIT 1",
+      "SELECT id, full_name FROM students WHERE member_type = 'friend' AND normalized_name = ? ORDER BY id ASC",
       [normalized],
     );
-    let studentId = rows[0]?.id;
+    const key = accentKey(receiverName);
+    const existing = rows.find((row) => accentKey(row.full_name) === key)
+      || rows.find((row) => sameName(row.full_name, receiverName));
+    let studentId = existing?.id;
     let friendCreated = false;
 
     if (!studentId) {
