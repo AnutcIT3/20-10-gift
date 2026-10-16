@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const normalizeName = require('../utils/normalizeName');
+const { accentKey } = require('../utils/nameKey');
 
 // 'letter' trả lời người viết một lá thư, 'class' gửi cả lớp, 'admin' gửi
 // người làm món quà (người viết lời chúc riêng trên trang). Hồi âm gửi admin là
@@ -132,14 +133,15 @@ function recipientOf(row) {
 
 // Tách tên thành các chữ: ranh giới là mọi ký tự không phải chữ hay số (dấu
 // cách, dấu chấm, emoji…) — "Nam❤️" hay "Hoàng Nam." vẫn có chữ "nam". Mỗi chữ
-// giữ hai dạng: nguyên dấu (thường, NFC) và bỏ dấu.
+// giữ hai dạng: nguyên dấu (thường, NFC, dấu thanh về một chỗ — "Thuỷ" là
+// "Thủy") và bỏ dấu.
 function nameWords(text) {
   return String(text || '')
     .normalize('NFC')
     .toLowerCase()
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean)
-    .map((raw) => ({ raw, folded: normalizeName(raw) }));
+    .map((raw) => ({ raw: accentKey(raw), folded: normalizeName(raw) }));
 }
 
 // Chữ trong tên người ký (nameWord) có phải chữ người gõ (queryWord) không.

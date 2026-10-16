@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const pool = require('../config/db');
 const { cloudinary } = require('../config/cloudinary');
 const normalizeName = require('../utils/normalizeName');
+const { accentKey } = require('../utils/nameKey');
 
 const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'admin_wish', 'class_name', 'member_type'];
 // Admin chỉ đổi qua lại giữa thành viên lớp và tài khoản thử; hồ sơ bạn ngoài
@@ -136,9 +137,8 @@ function normalizeAccessCode(value) {
   return accessCode;
 }
 
-function canonicalVisibleName(name) {
-  return name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN');
-}
+// Giữ dấu (Thúy ≠ Thủy) nhưng "Thủy" và "Thuỷ" là một tên
+const canonicalVisibleName = accentKey;
 
 async function assertNoDuplicateVisibleName(fullName, excludeId = null) {
   const normalized = normalizeName(fullName);

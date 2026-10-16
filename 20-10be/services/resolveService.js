@@ -1,5 +1,26 @@
 const pool = require('../config/db');
 const normalizeName = require('../utils/normalizeName');
+const { accentKey, hasDiacritics, sameName } = require('../utils/nameKey');
+
+// SQL chỉ lọc thô trên tên bỏ dấu ("thuy" ra cả Thúy lẫn Thủy). Dấu người gõ
+// là thông tin: gõ "Thủy" thì vào thẳng trang Thủy, không bắt chọn giữa hai
+// bạn. Gõ không dấu ("thuy") thì vẫn hỏi lại. Dấu không khớp ai (gõ nhầm
+// "Thùy") thì lùi về danh sách thô như cũ, không bao giờ trả về rỗng.
+function narrowByAccents(rows, typed, normalized) {
+  const key = accentKey(typed);
+  const exact = rows.filter((row) => accentKey(row.full_name) === key);
+  if (exact.length) return exact;
+  const sameLetters = rows.filter((row) => normalizeName(row.full_name) === normalized
+    && sameName(row.full_name, typed));
+  if (sameLetters.length) return sameLetters;
+  if (hasDiacritics(typed)) {
+    // Gõ dở một chữ có dấu ("Thủ", "Phượ"): giữ tên có một chữ bắt đầu đúng
+    // như vậy, kể cả dấu
+    const prefixed = rows.filter((row) => ` ${accentKey(row.full_name)}`.includes(` ${key}`));
+    if (prefixed.length) return prefixed;
+  }
+  return rows;
+}
 
 async function resolve(name, scope = 'class') {
   const trimmed = name.trim();
@@ -30,8 +51,7 @@ async function resolve(name, scope = 'class') {
     return { error: 'Không tìm thấy', status: 404 };
   }
 
-  const exactMatches = rows.filter((row) => normalizeName(row.full_name) === normalized);
-  const resultRows = exactMatches.length > 0 ? exactMatches : rows;
+  const resultRows = narrowByAccents(rows, trimmed, normalized);
 
   if (resultRows.length === 1) {
     return { giftPath: `/gift/${resultRows[0].access_code}` };
