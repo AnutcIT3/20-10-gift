@@ -29,6 +29,18 @@ function isMissingTable(error) {
   return error?.code === 'ER_NO_SUCH_TABLE';
 }
 
+// Cột is_anonymous có từ migration 022. Máy chưa chạy migration thì đọc như
+// mọi hồi âm đều có tên, thay vì làm hỏng trang quà và Hộp thư hồi âm
+const ANONYMOUS_COLUMN = 'r.is_anonymous';
+async function executeReplyQuery(sql, params) {
+  try {
+    return await pool.execute(sql, params);
+  } catch (error) {
+    if (error?.code !== 'ER_BAD_FIELD_ERROR' || !String(error.message).includes('is_anonymous')) throw error;
+    return pool.execute(sql.replaceAll(ANONYMOUS_COLUMN, '0'), params);
+  }
+}
+
 function parsePositiveId(value, field = 'id') {
   const id = Number(value);
   if (!Number.isInteger(id) || id <= 0) throw httpError(`${field} không hợp lệ`, 400);
@@ -62,7 +74,12 @@ function sanitizeReply(data) {
     throw httpError(`Hồi âm tối đa ${MAX_REPLY_LENGTH} ký tự`, 400);
   }
   const letterId = data.target === 'letter' ? parsePositiveId(data.letter_id, 'letter_id') : null;
-  return { target: data.target, letterId, content };
+  if (data.is_anonymous !== undefined && typeof data.is_anonymous !== 'boolean') {
+    throw httpError('is_anonymous phải là boolean', 400);
+  }
+  return {
+    target: data.target, letterId, content, isAnonymous: data.is_anonymous === true,
+  };
 }
 
 // Chủ trang quà hồi âm. Chỉ trả lời được lá thư đã duyệt, đã tới giờ hiện VÀ
@@ -80,16 +97,33 @@ async function createReply(student, data) {
     );
     if (!letter) throw httpError('Không tìm thấy lá thư để hồi âm', 404);
   }
-  const [result] = await pool.execute(
-    `INSERT INTO letter_replies (student_id, target, letter_id, content, status)
-     VALUES (?, ?, ?, ?, 'pending')`,
-    [student.id, clean.target, clean.letterId, clean.content],
-  );
+  // Chỉ ghi cột is_anonymous khi cần: hồi âm có tên vẫn gửi được trên máy
+  // chưa chạy migration 022
+  let result;
+  try {
+    [result] = clean.isAnonymous
+      ? await pool.execute(
+        `INSERT INTO letter_replies (student_id, target, letter_id, content, is_anonymous, status)
+         VALUES (?, ?, ?, ?, TRUE, 'pending')`,
+        [student.id, clean.target, clean.letterId, clean.content],
+      )
+      : await pool.execute(
+        `INSERT INTO letter_replies (student_id, target, letter_id, content, status)
+         VALUES (?, ?, ?, ?, 'pending')`,
+        [student.id, clean.target, clean.letterId, clean.content],
+      );
+  } catch (error) {
+    if (error?.code === 'ER_BAD_FIELD_ERROR') {
+      throw httpError('Máy chủ chưa hỗ trợ hồi âm ẩn danh (cần chạy npm run migrate) — bỏ chọn ẩn danh rồi gửi lại nhé', 503);
+    }
+    throw error;
+  }
   return {
     id: result.insertId,
     target: clean.target,
     letter_id: clean.letterId,
     content: clean.content,
+    is_anonymous: clean.isAnonymous,
     status: 'pending',
     created_at: new Date().toISOString(),
   };
@@ -101,16 +135,16 @@ async function createReply(student, data) {
 // chưa chạy migration 020 thì coi như chưa có gì — trang quà không được hỏng.
 async function listStudentReplies(studentId) {
   try {
-    const [rows] = await pool.execute(
+    const [rows] = await executeReplyQuery(
       `SELECT id, target, letter_id,
               CASE WHEN target = 'admin' THEN NULL ELSE content END AS content,
-              status, created_at
-       FROM letter_replies
+              ${ANONYMOUS_COLUMN} AS is_anonymous, status, created_at
+       FROM letter_replies r
        WHERE student_id = ? AND status <> 'rejected'
        ORDER BY created_at ASC, id ASC`,
       [studentId],
     );
-    return rows;
+    return rows.map((row) => ({ ...row, is_anonymous: Boolean(Number(row.is_anonymous)) }));
   } catch (error) {
     if (isMissingTable(error)) return [];
     throw error;
@@ -191,8 +225,8 @@ async function listBoard({ to, exact = false } = {}) {
   const query = parseNameQuery(to);
   let rows;
   try {
-    [rows] = await pool.execute(
-      `SELECT r.id, r.target, r.content, r.created_at,
+    [rows] = await executeReplyQuery(
+      `SELECT r.id, r.target, r.content, r.created_at, ${ANONYMOUS_COLUMN} AS is_anonymous,
               s.full_name AS from_full_name, s.nickname AS from_nickname, s.member_type AS from_member_type,
               l.id AS letter_exists, l.sender_name AS letter_sender_name, l.is_anonymous AS letter_is_anonymous,
               l.created_at AS letter_created_at
@@ -211,11 +245,15 @@ async function listBoard({ to, exact = false } = {}) {
       id: row.id,
       content: row.content,
       created_at: row.created_at,
-      from: {
-        name: row.from_nickname || row.from_full_name,
-        fullName: row.from_full_name,
-        friend: row.from_member_type === 'friend',
-      },
+      // Hồi âm ẩn danh: tên người gửi không ra khỏi máy chủ, kể cả cờ "bạn
+      // ngoài lớp" (cũng là một manh mối)
+      from: Number(row.is_anonymous)
+        ? { name: null, fullName: null, friend: false, anonymous: true }
+        : {
+          name: row.from_nickname || row.from_full_name,
+          fullName: row.from_full_name,
+          friend: row.from_member_type === 'friend',
+        },
       to: recipientOf(row),
     }))
     .filter((item) => !query || (item.to.kind === 'person' && nameMatches(item.to.name, query, exact)));
@@ -281,9 +319,9 @@ async function listReplies(query) {
   const total = Number(countRow?.total || 0);
   const offset = (page - 1) * pageSize;
   // LIMIT/OFFSET nội suy là số nguyên đã kiểm tra ở parseListQuery, không phải input thô
-  const [items] = await pool.execute(
+  const [items] = await executeReplyQuery(
     `SELECT r.id, r.student_id, s.full_name AS student_name, s.member_type,
-            r.target, r.letter_id, r.content, r.status, r.created_at,
+            r.target, r.letter_id, r.content, ${ANONYMOUS_COLUMN} AS is_anonymous, r.status, r.created_at,
             l.id AS letter_exists, l.status AS letter_status,
             l.sender_name AS letter_sender_name, l.is_anonymous AS letter_is_anonymous,
             l.title AS letter_title, SUBSTRING(l.content, 1, 280) AS letter_excerpt,
@@ -296,8 +334,19 @@ async function listReplies(query) {
      LIMIT ${pageSize} OFFSET ${offset}`,
     [status],
   );
+  // Admin cũng là một trong các bạn nam: hồi âm ẩn danh không kèm tên hay id
+  // người gửi, như lời chúc ẩn danh. Loại tài khoản (thử / ngoài lớp) vẫn
+  // giữ để admin biết hồi âm nào chỉ là thử.
   return {
-    items: items.map((item) => ({ ...item, to: recipientOf(item) })),
+    items: items.map((item) => {
+      const isAnonymous = Boolean(Number(item.is_anonymous));
+      return {
+        ...item,
+        is_anonymous: isAnonymous,
+        ...(isAnonymous ? { student_id: null, student_name: null } : {}),
+        to: recipientOf(item),
+      };
+    }),
     pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
   };
 }

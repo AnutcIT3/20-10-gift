@@ -587,6 +587,21 @@
   color: var(--clay);
 }
 
+.reply-form__anon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 15px var(--font-body);
+  color: var(--ink);
+}
+
+.reply-form__anon input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--clay);
+}
+
 .reply-form__alert {
   font-size: 14px;
 }

@@ -35,6 +35,18 @@ test('mỗi hồi âm là một bưu thiếp: ai gửi ai, người ẩn danh ch
   expect(giftRepository.listReplies).toHaveBeenCalledWith({ to: undefined, exact: false })
 })
 
+test('hồi âm ẩn danh hiện "Ẩn danh" ở chỗ tên người gửi', async () => {
+  giftRepository.listReplies.mockResolvedValue({
+    total: 1,
+    items: [
+      { id: 5, content: 'Cảm ơn các cậu', created_at: '2026-10-20T01:00:00.000Z', from: { name: null, anonymous: true }, to: { kind: 'class' } },
+    ],
+  })
+  renderPage()
+  expect(await screen.findByText('Cảm ơn các cậu')).toBeTruthy()
+  expect(screen.getByText('Ẩn danh')).toBeTruthy()
+})
+
 test('mở từ lời nhắc "có thư hồi âm gửi cậu" thì lọc sẵn theo tên, khớp trọn chữ như lời nhắc', async () => {
   giftRepository.listReplies.mockResolvedValue({ total: 0, items: [] })
   renderPage('/hoi-am?to=Tu%E1%BA%A5n&exact=1')

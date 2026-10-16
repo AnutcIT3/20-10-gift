@@ -137,6 +137,11 @@
   color: var(--clay);
 }
 
+.reply-card__from--anon {
+  font-style: italic;
+  color: var(--moss);
+}
+
 .reply-card__arrow {
   font: 15px var(--font-hand);
   color: var(--muted);
