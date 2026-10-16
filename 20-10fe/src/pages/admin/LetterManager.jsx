@@ -104,6 +104,9 @@ function LetterManager() {
   const [selectedIds, setSelectedIds] = useState([])
   const [composeForm, setComposeForm] = useState(EMPTY_COMPOSE_FORM)
   const [composeOpen, setComposeOpen] = useState(false)
+  const [composeImage, setComposeImage] = useState(null)
+  const [composeImagePreview, setComposeImagePreview] = useState('')
+  const composeFileRef = useRef(null)
   const [revealLimits] = useState(computeRevealLimits)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -209,6 +212,38 @@ function LetterManager() {
     status: form.status,
   })
 
+  // Cùng giới hạn với ảnh khách gửi kèm lời chúc (backend chặn 5 MB)
+  const clearComposeImage = () => {
+    setComposeImage(null)
+    setComposeImagePreview('')
+    if (composeFileRef.current) composeFileRef.current.value = ''
+  }
+
+  const chooseComposeImage = (file) => {
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+      setError('Ảnh phải là JPG, PNG, GIF hoặc WebP.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Ảnh tối đa 5 MB.')
+      return
+    }
+    setError('')
+    setComposeImage(file)
+    setComposeImagePreview(URL.createObjectURL(file))
+  }
+
+  // Đổi ảnh, bỏ ảnh hay rời trang đều trả lại bộ nhớ của ảnh xem trước cũ
+  useEffect(() => () => {
+    if (composeImagePreview) URL.revokeObjectURL(composeImagePreview)
+  }, [composeImagePreview])
+
+  const closeCompose = () => {
+    clearComposeImage()
+    setComposeOpen(false)
+  }
+
   const submitCompose = async (event) => {
     event.preventDefault()
     setSaving(true)
@@ -217,10 +252,10 @@ function LetterManager() {
     try {
       const payload = buildPayload(composeForm)
       if (!payload.student_ids.length) throw new Error('Chọn ít nhất một người nhận.')
-      await adminApi.createLetters(payload)
+      await adminApi.createLetters(payload, composeImage)
       setComposeForm(EMPTY_COMPOSE_FORM)
-      setComposeOpen(false)
-      setMessage(`Đã gửi lời chúc cho ${payload.student_ids.length} người nhận.`)
+      closeCompose()
+      setMessage(`Đã gửi lời chúc${composeImage ? ' kèm ảnh' : ''} cho ${payload.student_ids.length} người nhận.`)
       await load()
     } catch (err) {
       setError(err.message)
@@ -381,7 +416,7 @@ function LetterManager() {
           </label>
         )}
         <span className="admin-header-note">{data.pagination.total} kết quả</span>
-        <button type="button" className="admin-btn admin-btn--ink push-end" onClick={() => setComposeOpen((open) => !open)}>
+        <button type="button" className="admin-btn admin-btn--ink push-end" onClick={() => (composeOpen ? closeCompose() : setComposeOpen(true))}>
           {composeOpen ? 'Đóng khung soạn' : '✍ Soạn lời chúc'}
         </button>
       </div>
@@ -432,8 +467,32 @@ function LetterManager() {
           </label>
           <label className="admin-field">Tiêu đề<input className="input-hand" maxLength={200} value={composeForm.title} onChange={(event) => setComposeForm({ ...composeForm, title: event.target.value })} /></label>
           <label className="admin-field admin-field--full">Nội dung<textarea className="input-hand" required maxLength={5000} rows={3} value={composeForm.content} onChange={(event) => setComposeForm({ ...composeForm, content: event.target.value })} /></label>
+          <div className="admin-inline admin-field--full">
+            <button type="button" className="admin-btn admin-btn--sm" onClick={() => composeFileRef.current?.click()}>
+              📷 {composeImage ? 'Đổi ảnh' : 'Kèm ảnh (≤ 5 MB)'}
+            </button>
+            <input
+              ref={composeFileRef}
+              type="file"
+              hidden
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              aria-label="Ảnh kèm lời chúc"
+              onChange={(event) => chooseComposeImage(event.target.files?.[0] || null)}
+            />
+            {composeImage && (
+              <>
+                <span>{composeImage.name}{composeForm.studentIds.length > 1 ? ` · dùng chung cho ${composeForm.studentIds.length} người nhận` : ''}</span>
+                <button type="button" className="admin-btn admin-btn--sm" onClick={clearComposeImage}>Bỏ ảnh</button>
+              </>
+            )}
+          </div>
+          {composeImagePreview && (
+            <div className="admin-field--full">
+              <Polaroid src={composeImagePreview} alt="Ảnh sẽ gửi kèm" small rotate={-2} tape="none" />
+            </div>
+          )}
           <div className="admin-form__actions">
-            <button type="button" className="admin-btn" onClick={() => setComposeOpen(false)}>Hủy</button>
+            <button type="button" className="admin-btn" onClick={closeCompose}>Hủy</button>
             <button className="admin-btn admin-btn--primary" disabled={saving}>{saving ? 'Đang gửi…' : 'Dán tem & gửi ✉'}</button>
           </div>
         </form>

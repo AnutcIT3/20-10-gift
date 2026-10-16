@@ -91,9 +91,21 @@ export const adminApi = {
     if (search) params.set('search', search)
     return request(`/api/admin/letters?${params}`)
   },
-  createLetters: (data) => request('/api/admin/letters', {
-    method: 'POST', body: JSON.stringify(data),
-  }),
+  // Kèm ảnh → multipart (ảnh upload một lần, dùng chung cho mọi người nhận);
+  // không ảnh → JSON như cũ
+  createLetters: (data, imageFile = null) => {
+    if (!imageFile) {
+      return request('/api/admin/letters', { method: 'POST', body: JSON.stringify(data) })
+    }
+    const form = new FormData()
+    Object.entries(data).forEach(([key, value]) => {
+      if (value === null || value === undefined) return
+      if (Array.isArray(value)) value.forEach((item) => form.append(key, item))
+      else form.append(key, value)
+    })
+    form.append('image', imageFile)
+    return request('/api/admin/letters', { method: 'POST', body: form })
+  },
   updateLetter: (id, data) => request(`/api/letters/${id}`, {
     method: 'PATCH', body: JSON.stringify(data),
   }),
