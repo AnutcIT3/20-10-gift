@@ -108,8 +108,10 @@ function reportScanEnd(scan, unclaimed, outcome, chosenId = null) {
  * thành khi quà được mở, và `videoRef` gắn vào <video>.
  * Stream, interval, AbortController, phiếu bầu, lượt quét nằm trong ref — không phải state.
  * Camera được nhả khi: đóng modal, Esc (qua close), rời tab, đổi vai trò, unmount.
+ * `scope`: 'class' (thành viên lớp) hoặc 'friend' (khách) — mỗi nhóm chỉ so
+ * với thư viện khuôn mặt của mình.
  */
-function useFaceScan() {
+function useFaceScan({ scope = 'class' } = {}) {
   const [active, setActive] = useState(false)
   // Mỗi lần "Không phải mình"/"Quét lại" tăng session → effect chạy lại từ đầu
   const [session, setSession] = useState(0)
@@ -187,7 +189,7 @@ function useFaceScan() {
       pendingSince = sentAt
       try {
         const result = await giftRepository.matchFace(blob, {
-          signal: controller.signal, scan: scan.token, t,
+          signal: controller.signal, scan: scan.token, t, scope,
         })
         if (done) return
         trouble = NO_NETWORK_TROUBLE
@@ -287,7 +289,7 @@ function useFaceScan() {
       // chưa kịp lên thì chưa có gì để ghi — đó cũng là lần chạy thử của StrictMode
       if (scan.startedAt) reportScanEnd(scan, unclaimed, 'closed')
     }
-  }, [active, session])
+  }, [active, session, scope])
 
   const open = () => {
     excludedRef.current = []

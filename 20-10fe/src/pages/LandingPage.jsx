@@ -139,7 +139,12 @@ function LandingPage() {
 
   // Face ID: thẻ ✨ chỉ hiện khi admin bật, service sống, đã có hồ sơ và máy
   // có camera trên kết nối an toàn. Thiếu một điều kiện → thẻ không hề xuất hiện.
-  const [faceAvailable, setFaceAvailable] = useState(false)
+  // Hai nhóm quét riêng: thành viên lớp ('class') và khách ngoài lớp
+  // ('friend') — mỗi nhóm chỉ so với thư viện khuôn mặt của mình. Ghi nhớ
+  // nhóm nào đã sẵn sàng, để đổi vai trò không mượn kết quả của nhóm kia.
+  const faceScope = visitorRole === 'guest' ? 'friend' : 'class'
+  const [faceReadyScope, setFaceReadyScope] = useState(null)
+  const faceAvailable = visitorRole !== null && faceReadyScope === faceScope
   // Destructure ngay tại đây: videoRef là ref, phần còn lại là giá trị render —
   // gộp chung một object thì React Compiler coi mọi lần đọc thuộc tính là đọc ref
   const {
@@ -160,7 +165,7 @@ function LandingPage() {
     deny: denyFace,
     retry: retryFace,
     claim: claimFaceScans,
-  } = useFaceScan()
+  } = useFaceScan({ scope: faceScope })
 
   // Link "gửi lời chúc" từ màn khóa 20/10 mở thẳng modal (/?wish=1)
   const [wishOpen, setWishOpen] = useState(() => searchParams.get('wish') === '1')
@@ -185,18 +190,18 @@ function LandingPage() {
   // Esc / bấm nền / nút × đều đi qua đây → hook nhả camera ngay
   const faceDialogRef = useDialogA11y(faceActive, closeFace)
 
-  // Chỉ hỏi status khi đang ở bước "thành viên trong lớp"; lỗi gì cũng coi như
-  // tắt. setState chỉ chạy trong callback bất đồng bộ (quy tắc react-hooks v7).
+  // Hỏi status khi đã chọn vai trò, theo đúng nhóm của vai trò đó; lỗi gì cũng
+  // coi như tắt. setState chỉ chạy trong callback bất đồng bộ (quy tắc react-hooks v7).
   useEffect(() => {
-    if (visitorRole !== 'classmate' || !cameraSupported()) return undefined
+    if (!visitorRole || !cameraSupported()) return undefined
     let cancelled = false
     const timers = []
     const probe = async (attempt) => {
       try {
-        const status = await giftRepository.faceStatus()
+        const status = await giftRepository.faceStatus(faceScope)
         if (cancelled) return
         if (status?.enabled) {
-          setFaceAvailable(true)
+          setFaceReadyScope(faceScope)
           return
         }
       } catch {
@@ -211,7 +216,7 @@ function LandingPage() {
       cancelled = true
       timers.forEach(clearTimeout)
     }
-  }, [visitorRole])
+  }, [visitorRole, faceScope])
 
   const clearWishImage = () => {
     setWishImage(null)
@@ -564,7 +569,7 @@ function LandingPage() {
               </form>
               {/* Lối vào phụ, không thay thế gõ tên: service báo nghỉ giữa chừng
                   thì thẻ tự ẩn luôn cho tới lần tải trang sau */}
-              {!isGuest && faceAvailable && faceKind !== 'offline' && (
+              {faceAvailable && faceKind !== 'offline' && (
                 <button type="button" className="face-card" onClick={openFace} disabled={loading}>
                   <span className="face-card__icon" aria-hidden="true">✨</span>
                   <span className="face-card__text">

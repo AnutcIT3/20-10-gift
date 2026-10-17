@@ -85,7 +85,10 @@ function mockDatabase({ faceEnabled = '1', giftLocked = '0', gallery = GALLERY }
       if (params[0] === 'face_enabled') faceEnabled = params[1];
       return [{ affectedRows: 1 }];
     }
-    if (sql.includes('FROM face_profiles')) return [gallery];
+    // Thư viện theo nhóm như SQL thật: lớp ('class', 'test') hay khách ('friend')
+    if (sql.includes('FROM face_profiles')) {
+      return [gallery.filter((row) => sql.includes(`'${row.member_type || 'class'}'`))];
+    }
     if (sql.includes('SELECT id FROM face_scans')) return [scanCreated ? [{ id: SCAN_ID }] : []];
     if (sql.includes('INSERT INTO face_scans')) {
       writes.push({ sql, params });
@@ -399,6 +402,74 @@ test('chọn thiệp với id không phải thành viên thì không gắn tên 
   await postJson(`${base}/api/face/scans/${SCAN}/end`, { outcome: 'confirmed', matchId: 43, studentId: 99 });
   const update = writes.find((w) => w.sql.includes('UPDATE face_scans'));
   assert.deepEqual(update.params.slice(0, 2), ['confirmed', null]);
+});
+
+// ── Khách ngoài lớp: thư viện Face ID riêng ─────────────────────────────────
+
+// Khách "Minh Thư" có khuôn mặt y hệt hồ sơ của Vy (lớp) — để thấy hai nhóm
+// thật sự không bao giờ so chéo
+const GUEST_GALLERY = [
+  ...GALLERY,
+  {
+    student_id: 40, kind: 'enroll', embedding: faceService.encodeEmbedding(oneHot(0)),
+    full_name: 'Minh Thư', nickname: null, access_code: 'minh-thu', member_type: 'friend', avatar_url: null,
+  },
+];
+
+async function matchAs(t, scope, faces) {
+  const base = await startApp(t);
+  mockDatabase({ gallery: GUEST_GALLERY });
+  stubFaceService(healthyService(faces));
+  const form = frameForm(scope ? { scope } : {});
+  const { data } = await (await fetch(`${base}/api/face/match`, { method: 'POST', body: form })).json();
+  return { base, data };
+}
+
+test('khách quét chỉ so với thư viện khách; bạn trong lớp quét chỉ so với lớp', async (t) => {
+  const guest = await matchAs(t, 'friend', [face(oneHot(0), 150)]);
+  assert.equal(guest.data.decision, 'match');
+  assert.equal(guest.data.studentId, 40);
+  assert.equal(guest.data.giftPath, '/gift/minh-thu');
+
+  // Cùng khuôn mặt đó ở nhánh thành viên lớp thì ra Vy, không bao giờ ra khách
+  faceService.resetCache();
+  const classmate = await matchAs(t, null, [face(oneHot(0), 150)]);
+  assert.equal(classmate.data.studentId, 1);
+
+  // Khách quét mà mặt là của Hương (chỉ có trong lớp) → người lạ với nhóm khách
+  faceService.resetCache();
+  const outsider = await matchAs(t, 'friend', [face(oneHot(1), 150)]);
+  assert.equal(outsider.data.decision, 'reject');
+});
+
+test('trạng thái Face ID theo nhóm: nhánh khách chỉ bật khi đã có khách đăng ký', async (t) => {
+  const base = await startApp(t);
+  mockDatabase({ gallery: GALLERY });
+  stubFaceService(healthyService([]));
+  const status = async (query = '') => (await (await fetch(`${base}/api/face/status${query}`)).json()).data;
+  assert.deepEqual(await status(), { enabled: true, model: 'arcface_r50', profiles: 2 });
+  assert.deepEqual(await status('?scope=friend'), { enabled: false, model: null, profiles: 0 });
+});
+
+test('script đăng ký: khách ở bench/photos/Khách/<tên>, chỉ ghép với hồ sơ khách', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { planAllFolders } = require('../scripts/face-enroll');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'face-enroll-'));
+  try {
+    for (const folder of ['Linh', 'Khách/Linh', 'Khách/Người Lạ']) fs.mkdirSync(path.join(dir, folder), { recursive: true });
+    const students = [
+      { id: 8, full_name: 'Linh', member_type: 'class', is_active: 1 },
+      { id: 28, full_name: 'Linh', member_type: 'friend', is_active: 1 },
+    ];
+    const { plan, unmatched } = planAllFolders(dir, students);
+    // Cùng tên "Linh" ở hai nhóm: mỗi thư mục về đúng nhóm của mình
+    assert.deepEqual(plan.map((item) => [item.folder, item.student.id]), [['Linh', 8], ['Khách/Linh', 28]]);
+    assert.deepEqual(unmatched.map((item) => [item.folder, item.reason]), [['Khách/Người Lạ', 'không có khách tên này']]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('face match turns quality problems into hints without logging them', async (t) => {

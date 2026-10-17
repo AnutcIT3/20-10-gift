@@ -7,8 +7,11 @@ const letterService = require('./letterService');
 
 const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'admin_wish', 'class_name', 'member_type'];
 // Admin chỉ đổi qua lại giữa thành viên lớp và tài khoản thử; hồ sơ bạn ngoài
-// lớp do lời chúc tự sinh và nằm ở không gian tên riêng
+// lớp nằm ở không gian tên riêng
 const ADMIN_MEMBER_TYPES = ['class', 'test'];
+// Lúc TẠO thì admin được thêm cả khách ngoài lớp (để đăng ký Face ID cho họ
+// trước khi ai gửi lời chúc); đã tạo rồi thì không đổi qua lại với lớp
+const CREATE_MEMBER_TYPES = [...ADMIN_MEMBER_TYPES, 'friend'];
 const SPECIAL_SEAT = { row: 0, column: 9 };
 
 function httpError(message, statusCode) {
@@ -59,7 +62,7 @@ function canonicalCloudinaryUrl(parsed) {
   return `${parsed.origin}${parsed.pathname.slice(0, at + marker.length)}${segments.slice(keepFrom).join('/')}`;
 }
 
-function sanitizeInput(data, requireName = false) {
+function sanitizeInput(data, requireName = false, memberTypes = ADMIN_MEMBER_TYPES) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw httpError('Dữ liệu không hợp lệ', 400);
   }
@@ -74,7 +77,7 @@ function sanitizeInput(data, requireName = false) {
   clean.admin_wish = validateText(data.admin_wish, 'admin_wish', 65535);
   clean.class_name = validateText(data.class_name, 'class_name', 20);
   if (data.member_type !== undefined) {
-    if (!ADMIN_MEMBER_TYPES.includes(data.member_type)) throw httpError('Loại thành viên không hợp lệ', 400);
+    if (!memberTypes.includes(data.member_type)) throw httpError('Loại thành viên không hợp lệ', 400);
     clean.member_type = data.member_type;
   }
   if (Object.prototype.hasOwnProperty.call(data, 'seat_row')
@@ -185,9 +188,31 @@ async function getStudent(id) {
   return rows[0] ? presentStudent(rows[0]) : null;
 }
 
+// Khách trùng tên với một khách đã có là mở nhầm trang của nhau (lời chúc gửi
+// tới tên đó cũng gộp về một hồ sơ) — chặn; trùng tên với bạn trong lớp thì
+// được, vì hai nhóm tra tên và Face ID riêng
+async function assertNoDuplicateFriendName(fullName) {
+  const [rows] = await pool.execute(
+    "SELECT id, full_name FROM students WHERE member_type = 'friend' AND normalized_name = ?",
+    [normalizeName(fullName)],
+  );
+  if (rows.some((row) => canonicalVisibleName(row.full_name) === canonicalVisibleName(fullName))) {
+    throw httpError(`Đã có khách tên ${fullName}`, 409);
+  }
+}
+
 async function createStudent(data) {
-  const clean = sanitizeInput(data, true);
-  await assertNoDuplicateVisibleName(clean.full_name);
+  const clean = sanitizeInput(data, true, CREATE_MEMBER_TYPES);
+  const isFriend = clean.member_type === 'friend';
+  if (isFriend) {
+    await assertNoDuplicateFriendName(clean.full_name);
+    // Khách không có chỗ trong sơ đồ lớp
+    clean.seat_row = null;
+    clean.seat_col = null;
+    clean.class_name = clean.class_name || 'Bạn bè';
+  } else {
+    await assertNoDuplicateVisibleName(clean.full_name);
+  }
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const accessCode = generateAccessCode();
     try {

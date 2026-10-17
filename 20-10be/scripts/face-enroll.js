@@ -4,6 +4,7 @@
  * mỗi bạn → bảng face_profiles. Không chép, không lưu ảnh; chỉ lưu vector.
  *
  *   npm run face:enroll                         quét bench/photos/<Họ và tên>/
+ *                                               và khách ở bench/photos/Khách/<Họ và tên>/
  *   npm run face:enroll -- --dry-run            chỉ in bảng "thư mục -> học sinh"
  *   npm run face:enroll -- --photos D:\anh      thư mục ảnh khác
  *   npm run face:enroll -- --student 5 --images a.jpg b.jpg
@@ -21,7 +22,9 @@ const {
 const ROOT = path.join(__dirname, '..', '..');
 const DEFAULT_PHOTOS = path.join(ROOT, 'bench', 'photos');
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp']);
-const SKIP_FOLDERS = new Set(['test']);
+// test: ảnh thử nhận diện; Khách: thư mục của nhóm khách, đọc riêng
+const GUEST_FOLDER = 'Khách';
+const SKIP_FOLDERS = new Set(['test', GUEST_FOLDER].map(nameKey));
 const SERVICE_MAX_BYTES = 8 * 1024 * 1024;   // trần upload của face-service
 const EMBED_TIMEOUT_MS = 30000;              // ảnh máy ảnh lớn hơn khung camera nhiều
 
@@ -165,14 +168,31 @@ async function saveProfile(studentId, vector, sourceCount) {
   }
 }
 
-async function loadClassStudents() {
+// Thành viên lớp (kèm tài khoản thử) và khách ngoài lớp — hai nhóm Face ID
+// tách riêng, ảnh khách để trong bench/photos/Khách/<Họ và tên>/
+async function loadStudents() {
   const [rows] = await pool.execute(
-    "SELECT id, full_name, is_active FROM students WHERE member_type IN ('class', 'test') ORDER BY id",
+    "SELECT id, full_name, is_active, member_type FROM students WHERE member_type IN ('class', 'test', 'friend') ORDER BY id",
   );
   return rows;
 }
 
-function planFromFolders(photosDir, students) {
+// Lớp ở bench/photos/<tên>, khách ở bench/photos/Khách/<tên>: mỗi nhóm chỉ
+// ghép với hồ sơ của nhóm mình, nên khách trùng tên một bạn trong lớp không
+// bao giờ lấy nhầm ảnh của nhau
+function planAllFolders(photosDir, students) {
+  const classPlan = planFromFolders(photosDir, students.filter((student) => student.member_type !== 'friend'));
+  const guestDir = path.join(photosDir, GUEST_FOLDER);
+  if (!fs.existsSync(guestDir)) return classPlan;
+  const guestPlan = planFromFolders(guestDir, students.filter((student) => student.member_type === 'friend'), 'khách');
+  const prefix = (item) => ({ ...item, folder: `${GUEST_FOLDER}/${item.folder}` });
+  return {
+    plan: [...classPlan.plan, ...guestPlan.plan.map(prefix)],
+    unmatched: [...classPlan.unmatched, ...guestPlan.unmatched.map(prefix)],
+  };
+}
+
+function planFromFolders(photosDir, students, who = 'học sinh') {
   if (!fs.existsSync(photosDir)) throw new UsageError(`Không có thư mục ảnh: ${photosDir}`);
   const byName = new Map();
   for (const student of students) {
@@ -183,14 +203,14 @@ function planFromFolders(photosDir, students) {
   const plan = [];
   const unmatched = [];
   const folders = fs.readdirSync(photosDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && !SKIP_FOLDERS.has(entry.name.toLowerCase()))
+    .filter((entry) => entry.isDirectory() && !SKIP_FOLDERS.has(nameKey(entry.name)))
     .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b, 'vi'));
   for (const folder of folders) {
     const files = listImages(path.join(photosDir, folder));
     const hits = byName.get(nameKey(folder)) || [];
     if (hits.length !== 1) {
-      unmatched.push({ folder, files: files.length, reason: hits.length ? `trùng ${hits.length} học sinh` : 'không có học sinh tên này' });
+      unmatched.push({ folder, files: files.length, reason: hits.length ? `trùng ${hits.length} ${who}` : `không có ${who} tên này` });
       continue;
     }
     plan.push({ folder, student: hits[0], files });
@@ -205,18 +225,18 @@ function pad(text, width) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const students = await loadClassStudents();
+  const students = await loadStudents();
 
   let plan;
   if (args.student !== null) {
     const student = students.find((item) => Number(item.id) === args.student);
-    if (!student) throw new UsageError(`Không có thành viên lớp với id ${args.student}`);
+    if (!student) throw new UsageError(`Không có thành viên lớp hay khách nào với id ${args.student}`);
     const files = args.images.map((file) => path.resolve(file));
     const missing = files.filter((file) => !fs.existsSync(file));
     if (missing.length) throw new UsageError(`Không thấy file: ${missing.join(', ')}`);
     plan = [{ folder: '(--images)', student, files }];
   } else {
-    const mapped = planFromFolders(args.photos, students);
+    const mapped = planAllFolders(args.photos, students);
     plan = mapped.plan;
     console.log(`Thư mục ảnh: ${args.photos}\n`);
     console.log(`${pad('THƯ MỤC', 18)} ${pad('ẢNH', 4)} HỌC SINH`);
@@ -269,12 +289,13 @@ async function main() {
   }
 
   const [[count]] = await pool.execute(
-    `SELECT COUNT(DISTINCT fp.student_id) AS students
+    `SELECT COUNT(DISTINCT CASE WHEN s.member_type <> 'friend' THEN fp.student_id END) AS students,
+            COUNT(DISTINCT CASE WHEN s.member_type = 'friend' THEN fp.student_id END) AS guests
      FROM face_profiles fp JOIN students s ON s.id = fp.student_id
-     WHERE fp.model = ? AND s.is_active = TRUE AND s.member_type IN ('class', 'test')`,
+     WHERE fp.model = ? AND s.is_active = TRUE AND s.member_type IN ('class', 'test', 'friend')`,
     [FACE_MODEL],
   );
-  console.log(`\nThư viện Face ID hiện có ${count.students} bạn (model ${FACE_MODEL}).`);
+  console.log(`\nThư viện Face ID hiện có ${count.students} bạn trong lớp và ${count.guests} khách (model ${FACE_MODEL}).`);
   console.log('Vào admin, gạt công tắc ✨ Face ID ở thanh bên để bật thẻ trên trang chủ.');
   return summary.some((row) => row.used === 0) ? 1 : 0;
 }
@@ -299,4 +320,6 @@ if (require.main === module) {
     .finally(() => pool.end());
 }
 
-module.exports = { parseArgs, nameKey, planFromFolders, buildProfile };
+module.exports = {
+  parseArgs, nameKey, planFromFolders, planAllFolders, buildProfile,
+};

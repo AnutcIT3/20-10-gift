@@ -1058,6 +1058,34 @@ test('module 3: create and update reject exact duplicate visible names', async (
   }
 });
 
+test('module 3: admin thêm được khách ngoài lớp (không chỗ ngồi, lớp "Bạn bè"), nhưng không biến hồ sơ lớp thành khách', async () => {
+  const original = pool.execute;
+  const inserts = [];
+  const friends = [{ id: 40, full_name: 'Minh Thư' }];
+  pool.execute = async (sql, params) => {
+    // Khách trùng tên khách thì chặn; trùng tên bạn trong lớp ("Hùng") thì không
+    if (sql.includes("member_type = 'friend' AND normalized_name = ?")) {
+      return [friends.filter((row) => normalizeName(row.full_name) === params[0])];
+    }
+    if (sql.includes("member_type IN ('class', 'test')")) return [[{ id: 2, full_name: 'Hùng' }]];
+    if (sql.startsWith('INSERT INTO students')) { inserts.push(params); return [{ insertId: 41 }]; }
+    if (sql.includes('FROM students') && sql.includes('WHERE id = ?')) return [[{ id: 41, full_name: 'Hùng', member_type: 'friend' }]];
+    return [[]];
+  };
+  try {
+    await studentService.createStudent({ full_name: 'Hùng', member_type: 'friend', seat_row: 1, seat_col: 2 });
+    const [row] = inserts;
+    // full_name, …, class_name (vị trí 6), access_code, seat_row, seat_col, member_type
+    assert.equal(row[6], 'Bạn bè');
+    assert.deepEqual(row.slice(8), [null, null, 'friend']);
+    await assert.rejects(() => studentService.createStudent({ full_name: 'minh thư', member_type: 'friend' }), { statusCode: 409 });
+    // Đã tạo rồi thì không sửa thành khách được
+    await assert.rejects(() => studentService.updateStudent(3, { member_type: 'friend' }), { statusCode: 400 });
+  } finally {
+    pool.execute = original;
+  }
+});
+
 test('module 2: resolve prefers a single exact normalized name over broader matches', async () => {
   const original = pool.execute;
   pool.execute = async () => [[
