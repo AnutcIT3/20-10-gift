@@ -79,3 +79,25 @@ test('hồ sơ bạn ngoài lớp không có ô chọn loại và không gửi m
   await waitFor(() => expect(adminApi.updateStudent).toHaveBeenCalledTimes(1))
   expect(adminApi.updateStudent.mock.calls[0][1]).not.toHaveProperty('member_type')
 })
+
+test('thêm khách ngoài lớp: gửi loại khách, lớp "Bạn bè"; lúc sửa hồ sơ lớp thì không có lựa chọn khách', async () => {
+  adminApi.createStudent.mockResolvedValue({ id: 41 })
+  renderPage()
+  await screen.findByText('Minh Thư')
+  fireEvent.click(screen.getByRole('button', { name: '+ Thêm học sinh' }))
+  fireEvent.change(screen.getByLabelText('Họ và tên'), { target: { value: 'Cô Hạnh' } })
+  fireEvent.change(screen.getByLabelText('Loại'), { target: { value: 'friend' } })
+  expect(screen.getByLabelText('Lớp')).toHaveValue('Bạn bè')
+  fireEvent.click(screen.getByRole('button', { name: 'Lưu' }))
+
+  await waitFor(() => expect(adminApi.createStudent).toHaveBeenCalledTimes(1))
+  expect(adminApi.createStudent.mock.calls[0][0]).toMatchObject({ full_name: 'Cô Hạnh', member_type: 'friend', class_name: 'Bạn bè' })
+  expect(await screen.findByText(/Ảnh Face ID của khách để trong bench\/photos\/Khách\/Cô Hạnh\//)).toBeInTheDocument()
+
+  // Sửa một thành viên lớp: chỉ đổi giữa lớp và tài khoản thử
+  const row = screen.getByText('Thanh Huyền').closest('[role="row"]')
+  fireEvent.click(within(row).getByRole('button', { name: 'Thao tác khác' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Sửa thông tin' }))
+  const options = Array.from(screen.getByLabelText('Loại').querySelectorAll('option')).map((option) => option.value)
+  expect(options).toEqual(['class', 'test'])
+})

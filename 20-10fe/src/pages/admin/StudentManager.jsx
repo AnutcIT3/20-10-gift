@@ -23,6 +23,15 @@ function accessCodeOf(student) {
   return (student.giftPath || '').split('/').filter(Boolean).pop() || ''
 }
 
+// Khách ngoài lớp mặc định ghi lớp "Bạn bè" như hồ sơ tự sinh khi có ai gửi
+// lời chúc; chỉ đổi ô Lớp khi admin chưa tự gõ gì khác
+const FRIEND_CLASS = 'Bạn bè'
+function withMemberType(form, memberType) {
+  const untouched = form.class_name === EMPTY_FORM.class_name || form.class_name === FRIEND_CLASS
+  const className = untouched ? (memberType === 'friend' ? FRIEND_CLASS : EMPTY_FORM.class_name) : form.class_name
+  return { ...form, member_type: memberType, class_name: className }
+}
+
 function capitalize(text) {
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : text
 }
@@ -163,8 +172,9 @@ function StudentManager() {
         admin_wish: form.admin_wish.trim() || null,
         class_name: form.class_name.trim() || null,
       }
-      // Hồ sơ bạn ngoài lớp giữ nguyên loại; còn lại admin chọn lớp hay thử
-      if (form.member_type !== 'friend') data.member_type = form.member_type
+      // Lúc thêm mới thì chọn được cả khách ngoài lớp; hồ sơ khách đã có thì
+      // giữ nguyên loại, còn lại admin chọn lớp hay thử
+      if (!editingId || form.member_type !== 'friend') data.member_type = form.member_type
       if (editingId) {
         const current = students.find((student) => student.id === editingId)
         await adminApi.updateStudent(editingId, data)
@@ -182,7 +192,11 @@ function StudentManager() {
       }
       const wasEditing = Boolean(editingId)
       closeForm()
-      setMessage(wasEditing ? 'Đã cập nhật học sinh.' : 'Đã thêm học sinh.')
+      setMessage(wasEditing
+        ? 'Đã cập nhật học sinh.'
+        : data.member_type === 'friend'
+          ? `Đã thêm khách. Ảnh Face ID của khách để trong bench/photos/Khách/${data.full_name}/`
+          : 'Đã thêm học sinh.')
       await load()
     } catch (err) { setError(err.message); await load() }
     finally { setSaving(false) }
@@ -342,11 +356,13 @@ function StudentManager() {
               <option value="inactive">Đã tắt</option>
             </select>
           </label>
-          {form.member_type !== 'friend' && (
+          {(!editingId || form.member_type !== 'friend') && (
             <label className="admin-field">Loại
-              <select className="input-hand" value={form.member_type} onChange={(e) => setForm({ ...form, member_type: e.target.value })}>
+              <select className="input-hand" value={form.member_type} onChange={(e) => setForm(withMemberType(form, e.target.value))}>
                 <option value="class">Thành viên lớp</option>
                 <option value="test">Tài khoản thử (không tính vào lớp)</option>
+                {/* Khách chỉ chọn được lúc thêm mới: có Face ID riêng ở nhánh "khách ghé thăm" */}
+                {!editingId && <option value="friend">Khách ngoài lớp (Face ID riêng)</option>}
               </select>
             </label>
           )}

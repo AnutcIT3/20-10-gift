@@ -1,8 +1,9 @@
 const { sendSuccess, sendError } = require('../utils/response');
 const faceService = require('../services/faceService');
 
+// ?scope=friend: thẻ Face ID ở nhánh "khách ghé thăm" chỉ hiện khi đã có khách đăng ký
 async function status(req, res) {
-  return sendSuccess(res, await faceService.getStatus());
+  return sendSuccess(res, await faceService.getStatus(req.query?.scope));
 }
 
 async function match(req, res) {
@@ -12,7 +13,10 @@ async function match(req, res) {
   try {
     // scan/t là trường chữ đi cùng khung hình trong multipart: mã lượt quét và
     // thời điểm của khung trong lượt — thiếu hay sai thì chỉ không vào lịch sử
-    const context = { scan: req.body?.scan, t: req.body?.t, userAgent: req.get('user-agent') };
+    // scope: 'friend' khi khách quét — chỉ so với thư viện khách; còn lại là lớp
+    const context = {
+      scan: req.body?.scan, t: req.body?.t, userAgent: req.get('user-agent'), scope: req.body?.scope,
+    };
     return sendSuccess(res, await faceService.matchFrame(req.file.buffer, req.file.mimetype, context));
   } catch (error) {
     // 503 đi thẳng qua sendError: errorHandler production thay thông điệp ≥ 500

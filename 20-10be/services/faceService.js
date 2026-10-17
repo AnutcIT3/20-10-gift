@@ -166,11 +166,12 @@ function qualityReason(face) {
 // ── face-service ────────────────────────────────────────────────────────────
 
 let healthCache = { at: 0, value: null };
-let galleryCache = { at: 0, value: null };
+// Mỗi nhóm một thư viện, một bộ nhớ đệm (xem SCOPE_MEMBER_TYPES)
+let galleryCache = {};
 
 function resetCache() {
   healthCache = { at: 0, value: null };
-  galleryCache = { at: 0, value: null };
+  galleryCache = {};
 }
 
 // Cả kết quả xấu cũng được đệm: service chết thì trang chủ không đập vào cổng
@@ -224,17 +225,31 @@ async function embedImage(buffer, mimetype, maxFaces) {
 
 // ── Thư viện gương mặt ──────────────────────────────────────────────────────
 
-const GALLERY_SQL = `SELECT fp.student_id, fp.kind, fp.embedding, s.full_name, s.nickname, s.access_code, s.avatar_url
+// Hai nhóm quét tách hẳn như ô gõ tên: thành viên lớp (kèm tài khoản thử) và
+// khách ngoài lớp. Mỗi nhóm chỉ so với thư viện của mình — thêm khách không
+// làm bạn trong lớp có thêm người để bị nhận nhầm, và ngược lại.
+const SCOPE_MEMBER_TYPES = Object.freeze({ class: ['class', 'test'], friend: ['friend'] });
+
+function normalizeScope(scope) {
+  return scope === 'friend' ? 'friend' : 'class';
+}
+
+function gallerySql(scope) {
+  const types = SCOPE_MEMBER_TYPES[scope].map((type) => `'${type}'`).join(', ');
+  return `SELECT fp.student_id, fp.kind, fp.embedding, s.full_name, s.nickname, s.access_code, s.avatar_url
      FROM face_profiles fp
      JOIN students s ON s.id = fp.student_id
-     WHERE fp.model = ? AND s.is_active = TRUE AND s.member_type IN ('class', 'test')`;
+     WHERE fp.model = ? AND s.is_active = TRUE AND s.member_type IN (${types})`;
+}
 
-async function loadGallery() {
+async function loadGallery(scope = 'class') {
+  const group = normalizeScope(scope);
   const now = Date.now();
-  if (galleryCache.value && now - galleryCache.at < FACE_GALLERY_TTL_MS) {
-    return galleryCache.value;
+  const cached = galleryCache[group];
+  if (cached?.value && now - cached.at < FACE_GALLERY_TTL_MS) {
+    return cached.value;
   }
-  const [rows] = await pool.execute(GALLERY_SQL, [FACE_MODEL]);
+  const [rows] = await pool.execute(gallerySql(group), [FACE_MODEL]);
   const byStudent = new Map();
   let profiles = 0;
   for (const row of rows) {
@@ -260,21 +275,22 @@ async function loadGallery() {
     byStudent.get(studentId).vectors.push(vector);
   }
   const value = { students: [...byStudent.values()], profiles };
-  galleryCache = { at: now, value };
+  galleryCache[group] = { at: now, value };
   return value;
 }
 
 // ── API ─────────────────────────────────────────────────────────────────────
 
-// Không bao giờ ném lỗi: bất kỳ trục trặc nào cũng chỉ là "chưa bật"
-async function getStatus() {
+// Không bao giờ ném lỗi: bất kỳ trục trặc nào cũng chỉ là "chưa bật". Hỏi
+// theo nhóm: chưa đăng ký khách nào thì thẻ Face ID của khách không hiện
+async function getStatus(scope = 'class') {
   try {
     if (!(await settingsService.isFaceEnabled())) {
       return { enabled: false, model: null, profiles: 0 };
     }
     const health = await checkHealth();
     if (!health.ok) return { enabled: false, model: null, profiles: 0 };
-    const gallery = await loadGallery();
+    const gallery = await loadGallery(scope);
     const enabled = gallery.profiles > 0;
     return { enabled, model: enabled ? FACE_MODEL : null, profiles: gallery.profiles };
   } catch (error) {
@@ -460,13 +476,14 @@ async function matchGroup({ gallery, bigFaces, frame, started }) {
   };
 }
 
-// context: { scan (mã lượt quét), t (ms từ lúc camera chạy), userAgent }
+// context: { scan (mã lượt quét), t (ms từ lúc camera chạy), userAgent,
+//            scope ('class' mặc định | 'friend' khi khách quét) }
 async function matchFrame(buffer, mimetype, context = {}) {
   const started = Date.now();
   if (!(await settingsService.isFaceEnabled())) throw unavailable();
   const health = await checkHealth();
   if (!health.ok) throw unavailable();
-  const gallery = await loadGallery();
+  const gallery = await loadGallery(context.scope);
   if (!gallery.students.length) throw unavailable();
 
   // Lấy tới GROUP_MAX_FACES mặt (xếp theo độ to giảm dần) để nhận ra cả nhóm
@@ -601,7 +618,7 @@ async function chosenMember(value) {
   if (!Number.isInteger(studentId) || studentId <= 0) return null;
   const [rows] = await pool.execute(
     `SELECT id FROM students
-     WHERE id = ? AND is_active = TRUE AND member_type IN ('class', 'test') LIMIT 1`,
+     WHERE id = ? AND is_active = TRUE AND member_type IN ('class', 'test', 'friend') LIMIT 1`,
     [studentId],
   );
   return rows[0]?.id ?? null;
@@ -617,7 +634,7 @@ async function claimScans(tokens, accessCode) {
 
   const [students] = await pool.execute(
     `SELECT id FROM students
-     WHERE access_code = ? AND is_active = TRUE AND member_type IN ('class', 'test') LIMIT 1`,
+     WHERE access_code = ? AND is_active = TRUE AND member_type IN ('class', 'test', 'friend') LIMIT 1`,
     [accessCode],
   );
   const studentId = students[0]?.id;
