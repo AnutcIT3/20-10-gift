@@ -13,8 +13,11 @@ function imageProblem(file) {
   return ''
 }
 
-// Một loại lời chúc của một bạn: chữ (sửa được, trừ lời chúc tự động) và ảnh kèm
-function WishBlock({ student, kind, title, hint, field, onSaved, children }) {
+// Một loại lời chúc của một bạn: chữ sửa được và ảnh kèm. children có thể là
+// hàm nhận { setText } — phần xem thử lời chúc tự động dùng để chép câu máy viết vào ô
+function WishBlock({
+  student, kind, title, hint, field, onSaved, children, placeholder = 'Để trống thì không hiện gì',
+}) {
   const fileRef = useRef(null)
   const imageUrl = student[`${kind}_image_url`]
   const saved = field ? (student[field] || '') : ''
@@ -64,14 +67,14 @@ function WishBlock({ student, kind, title, hint, field, onSaved, children }) {
             value={text}
             onChange={(event) => setText(event.target.value)}
             aria-label={`${title} của ${student.full_name}`}
-            placeholder="Để trống thì không hiện gì"
+            placeholder={placeholder}
           />
           <button type="button" className="admin-btn admin-btn--sm" onClick={saveText} disabled={busy || text === saved}>
             Lưu chữ
           </button>
         </>
       )}
-      {children}
+      {typeof children === 'function' ? children({ setText }) : children}
       <div className="wish-block__image">
         {imageUrl && <Polaroid src={imageUrl} alt={`Ảnh kèm ${title.toLowerCase()}`} small rotate={-2} tape="none" />}
         <button type="button" className="admin-btn admin-btn--sm" onClick={() => fileRef.current?.click()} disabled={busy}>
@@ -96,9 +99,10 @@ function WishBlock({ student, kind, title, hint, field, onSaved, children }) {
   )
 }
 
-// ✨ Máy viết lời này mỗi lần mở trang (có Gemini thì mỗi lần một khác) — chỉ xem
-// thử được, không sửa; ảnh kèm thì do admin chọn
-function GreetingPreview({ student }) {
+// ✨ Ô trống thì máy viết lời này mỗi lần mở trang (có Gemini thì mỗi lần một
+// khác). Xem thử rồi "Dùng câu này" để chép vào ô, sửa lại và lưu — từ đó trang
+// quà dùng đúng câu admin viết
+function GreetingPreview({ student, onUse }) {
   const { name, audience } = greetingRequest({ ...student, closeFriend: Number(student.face_profile_count) > 0 })
   const [preview, setPreview] = useState('')
   const [error, setError] = useState('')
@@ -118,8 +122,15 @@ function GreetingPreview({ student }) {
 
   return (
     <div className="wish-block__auto">
-      <p className="admin-hint">Kiểu: <b>{AUDIENCE_LABELS[audience]}</b> · máy viết khi trang quà mở, gọi là “{name}”.</p>
+      <p className="admin-hint">
+        {student.greeting_custom
+          ? <>Trang quà đang dùng <b>câu admin viết</b> ở trên. Xoá trống ô rồi Lưu chữ để máy tự viết lại.</>
+          : <>Ô trống nên máy tự viết khi trang quà mở — kiểu <b>{AUDIENCE_LABELS[audience]}</b>, gọi là “{name}”.</>}
+      </p>
       {preview && <blockquote className="wish-block__preview">{preview}</blockquote>}
+      {preview && (
+        <button type="button" className="admin-btn admin-btn--sm" onClick={() => onUse(preview)}>Dùng câu này để sửa</button>
+      )}
       <button type="button" className="admin-btn admin-btn--sm" onClick={load} disabled={loading}>
         {loading ? 'Đang viết thử…' : preview ? 'Viết thử lại' : 'Xem thử'}
       </button>
@@ -171,8 +182,16 @@ function PersonalWishes({ students, studentId = '', onStudentSaved }) {
           <div className="wish-card__blocks">
             <WishBlock student={student} kind="intro" field="intro_message" title="Lời chúc riêng" hint="hiện ngay dưới tên" onSaved={onStudentSaved} />
             <WishBlock student={student} kind="admin_wish" field="admin_wish" title="💌 Lời chúc từ admin" hint="ô riêng trên trang quà" onSaved={onStudentSaved} />
-            <WishBlock student={student} kind="greeting" title="✨ Lời chúc tự động" hint="máy viết, kèm ảnh admin chọn" onSaved={onStudentSaved}>
-              <GreetingPreview student={student} />
+            <WishBlock
+              student={student}
+              kind="greeting"
+              field="greeting_custom"
+              title="✨ Lời chúc tự động"
+              hint="để trống thì máy viết, có chữ thì dùng câu này"
+              placeholder="Để trống thì máy tự viết"
+              onSaved={onStudentSaved}
+            >
+              {({ setText }) => <GreetingPreview student={student} onUse={setText} />}
             </WishBlock>
           </div>
         </article>

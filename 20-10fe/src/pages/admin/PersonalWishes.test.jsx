@@ -44,10 +44,10 @@ test('mỗi bạn một thẻ với ba lời chúc riêng; thành viên lớp tr
   const thuy = within(card('Thủy'))
   expect(thuy.getByLabelText('Lời chúc riêng của Thủy')).toHaveValue('Thủy là cô gái nhí nhảnh')
   expect(thuy.getByRole('img', { name: 'Ảnh kèm lời chúc riêng' })).toBeTruthy()
-  expect(thuy.getByText(/Kiểu:/)).toHaveTextContent('bạn trong lớp')
+  expect(thuy.getByText(/máy tự viết khi trang quà mở/)).toHaveTextContent('bạn trong lớp')
   // Khách có Face ID là bạn thân, khách thường giữ lời chúc lịch sự
-  expect(within(card('Trần Hoàng Quyên')).getByText(/Kiểu:/)).toHaveTextContent('bạn thân')
-  expect(within(card('Minh Thư')).getByText(/Kiểu:/)).toHaveTextContent('khách ghé thăm')
+  expect(within(card('Trần Hoàng Quyên')).getByText(/máy tự viết khi trang quà mở/)).toHaveTextContent('bạn thân')
+  expect(within(card('Minh Thư')).getByText(/máy tự viết khi trang quà mở/)).toHaveTextContent('khách ghé thăm')
 })
 
 test('sửa chữ 💌 rồi lưu; thêm ảnh và bỏ ảnh của từng loại lời chúc', async () => {
@@ -82,4 +82,28 @@ test('ảnh sai định dạng bị chặn trước khi gửi; xem thử lời c
   fireEvent.click(quyen.getByRole('button', { name: 'Xem thử' }))
   expect(await quyen.findByText('Gửi quyeniuu — người bạn thân của tụi tớ!')).toBeTruthy()
   expect(adminApi.previewGreeting).toHaveBeenCalledWith('quyeniuu', 'close_friend')
+})
+
+test('admin sửa được lời chúc tự động: chép câu máy viết thử vào ô, sửa rồi lưu; để trống thì máy tự viết lại', async () => {
+  const onStudentSaved = vi.fn()
+  adminApi.previewGreeting.mockResolvedValue({ greeting: 'Chúc Thủy một ngày 20/10 thật vui!' })
+  render(<PersonalWishes students={STUDENTS} onStudentSaved={onStudentSaved} />)
+  const thuy = within(card('Thủy'))
+  const box = thuy.getByLabelText('✨ Lời chúc tự động của Thủy')
+  expect(box).toHaveAttribute('placeholder', 'Để trống thì máy tự viết')
+
+  fireEvent.click(thuy.getByRole('button', { name: 'Xem thử' }))
+  fireEvent.click(await thuy.findByRole('button', { name: 'Dùng câu này để sửa' }))
+  expect(box).toHaveValue('Chúc Thủy một ngày 20/10 thật vui!')
+  fireEvent.change(box, { target: { value: 'Chúc Thủy Phin 20/10 rực rỡ nhé!' } })
+  const auto = within(thuy.getByRole('region', { name: '✨ Lời chúc tự động — Thủy' }))
+  fireEvent.click(auto.getByRole('button', { name: 'Lưu chữ' }))
+  await waitFor(() => expect(adminApi.updateStudent).toHaveBeenCalledWith(10, { greeting_custom: 'Chúc Thủy Phin 20/10 rực rỡ nhé!' }))
+})
+
+test('đã có câu admin viết thì báo trang quà đang dùng câu đó', () => {
+  render(<PersonalWishes students={[{ ...STUDENTS[0], greeting_custom: 'Câu admin viết' }]} onStudentSaved={vi.fn()} />)
+  const thuy = within(card('Thủy'))
+  expect(thuy.getByLabelText('✨ Lời chúc tự động của Thủy')).toHaveValue('Câu admin viết')
+  expect(thuy.getByText(/Trang quà đang dùng/)).toHaveTextContent('câu admin viết')
 })

@@ -816,3 +816,12 @@ test('bản lưu: ô 💌 chỉ có ảnh (chưa viết chữ) vẫn hiện, nh�
   });
   assert.match(html, /LỜI CHÚC TỪ ADMIN<\/span><figure class="polaroid ">/);
 });
+
+test('admin đã tự viết lời chúc ✨ thì bản lưu dùng đúng câu đó, không lấy câu trình duyệt gửi lên', async () => {
+  const { html } = await keepsakeService.buildKeepsake({
+    student: { ...KEEPSAKE_STUDENT, avatar_url: null, greeting_custom: 'Câu tụi tớ tự viết cho Vy' },
+    greeting: 'Câu máy viết trên trình duyệt',
+  }, { fetchImpl: async () => { throw new Error('không được tải ảnh nào'); }, logger: { warn() {}, error() {} } });
+  assert.match(html, /Câu tụi tớ tự viết cho Vy/);
+  assert.equal(html.includes('Câu máy viết trên trình duyệt'), false);
+});

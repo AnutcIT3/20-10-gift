@@ -19,9 +19,10 @@ async function isCloseFriend(studentId) {
 }
 
 const STUDENT_COLUMNS = 'id, full_name, nickname, avatar_url, intro_message, admin_wish, seat_row, seat_col, member_type';
-// Ảnh kèm ba lời chúc riêng (migration 023); máy chưa migrate thì đọc như cũ —
+// Ảnh kèm ba lời chúc riêng (migration 023) và lời chúc ✨ admin tự viết
+// (migration 024); máy chưa migrate thì đọc như cũ —
 // trang quà không được hỏng vì thiếu cột
-const WISH_IMAGE_COLUMNS = 'intro_image_url, admin_wish_image_url, greeting_image_url';
+const WISH_IMAGE_COLUMNS = 'intro_image_url, admin_wish_image_url, greeting_image_url, greeting_custom';
 
 async function findStudentByCode(accessCode, withImages) {
   const columns = withImages ? `${STUDENT_COLUMNS}, ${WISH_IMAGE_COLUMNS}` : STUDENT_COLUMNS;
