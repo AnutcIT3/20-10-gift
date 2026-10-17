@@ -4,7 +4,7 @@ import giftRepository from '../api/giftRepository'
 import Petals from '../components/paper/Petals'
 import Postmark from '../components/paper/Postmark'
 import Stamp from '../components/paper/Stamp'
-import { CLASS_NAME, EVENT_YEAR } from '../lib/event'
+import { CLASS_NAME, EVENT_YEAR, GUEST_POSTMARK } from '../lib/event'
 import '../styles/celebration.css'
 
 // Fallback khi API lỗi — khớp nội dung tĩnh phía backend
@@ -84,8 +84,11 @@ function CelebrationPage() {
                 rotate={-10}
                 animate
                 delay={0.5}
-                // Dấu nhỏ 84px: "K49 - 12A1" một dòng chạm viền, nên tách hai dòng
-                lines={[...CLASS_NAME.split(' - '), { big: '20.10' }, String(EVENT_YEAR)]}
+                // Khách ngoài lớp: dấu "GỬI BẠN", không mang tên lớp. Bạn trong
+                // lớp: dấu nhỏ 84px nên "K49 - 12A1" tách hai dòng cho khỏi chạm viền
+                lines={audience === 'visitor'
+                  ? GUEST_POSTMARK
+                  : [...CLASS_NAME.split(' - '), { big: '20.10' }, String(EVENT_YEAR)]}
                 className="postcard__postmark"
               />
             )}
@@ -124,7 +127,7 @@ function CelebrationPage() {
             )}
             <div className="postcard__foot">
               {hasGreeting
-                ? <span className="postcard__sign">— {audience === 'classmate' ? `Lớp ${CLASS_NAME}` : `Các bạn nam ${CLASS_NAME}`}</span>
+                ? <span className="postcard__sign">— {audience === 'classmate' ? `Lớp ${CLASS_NAME}` : 'Thân gửi từ tụi tớ 🌷'}</span>
                 : <span />}
               <div className="postcard__foot-actions">
                 {hasGreeting && (

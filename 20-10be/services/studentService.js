@@ -89,7 +89,7 @@ function sanitizeInput(data, requireName = false, memberTypes = ADMIN_MEMBER_TYP
 
 // Các cột đếm từ subquery về dạng chuỗi/BigInt tùy driver — ép về number,
 // và chỉ khi có mặt (getStudent không kèm đếm thì không bịa ra số 0)
-const COUNT_FIELDS = ['view_count', 'gallery_count', 'letter_count', 'pending_letter_count'];
+const COUNT_FIELDS = ['view_count', 'gallery_count', 'letter_count', 'pending_letter_count', 'face_profile_count'];
 
 function presentStudent(row) {
   const { access_code: accessCode, normalized_name: _normalizedName, ...student } = row;
@@ -165,16 +165,28 @@ async function assertNoDuplicateVisibleName(fullName, excludeId = null) {
 
 // Bảng admin cần số ảnh, số lời chúc (đã duyệt / chờ duyệt) và lượt xem của
 // từng người; subquery tương quan là đủ cho quy mô một lớp (vài chục dòng)
-async function listStudents() {
-  const [rows] = await pool.execute(
-    `SELECT s.id, s.full_name, s.nickname, s.avatar_url, s.intro_message, s.admin_wish, s.class_name,
+// face_profile_count: khách ngoài lớp có Face ID là bạn thân (lời chúc thân
+// mật) — admin cần thấy ai đã đăng ký. Máy chưa có bảng face_profiles thì bỏ cột.
+const FACE_COUNT_SQL = ',\n      (SELECT COUNT(*) FROM face_profiles fp WHERE fp.student_id = s.id) AS face_profile_count';
+
+function listStudentsSql(withFaces) {
+  return `SELECT s.id, s.full_name, s.nickname, s.avatar_url, s.intro_message, s.admin_wish, s.class_name,
       s.seat_row, s.seat_col, s.is_active, s.access_code, s.member_type, s.view_count,
       s.created_at, s.updated_at,
       (SELECT COUNT(*) FROM gallery g WHERE g.student_id = s.id) AS gallery_count,
       (SELECT COUNT(*) FROM letters l WHERE l.student_id = s.id AND l.status = 'approved') AS letter_count,
-      (SELECT COUNT(*) FROM letters l WHERE l.student_id = s.id AND l.status = 'pending') AS pending_letter_count
-     FROM students s ORDER BY s.full_name ASC`,
-  );
+      (SELECT COUNT(*) FROM letters l WHERE l.student_id = s.id AND l.status = 'pending') AS pending_letter_count${withFaces ? FACE_COUNT_SQL : ''}
+     FROM students s ORDER BY s.full_name ASC`;
+}
+
+async function listStudents() {
+  let rows;
+  try {
+    [rows] = await pool.execute(listStudentsSql(true));
+  } catch (error) {
+    if (error?.code !== 'ER_NO_SUCH_TABLE') throw error;
+    [rows] = await pool.execute(listStudentsSql(false));
+  }
   return rows.map(presentStudent);
 }
 

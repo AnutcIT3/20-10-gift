@@ -2336,3 +2336,16 @@
     padding: 4px 14px 14px;
   }
 }
+
+/* ── Danh sách học sinh: hai phần thành viên lớp / khách ngoài lớp ── */
+.stu-group__title {
+  margin: 4px 2px 10px;
+  font: 400 22px/1.2 var(--font-write);
+  color: var(--ink);
+}
+
+.stu-group__title small {
+  margin-left: 8px;
+  font: italic 13px var(--font-body);
+  color: var(--muted);
+}

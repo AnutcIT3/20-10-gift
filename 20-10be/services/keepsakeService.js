@@ -328,12 +328,13 @@ function renderLetter(letter, src) {
 
 // Thư chia hai nhóm như trên trang quà; chỉ ghi tiêu đề nhóm khi có thư của
 // các bạn nam — toàn thư khách thì là một danh sách liền
-function renderLetters(letters, srcOf) {
+function renderLetters(letters, srcOf, isFriend = false) {
   if (!letters.length) {
     return '<p class="empty">Hộp thư còn trống.</p>';
   }
   const groups = [
-    { kind: 'classmate', title: `Từ các bạn nam ${CLASS_NAME}` },
+    // Khách không cùng lớp: không ghi tên lớp
+    { kind: 'classmate', title: isFriend ? 'Từ các bạn nam' : `Từ các bạn nam ${CLASS_NAME}` },
     { kind: 'guest', title: 'Từ khách ghé thăm' },
   ]
     .map((group) => ({ ...group, items: letters.filter((letter) => (letter.sender_kind || 'guest') === group.kind) }))
@@ -344,9 +345,9 @@ function renderLetters(letters, srcOf) {
     .join('');
 }
 
-function replyRecipient(reply, lettersById) {
+function replyRecipient(reply, lettersById, isFriend = false) {
   // Món quà do các bạn nam làm: hồi âm "chung" là gửi các bạn ấy, không phải cả lớp
-  if (reply.target === 'class') return `Gửi các bạn nam ${CLASS_NAME}`;
+  if (reply.target === 'class') return isFriend ? 'Gửi các bạn nam' : `Gửi các bạn nam ${CLASS_NAME}`;
   if (reply.target === 'admin') return 'Gửi admin';
   const letter = lettersById.get(Number(reply.letter_id));
   if (!letter) return 'Gửi người viết thư';
@@ -365,7 +366,9 @@ function renderKeepsake({
   const displayName = student.nickname || student.full_name;
   const isFriend = student.member_type === 'friend';
   const year = eventYear(now);
-  const classLabel = `Lớp ${CLASS_NAME} · 20.10.${year}`;
+  // Khách ngoài lớp không mang tên lớp trên quà của mình
+  const classLabel = isFriend ? `Một món quà nhỏ · 20.10.${year}` : `Lớp ${CLASS_NAME} · 20.10.${year}`;
+  const postmark = isFriend ? 'GỬI<br>BẠN' : `LỚP<br>${escapeHtml(CLASS_NAME)}`;
   const initial = (displayName || '?').trim().charAt(0).toUpperCase();
   const avatar = srcOf(student.avatar_url, 'avatar');
   const lettersById = new Map(letters.map((letter) => [Number(letter.id), letter]));
@@ -384,7 +387,7 @@ function renderKeepsake({
     .filter(Boolean);
 
   const sections = [
-    `<section class="cover"><div><span class="postmark">LỚP<br>${escapeHtml(CLASS_NAME)}<br><b>20.10</b><br>${year}</span>`
+    `<section class="cover"><div><span class="postmark">${postmark}<br><b>20.10</b><br>${year}</span>`
       + `<h1>Gửi <span>${escapeHtml(displayName)}</span>,</h1>`
       + (student.intro_message ? `<p class="intro">${escapeHtml(student.intro_message)}</p>` : '')
       + `</div>${hero}</section>`,
@@ -399,10 +402,10 @@ function renderKeepsake({
     sections.push(`<section><h2>Kỷ niệm <small>${photos.length} tấm ảnh</small></h2><div class="photos">${photos.join('')}</div></section>`);
   }
   sections.push(`<section><h2>Những lời chúc dành cho bạn <small>${letters.length ? `${letters.length} bức thư` : 'hộp thư còn trống'}</small></h2>`
-    + `${renderLetters(letters, srcOf)}</section>`);
+    + `${renderLetters(letters, srcOf, isFriend)}</section>`);
   if (replies.length) {
     sections.push(`<section><h2>Những dòng cậu đã hồi âm <small>${replies.length} lá</small></h2><div class="replies">`
-      + replies.map((reply) => `<article class="reply"><p class="reply__to">${escapeHtml(replyRecipient(reply, lettersById))}</p>`
+      + replies.map((reply) => `<article class="reply"><p class="reply__to">${escapeHtml(replyRecipient(reply, lettersById, isFriend))}</p>`
         + `<p class="body">${escapeHtml(reply.content)}</p><span class="date">${escapeHtml(formatStamp(reply.created_at))}</span></article>`).join('')
       + '</div></section>');
   }
@@ -413,7 +416,7 @@ function renderKeepsake({
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>${escapeHtml(`Quà 20/10 của ${displayName} · Lớp ${CLASS_NAME}`)}</title>
+<title>${escapeHtml(isFriend ? `Quà 20/10 của ${displayName}` : `Quà 20/10 của ${displayName} · Lớp ${CLASS_NAME}`)}</title>
 <style>
 ${fontCss}
 ${CSS}

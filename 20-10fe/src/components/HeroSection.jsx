@@ -1,7 +1,7 @@
 import Polaroid from './paper/Polaroid'
 import Postmark from './paper/Postmark'
 import Stamp from './paper/Stamp'
-import { CLASS_NAME } from '../lib/event'
+import { CLASS_NAME, GUEST_POSTMARK } from '../lib/event'
 
 function HeroSection({ student }) {
   const displayName = student.nickname || student.full_name
@@ -11,7 +11,8 @@ function HeroSection({ student }) {
   return (
     <section className="hero">
       <div className="hero__text">
-        <Postmark className="hero__postmark" />
+        {/* Khách ngoài lớp: dấu "GỬI BẠN" thay cho dấu tên lớp */}
+        <Postmark className="hero__postmark" lines={isFriend ? GUEST_POSTMARK : undefined} />
         <h1 className="hero__title">Gửi <span>{displayName}</span>,</h1>
         {student.intro_message && <p className="hero__intro">{student.intro_message}</p>}
       </div>

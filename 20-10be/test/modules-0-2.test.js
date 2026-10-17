@@ -1175,6 +1175,46 @@ test('Gemini greeting uses safe static fallbacks by audience type when API key i
   }
 });
 
+test('khách có Face ID là bạn thân: lời chúc dự phòng thân mật, không nhắc chuyện khác lớp', async () => {
+  const original = process.env.GEMINI_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  try {
+    const { greeting } = await greetingService.generateGreeting('quyeniuu', 'close_friend');
+    assert.match(greeting, /quyeniuu/);
+    assert.match(greeting, /bạn thân của tụi tớ/);
+    assert.equal(/chưa từng học cùng|không học cùng|dù không/i.test(greeting), false);
+  } finally {
+    if (original !== undefined) process.env.GEMINI_API_KEY = original;
+  }
+});
+
+test('trang quà của khách báo có phải bạn thân (có Face ID) không; bạn trong lớp không cần hỏi thêm', async () => {
+  const original = pool.execute;
+  const queries = [];
+  pool.execute = async (sql, params) => {
+    queries.push(sql);
+    if (sql.includes('WHERE access_code = ?')) {
+      const rows = {
+        quyen: [{ id: 29, full_name: 'Trần Hoàng Quyên', member_type: 'friend' }],
+        thu: [{ id: 40, full_name: 'Minh Thư', member_type: 'friend' }],
+        vy: [{ id: 3, full_name: 'Vy', member_type: 'class' }],
+      };
+      return [rows[params[0]] || []];
+    }
+    if (sql.includes('FROM face_profiles')) return [params[0] === 29 ? [{ found: 1 }] : []];
+    return [[]];
+  };
+  try {
+    assert.equal((await giftService.getStudentByCode('quyen')).close_friend, true);
+    assert.equal((await giftService.getStudentByCode('thu')).close_friend, false);
+    const classmate = await giftService.getStudentByCode('vy');
+    assert.equal(Object.hasOwn(classmate, 'close_friend'), false);
+    assert.equal(queries.filter((sql) => sql.includes('face_profiles')).length, 2);
+  } finally {
+    pool.execute = original;
+  }
+});
+
 test('Gemini greeting rejects invalid audienceType', async () => {
   await assert.rejects(() => greetingService.generateGreeting('Lan', 'unknown'), { statusCode: 400 });
 });
@@ -1271,6 +1311,30 @@ test('gift lock: locked also blocks the celebrate greeting endpoint', async (t) 
     body: JSON.stringify({ name: 'Thư', audienceType: 'visitor' }),
   });
   assert.equal(response.status, 423);
+});
+
+test('endpoint lời chúc nhận kiểu "bạn thân" — controller và service dùng chung một danh sách', async (t) => {
+  const original = pool.execute;
+  const key = process.env.GEMINI_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  pool.execute = async (sql) => {
+    if (sql.includes('FROM app_settings')) return [[{ setting_value: '0' }]];
+    return [[]];
+  };
+  const server = app.listen(0);
+  t.after(() => {
+    server.close();
+    pool.execute = original;
+    if (key !== undefined) process.env.GEMINI_API_KEY = key;
+  });
+  await new Promise((resolve) => server.once('listening', resolve));
+  const post = (body) => fetch(`http://127.0.0.1:${server.address().port}/api/greetings/generate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const ok = await post({ name: 'quyeniuu', audienceType: 'close_friend' });
+  assert.equal(ok.status, 200);
+  assert.match((await ok.json()).data.greeting, /bạn thân của tụi tớ/);
+  assert.equal((await post({ name: 'quyeniuu', audienceType: 'bestie' })).status, 400);
 });
 
 test('friend letters: creates a friend profile once and reuses it for later letters', async () => {
