@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { adminApi } from '../../api/adminApi'
 import useDialogA11y from '../../hooks/useDialogA11y'
 import Polaroid from '../../components/paper/Polaroid'
+import PersonalWishes from './PersonalWishes'
 import { CLASS_NAME, formatStamp } from '../../lib/event'
 
 const STATUSES = [
@@ -11,7 +12,10 @@ const STATUSES = [
   { value: 'rejected', label: 'Từ chối' },
 ]
 // Tab "Hẹn giờ" là bộ lọc ảo (đã duyệt nhưng chưa tới giờ) — không phải trạng thái lưu
-const TABS = [...STATUSES, { value: 'scheduled', label: 'Hẹn giờ' }]
+// Tab "Riêng từng bạn" không phải bộ lọc thư: là nơi quản lý ba lời chúc riêng
+// (lời chúc riêng, 💌 admin, ✨ tự động) của từng bạn, mỗi loại kèm được ảnh
+const PERSONAL = 'personal'
+const TABS = [...STATUSES, { value: 'scheduled', label: 'Hẹn giờ' }, { value: PERSONAL, label: 'Riêng từng bạn' }]
 
 // Nhóm người gửi quyết định lời chúc nằm ở khối nào trên trang quà
 const SENDER_KINDS = [
@@ -132,6 +136,8 @@ function LetterManager() {
   const loadSeq = useRef(0)
   const load = useCallback(async () => {
     const seq = ++loadSeq.current
+    // Tab "Riêng từng bạn" dùng danh sách học sinh, không tải thư
+    if (status === PERSONAL) { setLoading(false); return }
     setLoading(true)
     try {
       const [result, stats] = await Promise.all([
@@ -376,6 +382,13 @@ function LetterManager() {
 
   const tabCount = (value) => (counts && counts[value] !== undefined ? ` · ${counts[value]}` : '')
 
+  // Lưu một lời chúc riêng trả về hồ sơ mới: gộp vào danh sách, giữ các cột
+  // đếm (Face ID, ảnh…) mà API sửa hồ sơ không trả
+  const mergeStudent = (updated) => {
+    if (!updated?.id) return
+    setStudents((current) => current.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)))
+  }
+
   return (
     <section>
       <header className="admin-page-header">
@@ -394,6 +407,10 @@ function LetterManager() {
         </div>
       </header>
 
+      {status === PERSONAL ? (
+        <PersonalWishes students={students} studentId={studentId} onStudentSaved={mergeStudent} />
+      ) : (
+      <>
       <div className="admin-filters">
         <input
           className="admin-input admin-input--search"
@@ -658,6 +675,8 @@ function LetterManager() {
             </div>
           </section>
         </div>
+      )}
+      </>
       )}
     </section>
   )

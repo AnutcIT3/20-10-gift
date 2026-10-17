@@ -171,6 +171,7 @@ const FACE_COUNT_SQL = ',\n      (SELECT COUNT(*) FROM face_profiles fp WHERE fp
 
 function listStudentsSql(withFaces) {
   return `SELECT s.id, s.full_name, s.nickname, s.avatar_url, s.intro_message, s.admin_wish, s.class_name,
+      s.intro_image_url, s.admin_wish_image_url, s.greeting_image_url,
       s.seat_row, s.seat_col, s.is_active, s.access_code, s.member_type, s.view_count,
       s.created_at, s.updated_at,
       (SELECT COUNT(*) FROM gallery g WHERE g.student_id = s.id) AS gallery_count,
@@ -193,6 +194,7 @@ async function listStudents() {
 async function getStudent(id) {
   const [rows] = await pool.execute(
     `SELECT id, full_name, nickname, avatar_url, intro_message, admin_wish, class_name,
+      intro_image_url, admin_wish_image_url, greeting_image_url,
       seat_row, seat_col, is_active, access_code, member_type, view_count, created_at, updated_at
      FROM students WHERE id = ? LIMIT 1`,
     [id],
@@ -310,8 +312,14 @@ async function deleteStudent(id) {
        UNION ALL
        SELECT public_id, resource_type, 0 AS from_letter FROM videos WHERE student_id = ? AND public_id IS NOT NULL
        UNION ALL
-       SELECT image_public_id AS public_id, 'image' AS resource_type, 1 AS from_letter FROM letters WHERE student_id = ? AND image_public_id IS NOT NULL`,
-      [id, id, id, id],
+       SELECT image_public_id AS public_id, 'image' AS resource_type, 1 AS from_letter FROM letters WHERE student_id = ? AND image_public_id IS NOT NULL
+       UNION ALL
+       SELECT intro_image_public_id, 'image', 0 FROM students WHERE id = ? AND intro_image_public_id IS NOT NULL
+       UNION ALL
+       SELECT admin_wish_image_public_id, 'image', 0 FROM students WHERE id = ? AND admin_wish_image_public_id IS NOT NULL
+       UNION ALL
+       SELECT greeting_image_public_id, 'image', 0 FROM students WHERE id = ? AND greeting_image_public_id IS NOT NULL`,
+      [id, id, id, id, id, id, id],
     );
     assets = assetRows;
 
@@ -431,7 +439,45 @@ async function updateSeat(id, data) {
   return { action, student, affectedStudent };
 }
 
+// Ảnh kèm ba lời chúc riêng của một bạn (migration 023). Tên cột cố định theo
+// loại, không bao giờ lấy từ dữ liệu người gửi
+const WISH_IMAGE_COLUMNS = Object.freeze({
+  intro: ['intro_image_url', 'intro_image_public_id'],
+  admin_wish: ['admin_wish_image_url', 'admin_wish_image_public_id'],
+  greeting: ['greeting_image_url', 'greeting_image_public_id'],
+});
+
+function wishImageColumns(kind) {
+  const columns = WISH_IMAGE_COLUMNS[kind];
+  if (!columns) throw httpError('Loại lời chúc không hợp lệ (intro, admin_wish hoặc greeting)', 400);
+  return columns;
+}
+
+// Ghi DB trước, dọn ảnh cũ trên Cloudinary sau (best-effort): lỗi dọn chỉ để
+// lại file mồ côi vô hại
+async function destroyQuietly(publicId) {
+  if (!publicId) return;
+  try {
+    await cloudinary.uploader.destroy(publicId);
+  } catch (error) {
+    console.error(`Cloudinary cleanup failed for ${publicId}:`, error.message);
+  }
+}
+
+// image: { url, publicId } vừa upload; null = bỏ ảnh. Ảnh cũ (nếu có) bị dọn.
+async function setWishImage(id, kind, image) {
+  const [urlColumn, publicIdColumn] = wishImageColumns(kind);
+  const [rows] = await pool.execute(`SELECT ${publicIdColumn} AS public_id FROM students WHERE id = ? LIMIT 1`, [id]);
+  if (!rows.length) throw httpError('Không tìm thấy học sinh', 404);
+  await pool.execute(
+    `UPDATE students SET ${urlColumn} = ?, ${publicIdColumn} = ? WHERE id = ?`,
+    [image?.url || null, image?.publicId || null, id],
+  );
+  if (rows[0].public_id && rows[0].public_id !== image?.publicId) await destroyQuietly(rows[0].public_id);
+  return getStudent(id);
+}
+
 module.exports = {
   listStudents, getStudent, createStudent, updateStudent, deactivateStudent, activateStudent,
-  deleteStudent, updateAccessCode, updateSeat, validateAvatarUrl,
+  deleteStudent, updateAccessCode, updateSeat, validateAvatarUrl, setWishImage, WISH_IMAGE_COLUMNS,
 };

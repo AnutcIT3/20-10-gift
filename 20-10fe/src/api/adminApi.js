@@ -65,6 +65,17 @@ export const adminApi = {
   }),
   verifySession: () => request('/api/auth/admin/me'),
   listStudents: () => request('/api/students'),
+  // Ảnh kèm ba lời chúc riêng của một bạn: kind = intro | admin_wish | greeting
+  setWishImage: (id, kind, file) => {
+    const form = new FormData()
+    form.append('image', file)
+    return request(`/api/students/${id}/wish-images/${kind}`, { method: 'PUT', body: form })
+  },
+  clearWishImage: (id, kind) => request(`/api/students/${id}/wish-images/${kind}`, { method: 'DELETE' }),
+  // Xem thử lời chúc tự động đúng như trang quà sẽ gọi (máy viết mỗi lần một khác)
+  previewGreeting: (name, audienceType) => request('/api/greetings/generate', {
+    method: 'POST', body: JSON.stringify({ name, audienceType }),
+  }),
   createStudent: (data) => request('/api/students', { method: 'POST', body: JSON.stringify(data) }),
   updateStudent: (id, data) => request(`/api/students/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deactivateStudent: (id) => request(`/api/students/${id}/deactivate`, { method: 'PATCH' }),

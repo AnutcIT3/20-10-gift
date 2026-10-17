@@ -78,3 +78,12 @@ test('ảnh sai định dạng hay quá 5 MB bị chặn trước khi gửi; b�
   expect(adminApi.createLetters.mock.calls[0][1]).toBeNull()
   expect(await screen.findByText('Đã gửi lời chúc cho 2 người nhận.')).toBeInTheDocument()
 })
+
+test('tab "Riêng từng bạn" quản lý ba lời chúc riêng của từng bạn, không tải danh sách thư', async () => {
+  render(<MemoryRouter initialEntries={['/admin/letters?status=personal']}><LetterManager /></MemoryRouter>)
+  expect(await screen.findByRole('article', { name: 'Lời chúc riêng của Thủy' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Riêng từng bạn' })).toHaveAttribute('aria-pressed', 'true')
+  expect(adminApi.listLetters).not.toHaveBeenCalled()
+  // Khung soạn thư và danh sách thư không hiện ở tab này
+  expect(screen.queryByRole('button', { name: '✍ Soạn lời chúc' })).toBeNull()
+})

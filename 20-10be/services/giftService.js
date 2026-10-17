@@ -18,12 +18,28 @@ async function isCloseFriend(studentId) {
   }
 }
 
-async function getStudentByCode(accessCode) {
-  const [rows] = await pool.execute(
-    `SELECT id, full_name, nickname, avatar_url, intro_message, admin_wish, seat_row, seat_col, member_type
+const STUDENT_COLUMNS = 'id, full_name, nickname, avatar_url, intro_message, admin_wish, seat_row, seat_col, member_type';
+// Ảnh kèm ba lời chúc riêng (migration 023); máy chưa migrate thì đọc như cũ —
+// trang quà không được hỏng vì thiếu cột
+const WISH_IMAGE_COLUMNS = 'intro_image_url, admin_wish_image_url, greeting_image_url';
+
+async function findStudentByCode(accessCode, withImages) {
+  const columns = withImages ? `${STUDENT_COLUMNS}, ${WISH_IMAGE_COLUMNS}` : STUDENT_COLUMNS;
+  return pool.execute(
+    `SELECT ${columns}
      FROM students WHERE access_code = ? AND is_active = TRUE LIMIT 1`,
     [accessCode],
   );
+}
+
+async function getStudentByCode(accessCode) {
+  let rows;
+  try {
+    [rows] = await findStudentByCode(accessCode, true);
+  } catch (error) {
+    if (error?.code !== 'ER_BAD_FIELD_ERROR') throw error;
+    [rows] = await findStudentByCode(accessCode, false);
+  }
   const student = rows[0] || null;
   if (student?.member_type === 'friend') {
     return { ...student, close_friend: await isCloseFriend(student.id) };

@@ -1,5 +1,6 @@
 const studentService = require('../services/studentService');
 const { sendSuccess, sendError } = require('../utils/response');
+const { extractLetterImage, cleanupLetterImage } = require('../utils/letterUpload');
 
 function parseId(req, res) {
   const id = Number(req.params.id);
@@ -62,6 +63,28 @@ async function updateSeat(req, res) {
   return sendSuccess(res, await studentService.updateSeat(id, req.body));
 }
 
+// Ảnh kèm một trong ba lời chúc riêng (intro / admin_wish / greeting)
+async function uploadWishImage(req, res) {
+  const image = extractLetterImage(req);
+  const id = parseId(req, res);
+  if (id === null) { await cleanupLetterImage(image); return undefined; }
+  if (!image) return sendError(res, 'Chọn một ảnh để tải lên (trường "image")', 400);
+  try {
+    return sendSuccess(res, await studentService.setWishImage(id, req.params.kind, image));
+  } catch (error) {
+    // Loại lời chúc sai hay không có học sinh → dọn ảnh đã lỡ upload
+    await cleanupLetterImage(image);
+    throw error;
+  }
+}
+
+async function removeWishImage(req, res) {
+  const id = parseId(req, res);
+  if (id === null) return undefined;
+  return sendSuccess(res, await studentService.setWishImage(id, req.params.kind, null));
+}
+
 module.exports = {
   list, getOne, create, update, deactivate, activate, remove, updateAccessCode, updateSeat,
+  uploadWishImage, removeWishImage,
 };

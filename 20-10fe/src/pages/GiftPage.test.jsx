@@ -92,3 +92,24 @@ test('trang của bạn trong lớp vẫn giữ tên lớp', async () => {
   expect(screen.getAllByText(/Lớp K49 - 12A1 · 20\.10\./).length).toBe(2)
   await waitFor(() => expect(giftRepository.generateGreeting).toHaveBeenCalledWith('Nguyễn Thúy Vy', 'student'))
 })
+
+test('ảnh kèm lời chúc riêng, 💌 admin và ✨ tự động hiện đúng chỗ cũ của từng loại', async () => {
+  const url = (name) => `https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/${name}.jpg`
+  giftRepository.getGiftContent.mockResolvedValue({
+    ...CONTENT,
+    student: {
+      ...CONTENT.student,
+      intro_message: 'Gửi cô bạn bàn đầu',
+      intro_image_url: url('intro'),
+      admin_wish: 'Chúc Vy luôn cười',
+      admin_wish_image_url: url('admin'),
+      greeting_image_url: url('auto'),
+    },
+  })
+  renderGift(undefined)
+  const intro = await screen.findByRole('img', { name: 'Ảnh kèm lời chúc riêng' })
+  expect(intro.closest('.hero')).toBeTruthy()
+  expect(screen.getByText('Chúc Vy luôn cười').closest('.ai-note--admin').querySelector('.ai-note__photo')).toBeTruthy()
+  // Ảnh của lời chúc tự động nằm trong ô ✨, hiện khi lời chúc đã viết xong
+  await waitFor(() => expect(document.querySelectorAll('.ai-note:not(.ai-note--admin) .ai-note__photo')).toHaveLength(1))
+})
