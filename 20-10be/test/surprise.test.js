@@ -609,6 +609,22 @@ test('bản lưu quà là một file HTML tự chứa, không script, mọi ch�
   assert.equal(html.includes('res.cloudinary.com'), false);
 });
 
+test('bản lưu của khách ngoài lớp không mang tên lớp', () => {
+  const html = keepsakeService.renderKeepsake({
+    student: { ...KEEPSAKE_STUDENT, full_name: 'Trần Hoàng Quyên', nickname: 'quyeniuu', member_type: 'friend' },
+    letters: [{ id: 5, sender_name: 'Tuấn', sender_kind: 'classmate', content: 'Chúc cậu vui', created_at: '2026-10-18T14:30:00.000Z' }],
+    replies: [{ id: 3, target: 'class', content: 'Cảm ơn các cậu', created_at: '2026-10-20T01:10:00.000Z' }],
+    srcOf: () => null,
+    now: new Date('2026-10-20T03:00:00.000Z'),
+  });
+  assert.equal(/K49|12A1/.test(html), false);
+  assert.match(html, /Một món quà nhỏ · 20\.10\.2026/);
+  assert.match(html, /GỬI<br>BẠN/);
+  assert.match(html, /Từ các bạn nam</);
+  assert.match(html, /Gửi các bạn nam</);
+  assert.match(html, /<title>Quà 20\/10 của quyeniuu<\/title>/);
+});
+
 test('bản lưu chỉ tải ảnh từ Cloudinary, ảnh lỗi thì giữ link thay vì hỏng cả file', async () => {
   keepsakeService.clearCache();
   const requested = [];

@@ -5,13 +5,30 @@ function httpError(message, statusCode) {
   return Object.assign(new Error(message), { statusCode });
 }
 
+// Khách ngoài lớp có Face ID là bạn thân của các bạn nam (admin tự đăng ký
+// ảnh cho họ) — trang quà nhận lời chúc thân mật thay vì kiểu "khách ghé thăm",
+// dù họ mở bằng Face ID hay gõ tên. Máy chưa có bảng face_profiles thì coi như không.
+async function isCloseFriend(studentId) {
+  try {
+    const [rows] = await pool.execute('SELECT 1 AS found FROM face_profiles WHERE student_id = ? LIMIT 1', [studentId]);
+    return rows.length > 0;
+  } catch (error) {
+    if (error?.code === 'ER_NO_SUCH_TABLE') return false;
+    throw error;
+  }
+}
+
 async function getStudentByCode(accessCode) {
   const [rows] = await pool.execute(
     `SELECT id, full_name, nickname, avatar_url, intro_message, admin_wish, seat_row, seat_col, member_type
      FROM students WHERE access_code = ? AND is_active = TRUE LIMIT 1`,
     [accessCode],
   );
-  return rows[0] || null;
+  const student = rows[0] || null;
+  if (student?.member_type === 'friend') {
+    return { ...student, close_friend: await isCloseFriend(student.id) };
+  }
+  return student;
 }
 
 async function getGallery(studentId) {

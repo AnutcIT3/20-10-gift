@@ -153,9 +153,11 @@ const GROUPS = [
   { kind: 'guest', title: 'Từ khách ghé thăm' },
 ]
 
-// replies: hồi âm chủ trang đã viết; onReplied có thì mỗi thư có nút "Hồi âm"
-function LetterSection({ letters = [], accessCode, replies = [], onReplied }) {
+// replies: hồi âm chủ trang đã viết; onReplied có thì mỗi thư có nút "Hồi âm".
+// isFriend: trang của khách ngoài lớp — không ghi tên lớp
+function LetterSection({ letters = [], accessCode, replies = [], onReplied, isFriend = false }) {
   const groups = GROUPS
+    .map((group) => (isFriend && group.kind === 'classmate' ? { ...group, title: 'Từ các bạn nam' } : group))
     .map((group) => ({ ...group, items: letters.filter((letter) => (letter.sender_kind || 'guest') === group.kind) }))
     .filter((group) => group.items.length > 0)
   const grouped = groups.length > 1 || groups[0]?.kind === 'classmate'

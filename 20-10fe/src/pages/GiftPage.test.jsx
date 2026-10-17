@@ -62,3 +62,33 @@ test('hồ sơ bạn ngoài lớp không góp cánh cho bông hoa của lớp', 
   expect(await screen.findByRole('heading', { name: /Cất quà vào máy/ })).toBeTruthy()
   expect(giftRepository.recordOpen).not.toHaveBeenCalled()
 })
+
+const FRIEND = { id: 29, full_name: 'Trần Hoàng Quyên', nickname: 'quyeniuu', member_type: 'friend' }
+
+test('trang của khách ngoài lớp không mang tên lớp: không có "K49 - 12A1" ở đâu cả', async () => {
+  giftRepository.getGiftContent.mockResolvedValue({ ...CONTENT, student: { ...FRIEND, close_friend: false } })
+  const { container } = renderGift(undefined)
+  expect(await screen.findByRole('heading', { name: /Cất quà vào máy/ })).toBeTruthy()
+  expect(container.textContent).not.toMatch(/K49|12A1/)
+  expect(screen.getAllByText(/Một món quà nhỏ · 20\.10\./).length).toBe(2)
+  expect(screen.getByText('cho các bạn nam')).toBeTruthy()
+})
+
+test('khách có Face ID là bạn thân: lời chúc thân mật, gọi bằng biệt danh — khách thường giữ lời chúc lịch sự', async () => {
+  giftRepository.getGiftContent.mockResolvedValue({ ...CONTENT, student: { ...FRIEND, close_friend: true } })
+  renderGift(undefined)
+  await waitFor(() => expect(giftRepository.generateGreeting).toHaveBeenCalledWith('quyeniuu', 'close_friend'))
+  cleanup()
+
+  giftRepository.generateGreeting.mockClear()
+  giftRepository.getGiftContent.mockResolvedValue({ ...CONTENT, student: { ...FRIEND, close_friend: false } })
+  renderGift(undefined)
+  await waitFor(() => expect(giftRepository.generateGreeting).toHaveBeenCalledWith('Trần Hoàng Quyên', 'visitor'))
+})
+
+test('trang của bạn trong lớp vẫn giữ tên lớp', async () => {
+  renderGift(undefined)
+  expect(await screen.findByRole('heading', { name: /Cất quà vào máy/ })).toBeTruthy()
+  expect(screen.getAllByText(/Lớp K49 - 12A1 · 20\.10\./).length).toBe(2)
+  await waitFor(() => expect(giftRepository.generateGreeting).toHaveBeenCalledWith('Nguyễn Thúy Vy', 'student'))
+})

@@ -1,5 +1,7 @@
 const STABLE_MODEL = 'gemini-2.5-flash';
-const VALID_AUDIENCE_TYPES = new Set(['student', 'visitor', 'classmate']);
+// close_friend: khách ngoài lớp nhưng là bạn thân (có Face ID) — thân mật như
+// bạn bè, không nhắc chuyện khác lớp; visitor: khách thường, giữ lịch sự
+const VALID_AUDIENCE_TYPES = new Set(['student', 'visitor', 'classmate', 'close_friend']);
 const MAX_GREETING_LENGTH = 500;
 
 const SYSTEM_PROMPTS = {
@@ -29,6 +31,17 @@ Yêu cầu:
 - Không tán tỉnh, không sử dụng ngôn ngữ thân mật quá mức.
 - Không dùng Markdown, tiêu đề, dấu ngoặc kép hoặc lời dẫn.
 - Chỉ trả về nội dung lời chúc.`,
+  close_friend: `Bạn viết lời chúc ngày Phụ nữ Việt Nam 20/10 bằng tiếng Việt, thay lời một nhóm bạn nam gửi tới một người bạn nữ thân thiết của họ.
+Yêu cầu bắt buộc:
+- Xưng "tụi tớ", gọi người nhận là "cậu"; giọng thân mật, ấm áp, hơi nghịch ngợm như bạn thân nói với nhau.
+- Viết 2 đến 3 câu, khoảng 45 đến 75 từ.
+- Gọi tên người nhận một cách tự nhiên đúng 1 lần.
+- Có thể cảm ơn vì đã luôn ở bên, cùng cười đùa và chia sẻ, nhưng không bịa ra kỷ niệm hay chi tiết cụ thể.
+- Tuyệt đối không nhắc tới chuyện không học cùng lớp, không cùng tập thể hay "dù không phải…": người nhận là bạn thân, không phải khách.
+- Chúc niềm vui, sức khỏe, may mắn và được yêu thương thật nhiều.
+- Không tán tỉnh, không suy đoán tuổi, ngoại hình hay thông tin cá nhân.
+- Không dùng Markdown, tiêu đề, dấu ngoặc kép hoặc lời dẫn.
+- Chỉ trả về nội dung lời chúc.`,
   classmate: `Bạn viết lời nhắn ngày Phụ nữ Việt Nam 20/10 bằng tiếng Việt cho một thành viên của lớp nhưng không có trang quà riêng (có thể là bạn nam hoặc bạn nữ).
 Yêu cầu bắt buộc:
 - Viết 2 đến 3 câu, khoảng 45 đến 75 từ.
@@ -43,6 +56,9 @@ Yêu cầu bắt buộc:
 };
 
 function fallbackGreeting(name, audienceType = 'student') {
+  if (audienceType === 'close_friend') {
+    return `Gửi ${name} — người bạn thân của tụi tớ! Cảm ơn cậu vì luôn ở bên, cùng tụi tớ cười đùa qua bao nhiêu chuyện vui buồn. Chúc cậu một ngày 20/10 thật rực rỡ, lúc nào cũng vui, khỏe và được yêu thương thật nhiều nhé! 🌷`;
+  }
   if (audienceType === 'visitor') {
     return `Dù chúng mình có thể chưa từng học cùng nhau, ${name} vẫn là một bông hoa nhỏ xứng đáng nhận được những lời chúc tốt đẹp. Chúc bạn có một ngày 20/10 thật vui vẻ, luôn rạng rỡ, tự tin và gặp nhiều may mắn! 🌷`;
   }
@@ -113,4 +129,4 @@ async function generateGreeting(name, audienceType = 'student') {
   return { greeting: fallbackGreeting(name, type) };
 }
 
-module.exports = { generateGreeting };
+module.exports = { generateGreeting, VALID_AUDIENCE_TYPES };

@@ -32,6 +32,32 @@ function withMemberType(form, memberType) {
   return { ...form, member_type: memberType, class_name: className }
 }
 
+function hasFaceId(student) {
+  return Number(student.face_profile_count) > 0
+}
+
+// Một phần của danh sách (thành viên lớp / khách ngoài lớp): tiêu đề riêng,
+// bảng riêng, cùng một kiểu dòng
+function StudentTable({ title, note, rows, renderRow }) {
+  return (
+    <section className="stu-group" aria-label={title}>
+      <h3 className="stu-group__title">{title} <small>{note}</small></h3>
+      <div className="admin-card stu-table" role="table" aria-label={title}>
+        <div className="stu-row stu-row--head" role="row">
+          <span role="columnheader">HỌ TÊN</span>
+          <span role="columnheader">CHỖ NGỒI</span>
+          <span role="columnheader">ẢNH</span>
+          <span role="columnheader">LỜI CHÚC</span>
+          <span role="columnheader">LƯỢT XEM</span>
+          <span role="columnheader">LINK QUÀ</span>
+          <span role="columnheader" aria-label="Thao tác" />
+        </div>
+        {rows.map(renderRow)}
+      </div>
+    </section>
+  )
+}
+
 function capitalize(text) {
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : text
 }
@@ -158,6 +184,66 @@ function StudentManager() {
         .toLowerCase().includes(keyword)
     })
   }, [students, query, filter])
+
+  const classRows = filteredStudents.filter((student) => student.member_type !== 'friend')
+  const guestRows = filteredStudents.filter((student) => student.member_type === 'friend')
+
+  const renderRow = (student) => {
+    const isFriend = student.member_type === 'friend'
+    const isTest = student.member_type === 'test'
+    const photos = Number(student.gallery_count ?? 0)
+    const noImage = !isFriend && !isTest && photos === 0
+    const noAvatar = !isFriend && !isTest && !student.avatar_url
+    const seat = seatLabel(student.seat_row, student.seat_col)
+    const initial = (student.nickname || student.full_name || '?').trim().charAt(0).toUpperCase()
+    const statusLine = [
+      student.nickname && student.nickname !== student.full_name ? `"${student.nickname}"` : null,
+      // Khách có Face ID là bạn thân: trang quà nhận lời chúc thân mật
+      isFriend ? (hasFaceId(student) ? 'có Face ID · bạn thân' : 'chưa có Face ID · lời chúc thường')
+        : !student.is_active ? 'đã tắt'
+          : isTest ? 'tài khoản thử · không tính vào lớp'
+            : noImage ? 'chưa có ảnh'
+              : noAvatar ? 'chưa chọn ảnh đại diện' : 'đang hoạt động',
+    ].filter(Boolean).join(' · ')
+    return (
+      <div key={student.id} className={`stu-row${noImage ? ' stu-row--noimg' : ''}`} role="row">
+        <div className="stu-name" role="cell">
+          <span className={`stu-avatar${isFriend ? ' stu-avatar--friend' : noImage ? ' stu-avatar--noimg' : ''}`} aria-hidden="true">
+            {student.avatar_url ? <img src={cld(student.avatar_url, CLD_TINY)} alt="" /> : initial}
+          </span>
+          <div>
+            <b>{student.full_name}</b>
+            <small className={isFriend || isTest ? 'is-moss' : (noImage || noAvatar) ? 'is-clay' : ''}>{statusLine}</small>
+          </div>
+        </div>
+        <span className={`stu-cell${seat ? '' : ' stu-cell--muted'}`} role="cell">{seat ? capitalize(seat) : '—'}</span>
+        <span className={`stu-cell${isFriend ? ' stu-cell--muted' : noImage ? ' stu-cell--clay' : ''}`} role="cell">{isFriend ? '—' : `${photos} ảnh`}</span>
+        <span className="stu-cell" role="cell">
+          <b>{Number(student.letter_count ?? 0)}</b>
+          {Number(student.pending_letter_count) > 0 && ` · ${student.pending_letter_count} chờ`}
+        </span>
+        <span className="stu-cell" role="cell">{Number(student.view_count ?? 0)}</span>
+        <div className="stu-link" role="cell">
+          <code title={student.giftPath}>{student.giftPath}</code>
+          <button type="button" className="admin-btn admin-btn--sm" onClick={() => copyLink(student)}>
+            {copiedId === student.id ? 'Đã copy ✓' : 'Copy'}
+          </button>
+        </div>
+        <div role="cell">
+          <RowMenu items={[
+            { label: 'Sửa thông tin', onClick: () => edit(student) },
+            { label: 'Mở trang quà', onClick: () => window.open(student.giftPath, '_blank', 'noopener') },
+            { label: 'Lời chúc', onClick: () => navigate(`/admin/letters?studentId=${student.id}&status=approved`) },
+            { label: 'Ảnh', onClick: () => navigate(`/admin/gallery?studentId=${student.id}`) },
+            student.is_active
+              ? { label: 'Tắt trang', danger: true, onClick: () => deactivate(student) }
+              : { label: 'Bật trang', onClick: () => activate(student) },
+            { label: 'Xóa vĩnh viễn', danger: true, onClick: () => removeStudent(student) },
+          ]} />
+        </div>
+      </div>
+    )
+  }
 
   const closeForm = () => { setEditingId(null); setForm(EMPTY_FORM); setFormOpen(false) }
 
@@ -408,74 +494,24 @@ function StudentManager() {
         </div>
       </div>
 
-      <div className="admin-card stu-table" role="table" aria-label="Danh sách học sinh">
-        <div className="stu-row stu-row--head" role="row">
-          <span role="columnheader">HỌ TÊN</span>
-          <span role="columnheader">CHỖ NGỒI</span>
-          <span role="columnheader">ẢNH</span>
-          <span role="columnheader">LỜI CHÚC</span>
-          <span role="columnheader">LƯỢT XEM</span>
-          <span role="columnheader">LINK QUÀ</span>
-          <span role="columnheader" aria-label="Thao tác" />
-        </div>
-        {loading ? <p className="admin-loading" style={{ padding: '16px 18px' }}>Đang tải…</p>
-          : filteredStudents.length === 0 ? <p className="admin-loading" style={{ padding: '16px 18px' }}>Không có học sinh phù hợp.</p>
-          : filteredStudents.map((student) => {
-            const isFriend = student.member_type === 'friend'
-            const isTest = student.member_type === 'test'
-            const photos = Number(student.gallery_count ?? 0)
-            const noImage = !isFriend && !isTest && photos === 0
-            const noAvatar = !isFriend && !isTest && !student.avatar_url
-            const seat = seatLabel(student.seat_row, student.seat_col)
-            const initial = (student.nickname || student.full_name || '?').trim().charAt(0).toUpperCase()
-            const statusLine = [
-              student.nickname && student.nickname !== student.full_name ? `"${student.nickname}"` : null,
-              isFriend ? 'bạn ngoài lớp · tự tạo khi có lời chúc'
-                : !student.is_active ? 'đã tắt'
-                  : isTest ? 'tài khoản thử · không tính vào lớp'
-                    : noImage ? 'chưa có ảnh'
-                      : noAvatar ? 'chưa chọn ảnh đại diện' : 'đang hoạt động',
-            ].filter(Boolean).join(' · ')
-            return (
-              <div key={student.id} className={`stu-row${noImage ? ' stu-row--noimg' : ''}`} role="row">
-                <div className="stu-name" role="cell">
-                  <span className={`stu-avatar${isFriend ? ' stu-avatar--friend' : noImage ? ' stu-avatar--noimg' : ''}`} aria-hidden="true">
-                    {student.avatar_url ? <img src={cld(student.avatar_url, CLD_TINY)} alt="" /> : initial}
-                  </span>
-                  <div>
-                    <b>{student.full_name}</b>
-                    <small className={isFriend || isTest ? 'is-moss' : (noImage || noAvatar) ? 'is-clay' : ''}>{statusLine}</small>
-                  </div>
-                </div>
-                <span className={`stu-cell${seat ? '' : ' stu-cell--muted'}`} role="cell">{seat ? capitalize(seat) : '—'}</span>
-                <span className={`stu-cell${isFriend ? ' stu-cell--muted' : noImage ? ' stu-cell--clay' : ''}`} role="cell">{isFriend ? '—' : `${photos} ảnh`}</span>
-                <span className="stu-cell" role="cell">
-                  <b>{Number(student.letter_count ?? 0)}</b>
-                  {Number(student.pending_letter_count) > 0 && ` · ${student.pending_letter_count} chờ`}
-                </span>
-                <span className="stu-cell" role="cell">{Number(student.view_count ?? 0)}</span>
-                <div className="stu-link" role="cell">
-                  <code title={student.giftPath}>{student.giftPath}</code>
-                  <button type="button" className="admin-btn admin-btn--sm" onClick={() => copyLink(student)}>
-                    {copiedId === student.id ? 'Đã copy ✓' : 'Copy'}
-                  </button>
-                </div>
-                <div role="cell">
-                  <RowMenu items={[
-                    { label: 'Sửa thông tin', onClick: () => edit(student) },
-                    { label: 'Mở trang quà', onClick: () => window.open(student.giftPath, '_blank', 'noopener') },
-                    { label: 'Lời chúc', onClick: () => navigate(`/admin/letters?studentId=${student.id}&status=approved`) },
-                    { label: 'Ảnh', onClick: () => navigate(`/admin/gallery?studentId=${student.id}`) },
-                    student.is_active
-                      ? { label: 'Tắt trang', danger: true, onClick: () => deactivate(student) }
-                      : { label: 'Bật trang', onClick: () => activate(student) },
-                    { label: 'Xóa vĩnh viễn', danger: true, onClick: () => removeStudent(student) },
-                  ]} />
-                </div>
-              </div>
-            )
-          })}
-      </div>
+      {loading ? <p className="admin-card admin-loading" style={{ padding: '16px 18px' }}>Đang tải…</p>
+        : filteredStudents.length === 0 ? <p className="admin-card admin-loading" style={{ padding: '16px 18px' }}>Không có học sinh phù hợp.</p>
+        : (
+          <>
+            {/* Hai phần tách hẳn: thành viên lớp (kèm tài khoản thử) và khách ngoài lớp */}
+            {classRows.length > 0 && (
+              <StudentTable title="Thành viên lớp" note={`${classRows.length} hồ sơ`} rows={classRows} renderRow={renderRow} />
+            )}
+            {guestRows.length > 0 && (
+              <StudentTable
+                title="Khách ngoài lớp"
+                note={`${guestRows.length} khách · ${guestRows.filter(hasFaceId).length} có Face ID (bạn thân)`}
+                rows={guestRows}
+                renderRow={renderRow}
+              />
+            )}
+          </>
+        )}
       {confirmAction && <ConfirmModal {...confirmAction} onConfirm={confirm} onCancel={() => setConfirmAction(null)} />}
     </section>
   )

@@ -101,3 +101,26 @@ test('thêm khách ngoài lớp: gửi loại khách, lớp "Bạn bè"; lúc s�
   const options = Array.from(screen.getByLabelText('Loại').querySelectorAll('option')).map((option) => option.value)
   expect(options).toEqual(['class', 'test'])
 })
+
+test('danh sách chia hai phần rõ ràng: thành viên lớp và khách ngoài lớp, khách ghi rõ có Face ID hay chưa', async () => {
+  adminApi.listStudents.mockResolvedValue([
+    student(3, 'Phương Anh', 'class'),
+    student(26, 'an', 'test', { avatar_url: null, gallery_count: 0 }),
+    student(29, 'Trần Hoàng Quyên', 'friend', { avatar_url: null, gallery_count: 0, face_profile_count: 1 }),
+    student(40, 'Minh Thư', 'friend', { avatar_url: null, gallery_count: 0, face_profile_count: 0 }),
+  ])
+  renderPage()
+  const classTable = await screen.findByRole('table', { name: 'Thành viên lớp' })
+  const guestTable = screen.getByRole('table', { name: 'Khách ngoài lớp' })
+  expect(within(classTable).getByText('Phương Anh')).toBeInTheDocument()
+  expect(within(classTable).getByText('an')).toBeInTheDocument()
+  expect(within(classTable).queryByText('Minh Thư')).toBeNull()
+  expect(within(guestTable).getByText('Trần Hoàng Quyên')).toBeInTheDocument()
+  expect(within(guestTable).getByText('có Face ID · bạn thân')).toBeInTheDocument()
+  expect(within(guestTable).getByText('chưa có Face ID · lời chúc thường')).toBeInTheDocument()
+  expect(screen.getByText('2 khách · 1 có Face ID (bạn thân)')).toBeInTheDocument()
+
+  // Lọc "Tài khoản thử" thì phần khách biến mất, không còn bảng rỗng
+  fireEvent.click(screen.getByRole('button', { name: 'Tài khoản thử' }))
+  expect(screen.queryByRole('table', { name: 'Khách ngoài lớp' })).toBeNull()
+})

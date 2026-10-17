@@ -4,6 +4,9 @@ export const EVENT_YEAR = new Date().getFullYear()
 export const EVENT_LABEL = `20.10.${EVENT_YEAR}`
 // "Lớp K49 - 12A1" — nhãn lớp dùng chung cho header/footer trang quà (không dùng "Bưu điện")
 export const CLASS_LABEL = `Lớp ${CLASS_NAME} · ${EVENT_LABEL}`
+// Khách ngoài lớp không cùng lớp: trang của họ không mang tên lớp
+export const GUEST_LABEL = `Một món quà nhỏ · ${EVENT_LABEL}`
+export const GUEST_POSTMARK = Object.freeze(['GỬI', 'BẠN', { big: '20.10' }, String(EVENT_YEAR)])
 
 // 00:00 ngày 20/10 gần nhất còn ở phía trước (giờ máy người xem)
 export function nextEventDate(now = new Date()) {

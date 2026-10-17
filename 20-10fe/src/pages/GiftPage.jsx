@@ -10,7 +10,7 @@ import PaperError from '../components/PaperError'
 import ReplyBox from '../components/ReplyBox'
 import TypingText from '../components/TypingText'
 import Petals from '../components/paper/Petals'
-import { CLASS_LABEL, CLASS_NAME } from '../lib/event'
+import { CLASS_LABEL, CLASS_NAME, GUEST_LABEL } from '../lib/event'
 import '../styles/gift.css'
 
 const ERROR_VIEWS = {
@@ -73,24 +73,25 @@ function ShareButton({ studentName }) {
   )
 }
 
-function GiftHeader({ studentName }) {
+// isFriend: trang của khách ngoài lớp — không mang tên lớp
+function GiftHeader({ studentName, isFriend = false }) {
   return (
     <header className="gift__header">
       <Link to="/" className="gift__back">← Tìm tên khác</Link>
       <div className="gift__brand">
         <img src="/logoclass.jpg" alt="Logo lớp" />
-        <span>{CLASS_LABEL}</span>
+        <span>{isFriend ? GUEST_LABEL : CLASS_LABEL}</span>
       </div>
       <ShareButton studentName={studentName} />
     </header>
   )
 }
 
-function GiftFooter({ openRank }) {
+function GiftFooter({ openRank, isFriend = false }) {
   return (
     <footer className="gift__footer">
       <img src="/logoclass.jpg" alt="" />
-      <span>{CLASS_LABEL}</span>
+      <span>{isFriend ? GUEST_LABEL : CLASS_LABEL}</span>
       {/* Mở quà từ trang chủ thì biết mình là bạn thứ mấy của lớp mở quà */}
       {openRank && <span className="gift__rank">· bạn thứ {openRank} mở quà 🌸</span>}
     </footer>
@@ -98,12 +99,13 @@ function GiftFooter({ openRank }) {
 }
 
 // Cuối trang: vài dòng gửi lại các bạn nam (người làm món quà), và lối sang Hộp thư hồi âm
-function ThanksSection({ accessCode, replies, onReplied }) {
+function ThanksSection({ accessCode, replies, onReplied, isFriend = false }) {
+  const boys = isFriend ? 'các bạn nam' : `các bạn nam ${CLASS_NAME}`
   return (
     <section className="gift__section thanks" aria-labelledby="thanks-title">
       <h2 id="thanks-title" className="section-title">
         Gửi lại đôi dòng
-        <span className="section-title__count">cho các bạn nam {CLASS_NAME}</span>
+        <span className="section-title__count">cho {boys}</span>
       </h2>
       <div className="thanks__card letter-paper">
         <p className="thanks__intro">
@@ -112,7 +114,7 @@ function ThanksSection({ accessCode, replies, onReplied }) {
         <ReplyBox
           accessCode={accessCode}
           target="class"
-          recipient={`các bạn nam ${CLASS_NAME}`}
+          recipient={boys}
           replies={replies}
           onSent={onReplied}
           openLabel="✉ Viết cho chúng tớ"
@@ -232,10 +234,15 @@ function GiftPage() {
             })
             .catch(() => {})
         }
+        // Khách ngoài lớp có Face ID là bạn thân (close_friend): lời chúc thân
+        // mật, gọi bằng biệt danh — dù mở bằng Face ID hay gõ tên. Khách
+        // thường giữ lời chúc lịch sự kiểu "khách ghé thăm".
+        const audience = studentData.member_type !== 'friend'
+          ? 'student'
+          : studentData.close_friend ? 'close_friend' : 'visitor'
         giftRepository.generateGreeting(
-          studentData.full_name,
-          // Hồ sơ "bạn bè" ngoài lớp nhận lời chúc kiểu thông thường
-          studentData.member_type === 'friend' ? 'visitor' : 'student',
+          audience === 'close_friend' ? (studentData.nickname || studentData.full_name) : studentData.full_name,
+          audience,
         )
           .then((result) => { if (!cancelled) setAiGreeting(result.greeting) })
           .catch(() => {})
@@ -271,12 +278,13 @@ function GiftPage() {
   }
 
   const studentName = student?.nickname || student?.full_name
+  const isFriend = student?.member_type === 'friend'
 
   if (loading) {
     return (
       <div className="gift page-paper" role="status" aria-live="polite">
         <div className="gift__inner">
-          <GiftHeader studentName={studentName} />
+          <GiftHeader studentName={studentName} isFriend={isFriend} />
           {/* Có sẵn student từ router state → hero thật hiện ngay, chỉ skeleton phần thân */}
           {student && <HeroSection student={student} />}
           <GiftSkeleton withHero={!student} />
@@ -301,7 +309,7 @@ function GiftPage() {
     <div className="gift page-paper">
       <Petals />
       <div className="gift__inner">
-        <GiftHeader studentName={studentName} />
+        <GiftHeader studentName={studentName} isFriend={isFriend} />
         <HeroSection student={student} />
         {/* Lời chúc admin viết riêng: người thật viết nên hiện luôn, không gõ
             từng chữ như câu máy sinh; không viết thì không có ô nào cả */}
@@ -335,14 +343,15 @@ function GiftPage() {
           </section>
         )}
         <PhotoGallery images={gallery} />
-        <LetterSection letters={letters} accessCode={accessCode} replies={replies} onReplied={addReply} />
+        <LetterSection letters={letters} accessCode={accessCode} replies={replies} onReplied={addReply} isFriend={isFriend} />
         <ThanksSection
           accessCode={accessCode}
           replies={replies.filter((reply) => reply.target === 'class')}
           onReplied={addReply}
+          isFriend={isFriend}
         />
         <KeepsakeCard accessCode={accessCode} studentName={studentName} greeting={aiGreeting} />
-        <GiftFooter openRank={openRank} />
+        <GiftFooter openRank={openRank} isFriend={isFriend} />
       </div>
     </div>
   )
