@@ -32,6 +32,7 @@ export const HINTS = Object.freeze({
   dark: 'Hơi tối rồi 🌙',
   blurry: 'Giữ máy yên một chút nhé',
   many_faces: 'Chỉ một người trong khung thôi nha',
+  group: 'Thấy cả nhóm rồi, đứng yên thêm chút nhé ✨',
   slowNetwork: 'Mạng hơi chậm, chờ mình một chút nhé…',
 })
 
@@ -59,8 +60,31 @@ export const STOP_TITLES = Object.freeze({
 // lỗi y hệt
 export const RETRYABLE_STOPS = Object.freeze(['timeout', 'hidden', 'unrecognized', 'network'])
 
-// rejects = số khung RÕ MẶT mà không khớp ai kể từ lần khớp gần nhất
+// rejects = số khung RÕ MẶT mà không khớp ai kể từ lần khớp gần nhất.
+// Khi đang đếm phiếu cho cả nhóm thì có thêm groupKey (id các bạn, đã sắp xếp)
 export const INITIAL_VOTES = Object.freeze({ studentId: null, count: 0, rejects: 0 })
+
+// Khung nhận ra cả nhóm ('many_match') sau khi bỏ những người vừa bấm "Không
+// phải mình": còn ≥ 2 người thì vẫn là nhóm, còn 1 thì như khung một người,
+// không còn ai thì như không khớp ai
+function narrowGroup(result, excluded) {
+  if (result?.decision !== 'many_match') return result
+  const people = (result.people || []).filter((person) => !excluded.includes(person.studentId))
+  if (people.length >= 2) return { ...result, people }
+  if (people.length === 1) {
+    const [person] = people
+    return {
+      decision: 'match',
+      matchId: result.matchId,
+      studentId: person.studentId,
+      giftPath: person.giftPath,
+      displayName: person.displayName,
+      score: person.score,
+      margin: result.margin,
+    }
+  }
+  return { decision: 'reject', matchId: result.matchId, score: result.score, margin: result.margin }
+}
 
 // Câu nhắc tại chỗ cho từng quyết định của server (không kết luận danh tính)
 export function hintFor(result) {
@@ -88,10 +112,26 @@ export function hintFor(result) {
  *   mất công khung tốt vừa rồi.
  * - `excluded`: những người cậu ấy vừa bấm "Không phải mình"; khớp với họ được
  *   coi như không khớp ai, để máy không hỏi lại đúng cái tên sai đó.
+ * - 'many_match' (nhận ra từ 2 người): đếm phiếu theo cả nhóm — cùng những
+ *   người đó hai khung liên tiếp thì `conclusion` là `{ group: true, people }`
+ *   để chào và cho chọn một thiệp; nhóm đổi (ai bước ra) thì đếm lại.
  * Đủ VOTES_TO_CONCLUDE phiếu liên tiếp → `conclusion` là ứng viên để hỏi xác nhận.
  */
-export function tallyVotes(votes, result, excluded = []) {
+export function tallyVotes(votes, rawResult, excluded = []) {
+  const result = narrowGroup(rawResult, excluded)
   const rejects = votes.rejects || 0
+  if (result?.decision === 'many_match') {
+    const groupKey = result.people.map((person) => person.studentId).sort((a, b) => a - b).join(',')
+    const count = votes.groupKey === groupKey ? votes.count + 1 : 1
+    const next = { studentId: null, groupKey, count, rejects: 0 }
+    const concluded = count >= VOTES_TO_CONCLUDE
+    return {
+      votes: next,
+      hint: HINTS.group,
+      giveUp: false,
+      conclusion: concluded ? { group: true, matchId: result.matchId, people: result.people } : null,
+    }
+  }
   const isMatch = result?.decision === 'match' && !excluded.includes(result.studentId)
   const isReject = result?.decision === 'reject'
     || (result?.decision === 'match' && excluded.includes(result.studentId))
@@ -132,6 +172,13 @@ export function tallyVotes(votes, result, excluded = []) {
 // thấy "còn 29 giây" ngay từ đầu dễ tưởng phải chờ đủ chừng ấy
 export function showCountdown(secondsLeft) {
   return Number(secondsLeft) <= COUNTDOWN_FROM
+}
+
+// "Vy và Hương", "Vy, Hương và Lan" — chào cả nhóm đúng tên
+export function greetNames(people) {
+  const names = people.map((person) => person.displayName)
+  if (names.length <= 1) return names.join('')
+  return `${names.slice(0, -1).join(', ')} và ${names.at(-1)}`
 }
 
 // Lời chào phân tầng theo độ tự tin — máy có "tính cách" thay vì kết quả khô khan

@@ -14,6 +14,10 @@ const {
   FACE_GALLERY_TTL_MS,
 } = require('../config/constants');
 
+// Nhóm đứng chung trước camera: lấy tối đa 5 mặt (mặc định của face-service),
+// hiện tối đa 4 thiệp để màn hình điện thoại không chật
+const GROUP_MAX_FACES = 5;
+const GROUP_MAX_PEOPLE = 4;
 const EMBEDDING_DIM = 512;
 const EMBEDDING_BYTES = EMBEDDING_DIM * 4;
 const HEALTH_TIMEOUT_MS = 2000;
@@ -137,18 +141,25 @@ function gate(faces) {
     return { decision: 'many_faces', faces: bigFaces.length };
   }
   const [primary] = faces;
-  const facePx = Number(primary.face_px);
-  const brightness = Number(primary.brightness);
-  const blur = Number(primary.blur);
-  let reason = null;
-  if (facePx < FACE_MIN_FACE_PX) reason = 'small';
-  else if (brightness < FACE_MIN_BRIGHTNESS) reason = 'dark';
-  else if (blur < FACE_MIN_BLUR) reason = 'blurry';
+  const reason = qualityReason(primary);
   if (reason) {
     return {
-      decision: 'low_quality', reason, face_px: facePx, brightness, blur,
+      decision: 'low_quality',
+      reason,
+      face_px: Number(primary.face_px),
+      brightness: Number(primary.brightness),
+      blur: Number(primary.blur),
     };
   }
+  return null;
+}
+
+// Một khuôn mặt đủ rõ để chấm điểm chưa: null nếu được, không thì lý do
+// small → dark → blurry (dùng chung cho quét một người và cả nhóm)
+function qualityReason(face) {
+  if (Number(face.face_px) < FACE_MIN_FACE_PX) return 'small';
+  if (Number(face.brightness) < FACE_MIN_BRIGHTNESS) return 'dark';
+  if (Number(face.blur) < FACE_MIN_BLUR) return 'blurry';
   return null;
 }
 
@@ -213,7 +224,7 @@ async function embedImage(buffer, mimetype, maxFaces) {
 
 // ── Thư viện gương mặt ──────────────────────────────────────────────────────
 
-const GALLERY_SQL = `SELECT fp.student_id, fp.kind, fp.embedding, s.full_name, s.nickname, s.access_code
+const GALLERY_SQL = `SELECT fp.student_id, fp.kind, fp.embedding, s.full_name, s.nickname, s.access_code, s.avatar_url
      FROM face_profiles fp
      JOIN students s ON s.id = fp.student_id
      WHERE fp.model = ? AND s.is_active = TRUE AND s.member_type IN ('class', 'test')`;
@@ -242,6 +253,7 @@ async function loadGallery() {
         studentId,
         displayName: row.nickname || row.full_name,
         accessCode: row.access_code,
+        avatarUrl: row.avatar_url || null,
         vectors: [],
       });
     }
@@ -337,6 +349,117 @@ async function logFrame(frame) {
   return Number(result.insertId);
 }
 
+function hasEmbedding(face) {
+  return Array.isArray(face?.embedding) && face.embedding.length === EMBEDDING_DIM;
+}
+
+// Một khuôn mặt so với cả thư viện — cùng ngưỡng τ và cách biệt như quét một người
+function judgeFace(gallery, face) {
+  const probe = new Float32Array(face.embedding);
+  return decide(gallery.students.map((student) => ({
+    studentId: student.studentId,
+    score: Math.max(...student.vectors.map((vector) => dot(probe, vector))),
+  })));
+}
+
+function personOf(gallery, studentId) {
+  return gallery.students.find((item) => item.studentId === studentId);
+}
+
+// Nhiều người cùng đứng trước camera (≥ 2 mặt đủ to). Mỗi mặt tự qua đủ ngưỡng
+// như khi quét một mình; mặt tối/nhòe thì bỏ qua, không đoán.
+// - ≥ 2 người nhận ra → 'many_match': chào đúng tên, cho chọn MỘT thiệp (tối
+//   đa GROUP_MAX_PEOPLE, xếp theo mặt to trước). Người không nhận ra thì không
+//   nhắc tới.
+// - 1 người → y hệt quét một mình ('match', vẫn hỏi "Có phải cậu…?").
+// - không ai → 'reject' như người lạ; không mặt nào đủ rõ → 'low_quality'.
+async function matchGroup({ gallery, bigFaces, frame, started }) {
+  const clear = bigFaces.filter((face) => !qualityReason(face));
+  if (!clear.length) {
+    const [first] = bigFaces;
+    const gated = {
+      decision: 'low_quality', reason: qualityReason(first), face_px: Number(first.face_px),
+      brightness: Number(first.brightness), blur: Number(first.blur),
+    };
+    if (frame.scanId) {
+      await logFrame({
+        ...frame, primary: first, decision: gated.decision, reason: gated.reason, elapsedMs: Date.now() - started,
+      });
+    }
+    return gated;
+  }
+  if (!clear.every(hasEmbedding)) throw unavailable();
+
+  const judged = clear.map((face) => ({ face, verdict: judgeFace(gallery, face) }));
+  // Một người không thể xuất hiện hai lần: giữ mặt có điểm cao nhất, ở vị trí
+  // (theo độ to) của lần đầu gặp
+  const recognized = new Map();
+  for (const item of judged) {
+    if (item.verdict.decision !== 'match') continue;
+    const previous = recognized.get(item.verdict.studentId);
+    if (!previous || item.verdict.score > previous.verdict.score) {
+      recognized.set(item.verdict.studentId, item);
+    }
+  }
+  const people = [...recognized.values()];
+  const lead = people[0] || judged[0];
+  const score = round4(lead.verdict.score);
+  const margin = round4(lead.verdict.margin);
+  const base = { ...frame, primary: lead.face, faces: bigFaces.length, score, margin };
+  const faceStats = { face_px: lead.face.face_px, brightness: lead.face.brightness };
+
+  if (!people.length) {
+    const matchId = await logFrame({
+      ...base, decision: 'reject', candidateId: lead.verdict.candidateId, elapsedMs: Date.now() - started,
+    });
+    return { decision: 'reject', matchId, score, margin, ...faceStats };
+  }
+
+  if (people.length === 1) {
+    const student = personOf(gallery, lead.verdict.studentId);
+    const matchId = await logFrame({
+      ...base,
+      decision: 'match',
+      studentId: student.studentId,
+      candidateId: student.studentId,
+      elapsedMs: Date.now() - started,
+    });
+    return {
+      decision: 'match',
+      matchId,
+      studentId: student.studentId,
+      giftPath: `/gift/${student.accessCode}`,
+      displayName: student.displayName,
+      score,
+      margin,
+      ...faceStats,
+    };
+  }
+
+  // Nhật ký một dòng cho cả khung: student_id để trống (chưa ai được chọn),
+  // candidate_id là người mặt to nhất; người được chọn ghi lúc khép lượt
+  const matchId = await logFrame({
+    ...base, decision: 'many_match', candidateId: lead.verdict.studentId, elapsedMs: Date.now() - started,
+  });
+  return {
+    decision: 'many_match',
+    matchId,
+    people: people.slice(0, GROUP_MAX_PEOPLE).map(({ verdict }) => {
+      const student = personOf(gallery, verdict.studentId);
+      return {
+        studentId: student.studentId,
+        giftPath: `/gift/${student.accessCode}`,
+        displayName: student.displayName,
+        avatarUrl: student.avatarUrl,
+        score: round4(verdict.score),
+      };
+    }),
+    score,
+    margin,
+    ...faceStats,
+  };
+}
+
 // context: { scan (mã lượt quét), t (ms từ lúc camera chạy), userAgent }
 async function matchFrame(buffer, mimetype, context = {}) {
   const started = Date.now();
@@ -346,15 +469,18 @@ async function matchFrame(buffer, mimetype, context = {}) {
   const gallery = await loadGallery();
   if (!gallery.students.length) throw unavailable();
 
-  // max_faces=2 là đủ để biết "có hơn một người trong khung" mà không tốn
-  // công trích vector cho cả nhóm
-  const payload = await embedImage(buffer, mimetype, 2);
+  // Lấy tới GROUP_MAX_FACES mặt (xếp theo độ to giảm dần) để nhận ra cả nhóm
+  // đứng chung; khung một người thì service cũng chỉ trả một mặt
+  const payload = await embedImage(buffer, mimetype, GROUP_MAX_FACES);
   const [primary] = payload.faces;
   // Khung thuộc một lượt quét thì ghi cả khi bị cổng chất lượng chặn: admin
   // cần biết lượt đó hỏng vì tối, xa hay nhòe. Không kèm mã lượt thì như cũ —
   // chỉ ghi khung đã chấm điểm.
   const scanId = isScanToken(context.scan) ? await ensureScan(context.scan, context.userAgent) : null;
   const frame = { scanId, primary, faces: payload.faces.length, tMs: context.t };
+
+  const bigFaces = payload.faces.filter((face) => Number(face.face_px) >= FACE_MIN_FACE_PX);
+  if (bigFaces.length >= 2) return matchGroup({ gallery, bigFaces, frame, started });
 
   const gated = gate(payload.faces);
   if (gated) {
@@ -439,11 +565,16 @@ async function endScan(token, body = {}, userAgent = '') {
   let suggestedId = null;
   if (matchId) {
     const [rows] = await pool.execute(
-      `SELECT student_id FROM face_match_log
-       WHERE id = ? AND scan_id = ? AND decision = 'match' LIMIT 1`,
+      `SELECT student_id, decision FROM face_match_log
+       WHERE id = ? AND scan_id = ? AND decision IN ('match', 'many_match') LIMIT 1`,
       [matchId, scanId],
     );
-    suggestedId = rows[0]?.student_id ?? null;
+    const row = rows[0];
+    // Khung nhận ra cả nhóm: người được chọn là thiệp cậu ấy bấm (body.studentId).
+    // Chỉ dùng cho lịch sử admin, không mở được gì — nhưng vẫn phải là một
+    // thành viên có thật
+    if (row?.decision === 'many_match') suggestedId = await chosenMember(body.studentId);
+    else if (row) suggestedId = row.student_id ?? null;
   }
 
   const [result] = await pool.execute(
@@ -463,6 +594,17 @@ async function endScan(token, body = {}, userAgent = '') {
     await confirmMatch(matchId, outcome === 'confirmed');
   }
   return { ok: true };
+}
+
+async function chosenMember(value) {
+  const studentId = Number(value);
+  if (!Number.isInteger(studentId) || studentId <= 0) return null;
+  const [rows] = await pool.execute(
+    `SELECT id FROM students
+     WHERE id = ? AND is_active = TRUE AND member_type IN ('class', 'test') LIMIT 1`,
+    [studentId],
+  );
+  return rows[0]?.id ?? null;
 }
 
 // Gõ tên mở quà ngay sau những lượt quét chưa thành: ghép tên người đó vào các

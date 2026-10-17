@@ -26,11 +26,12 @@ const HAVE_CURRENT_DATA = 2           // video.readyState đủ để vẽ đư�
 const MAX_CLAIM_TOKENS = 10           // khớp giới hạn ghép tên của backend
 
 const IDLE = Object.freeze({
-  status: 'idle',      // 'idle' | 'starting' | 'scanning' | 'confirm' | 'stopped'
+  status: 'idle',      // 'idle' | 'starting' | 'scanning' | 'confirm' | 'choose' | 'stopped'
   hint: '',
   kind: null,          // lý do dừng khi status === 'stopped'
   message: '',
   candidate: null,     // { matchId, studentId, giftPath, displayName, score, margin } khi 'confirm'
+  people: [],          // những bạn nhận ra cùng lúc khi 'choose' — mỗi bạn một thiệp
   secondsLeft: SCAN_TIMEOUT_MS / 1000,
 })
 
@@ -79,7 +80,8 @@ function newScan() {
 // Báo lượt quét kết thúc thế nào — đúng một lần mỗi lượt. Lượt chưa thành giữ
 // lại mã để ghép tên nếu ngay sau đó người dùng mở quà. Lỗi mạng bỏ qua: đây
 // chỉ là lịch sử, không được chen vào đường tới trang quà.
-function reportScanEnd(scan, unclaimed, outcome) {
+// chosenId: thiệp được chọn ở màn 'choose' (khung nhận ra cả nhóm)
+function reportScanEnd(scan, unclaimed, outcome, chosenId = null) {
   if (!scan || scan.ended) return
   scan.ended = true
   if (outcome !== 'confirmed') {
@@ -92,6 +94,7 @@ function reportScanEnd(scan, unclaimed, outcome) {
     durationMs,
     darkFrames: scan.darkFrames,
     ...(scan.matchId ? { matchId: scan.matchId } : {}),
+    ...(chosenId ? { studentId: chosenId } : {}),
   }).catch(() => {})
 }
 
@@ -158,7 +161,9 @@ function useFaceScan() {
       if (done) return
       release()
       reportScanEnd(scan, unclaimed, kind)
-      setState((current) => ({ ...current, status: 'stopped', kind, message: STOP_MESSAGES[kind], candidate: null }))
+      setState((current) => ({
+        ...current, status: 'stopped', kind, message: STOP_MESSAGES[kind], candidate: null, people: [],
+      }))
     }
 
     // Chưa khép lượt ở đây: lượt kết thúc khi người dùng trả lời câu hỏi
@@ -167,7 +172,12 @@ function useFaceScan() {
       release()
       scan.concludedMs = Date.now() - startedAt
       scan.matchId = candidate.matchId
-      setState((current) => ({ ...current, status: 'confirm', candidate, hint: '' }))
+      // Nhận ra cả nhóm: chào tên từng bạn và cho chọn một thiệp
+      if (candidate.group) {
+        setState((current) => ({ ...current, status: 'choose', candidate: null, people: candidate.people, hint: '' }))
+      } else {
+        setState((current) => ({ ...current, status: 'confirm', candidate, people: [], hint: '' }))
+      }
     }
 
     const send = async (blob, t) => {
@@ -293,14 +303,17 @@ function useFaceScan() {
     setSession((current) => current + 1)
   }
 
-  // "Đúng là mình": khép lượt (không chờ), đóng modal, trả ứng viên để trang
-  // chủ chạy openGiftWithReveal
-  const accept = () => {
-    const { candidate } = state
-    if (!candidate) return null
-    reportScanEnd(scanRef.current, unclaimedRef.current, 'confirmed')
+  // "Đúng là mình" (không đối số), hoặc bấm thiệp một bạn ở màn chọn của cả
+  // nhóm (đối số là bạn đó): khép lượt (không chờ), đóng modal, trả người được
+  // mở quà để trang chủ chạy openGiftWithReveal
+  const accept = (chosen = null) => {
+    const picked = chosen && state.people.some((person) => person.studentId === chosen.studentId)
+      ? chosen
+      : state.candidate
+    if (!picked) return null
+    reportScanEnd(scanRef.current, unclaimedRef.current, 'confirmed', chosen ? picked.studentId : null)
     setActive(false)
-    return candidate
+    return picked
   }
 
   // "Không phải mình": khép lượt, loại người đó khỏi lượt quét tiếp, quét lại
@@ -329,6 +342,7 @@ function useFaceScan() {
     message: state.message,
     title: STOP_TITLES[state.kind] || '',
     candidate: state.candidate,
+    people: state.people,
     secondsLeft: state.secondsLeft,
     canRetry: state.status === 'stopped' && RETRYABLE_STOPS.includes(state.kind),
     videoRef,

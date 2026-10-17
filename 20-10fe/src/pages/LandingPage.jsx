@@ -13,7 +13,8 @@ import useDialogA11y from '../hooks/useDialogA11y'
 import useEventStatus from '../hooks/useEventStatus'
 import useFaceScan from '../hooks/useFaceScan'
 import { CLASS_NAME, EVENT_YEAR, formatStamp } from '../lib/event'
-import { greetingFor, showCountdown } from '../lib/faceVote'
+import { CLD_TINY, cld } from '../lib/cloudinary'
+import { greetingFor, greetNames, showCountdown } from '../lib/faceVote'
 import { seatLabel } from '../lib/seat'
 import '../styles/landing.css'
 
@@ -90,7 +91,8 @@ function MatchList({ matches, onPick, disabled = false }) {
             onClick={() => onPick(match)}
           >
             <span className="match-card__avatar" aria-hidden="true">
-              {match.avatarUrl ? <img src={match.avatarUrl} alt="" /> : match.displayName.charAt(0)}
+              {/* Bản thu nhỏ 160px cắt theo khuôn mặt, không phải ảnh gốc vài MB */}
+              {match.avatarUrl ? <img src={cld(match.avatarUrl, CLD_TINY)} alt="" /> : match.displayName.charAt(0)}
             </span>
             <span className="match-card__text">
               <b>{match.displayName}</b>
@@ -148,6 +150,7 @@ function LandingPage() {
     message: faceMessage,
     title: faceTitle,
     candidate: faceCandidate,
+    people: facePeople,
     secondsLeft: faceSecondsLeft,
     canRetry: faceCanRetry,
     videoRef: faceVideoRef,
@@ -322,6 +325,13 @@ function LandingPage() {
   const confirmFace = async () => {
     const candidate = acceptFace()
     if (candidate) await openGiftWithReveal(candidate.giftPath, candidate.displayName, 'face')
+  }
+
+  // Cả nhóm cùng quét: chọn một thiệp là mở quà của bạn đó (tính cánh hoa cho
+  // đúng bạn đó); những bạn còn lại quét hay gõ tên sau
+  const chooseFace = async (person) => {
+    const picked = acceptFace(person)
+    if (picked) await openGiftWithReveal(picked.giftPath, picked.displayName, 'face')
   }
 
   // Dừng quét → đóng modal và đưa con trỏ về ô gõ tên. Chờ một nhịp vì
@@ -779,7 +789,26 @@ function LandingPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <button type="button" className="wish-close" onClick={closeFace} aria-label="Đóng">×</button>
-            {faceStatus === 'confirm' && faceCandidate ? (
+            {faceStatus === 'choose' && facePeople.length ? (
+              <div className="face-confirm face-choose">
+                <Postmark
+                  moss
+                  size={84}
+                  rotate={-12}
+                  animate
+                  lines={['MẮT', 'THẦN', { big: '20.10' }]}
+                  className="face-confirm__postmark"
+                />
+                <p className="face-confirm__greeting">Chào {greetNames(facePeople)}! 🌷</p>
+                <h2 id="face-modal-title">Cậu muốn mở quà cho ai nào?</h2>
+                <MatchList matches={facePeople} onPick={chooseFace} />
+                <div className="face-actions">
+                  <button type="button" className="landing__wish" onClick={retryFace}>
+                    <span className="link-dashed">Quét lại</span>
+                  </button>
+                </div>
+              </div>
+            ) : faceStatus === 'confirm' && faceCandidate ? (
               <div className="face-confirm">
                 <Postmark
                   moss

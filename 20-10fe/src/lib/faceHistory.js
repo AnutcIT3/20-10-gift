@@ -82,6 +82,7 @@ export const ISSUES = Object.freeze({
 // Mỗi khung hình: decision (low_quality thì lấy reason) → nhãn + màu trên dải khung
 export const FRAME_KINDS = Object.freeze({
   match: { label: 'Khớp', tone: 'ok' },
+  many_match: { label: 'Nhận ra cả nhóm', tone: 'ok' },
   reject: { label: 'Không khớp', tone: 'bad' },
   dark: { label: 'Tối', tone: 'warn' },
   small: { label: 'Mặt nhỏ', tone: 'warn' },
