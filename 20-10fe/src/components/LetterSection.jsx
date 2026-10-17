@@ -4,7 +4,7 @@ import ReplyBox from './ReplyBox'
 import Polaroid from './paper/Polaroid'
 import Stamp from './paper/Stamp'
 import api from '../services/api'
-import { formatStamp } from '../lib/event'
+import { CLASS_NAME, formatStamp } from '../lib/event'
 
 // ── Reaction config — 8 emoji, 4 đầu hiện sẵn, còn lại sau chip "+N" ────────
 const REACTIONS = [
@@ -145,11 +145,11 @@ function LetterCard({ letter, accessCode, index, replies, onReplied }) {
 }
 
 // ── Letter Section ────────────────────────────────────────────────────────────
-// Hai nhóm người gửi: các bạn nam 12A1 (admin nhập sẵn) và khách ghé thăm (gửi
+// Hai nhóm người gửi: các bạn nam của lớp (admin nhập sẵn) và khách ghé thăm (gửi
 // qua form, chờ duyệt). Tiêu đề nhóm chỉ hiện khi có lời chúc của các bạn nam —
 // trang chỉ toàn thư của khách thì giữ nguyên một danh sách liền như trước.
 const GROUPS = [
-  { kind: 'classmate', title: 'Từ các bạn nam 12A1' },
+  { kind: 'classmate', title: `Từ các bạn nam ${CLASS_NAME}` },
   { kind: 'guest', title: 'Từ khách ghé thăm' },
 ]
 

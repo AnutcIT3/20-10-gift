@@ -84,7 +84,8 @@ function CelebrationPage() {
                 rotate={-10}
                 animate
                 delay={0.5}
-                lines={[CLASS_NAME, { big: '20.10' }, String(EVENT_YEAR)]}
+                // Dấu nhỏ 84px: "K49 - 12A1" một dòng chạm viền, nên tách hai dòng
+                lines={[...CLASS_NAME.split(' - '), { big: '20.10' }, String(EVENT_YEAR)]}
                 className="postcard__postmark"
               />
             )}
