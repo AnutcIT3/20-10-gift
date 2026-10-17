@@ -192,7 +192,7 @@ test('trang quà xin PDF thì nhận file .pdf; lời cuối trang không còn b
 
   const printed = log.find((entry) => entry.file).content;
   assert.match(printed, /Chúc Vy vui/);
-  assert.match(printed, /Gửi các bạn nam 12A1/);
+  assert.match(printed, /Gửi các bạn nam K49 - 12A1/);
   assert.equal(printed.includes('Mở bằng trình duyệt nào cũng được'), false);
   assert.equal(printed.includes('Lưu thành PDF'), false);
 });

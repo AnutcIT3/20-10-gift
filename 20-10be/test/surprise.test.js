@@ -597,15 +597,15 @@ test('bản lưu quà là một file HTML tự chứa, không script, mọi ch�
   assert.match(html, /LỜI CHÚC TỪ ADMIN/);
   assert.match(html, /Chúc Vy một ngày 20\/10 thật vui/);
   assert.match(html, /Buổi dã ngoại/);
-  assert.match(html, /Từ các bạn nam 12A1/);
+  assert.match(html, /Từ các bạn nam K49 - 12A1/);
   assert.match(html, /Một người bạn ẩn danh/);
   assert.match(html, /Gửi Tuấn/);
   assert.match(html, /Gửi người bạn ẩn danh/);
-  assert.match(html, /Gửi các bạn nam 12A1/);
+  assert.match(html, /Gửi các bạn nam K49 - 12A1/);
   // Giờ Việt Nam, không phải giờ máy chủ
   assert.match(html, /18\.10\.2026 · 21:30/);
   assert.match(html, /20\.10\.2026 · 10:00/);
-  assert.match(html, /Lớp 12A1 · 20\.10\.2026/);
+  assert.match(html, /Lớp K49 - 12A1 · 20\.10\.2026/);
   assert.equal(html.includes('res.cloudinary.com'), false);
 });
 

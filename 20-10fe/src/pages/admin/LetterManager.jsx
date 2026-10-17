@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { adminApi } from '../../api/adminApi'
 import useDialogA11y from '../../hooks/useDialogA11y'
 import Polaroid from '../../components/paper/Polaroid'
-import { formatStamp } from '../../lib/event'
+import { CLASS_NAME, formatStamp } from '../../lib/event'
 
 const STATUSES = [
   { value: 'pending', label: 'Chờ duyệt' },
@@ -15,7 +15,7 @@ const TABS = [...STATUSES, { value: 'scheduled', label: 'Hẹn giờ' }]
 
 // Nhóm người gửi quyết định lời chúc nằm ở khối nào trên trang quà
 const SENDER_KINDS = [
-  { value: 'classmate', label: 'Các bạn nam 12A1' },
+  { value: 'classmate', label: `Các bạn nam ${CLASS_NAME}` },
   { value: 'guest', label: 'Khách ghé thăm' },
 ]
 
@@ -536,7 +536,7 @@ function LetterManager() {
                     {letter.image_url && <span className="chip chip--beige">📷 1 ảnh</span>}
                     {letter.member_type === 'friend' && <span className="chip chip--moss">bạn ngoài lớp</span>}
                     {letter.member_type === 'test' && <span className="chip chip--moss">tài khoản thử</span>}
-                    {letter.sender_kind === 'classmate' && <span className="chip chip--beige">bạn nam 12A1</span>}
+                    {letter.sender_kind === 'classmate' && <span className="chip chip--beige">bạn nam {CLASS_NAME}</span>}
                     <span className={`admin-badge ${letter.status}`}>
                       {STATUSES.find((item) => item.value === letter.status)?.label || letter.status}
                     </span>

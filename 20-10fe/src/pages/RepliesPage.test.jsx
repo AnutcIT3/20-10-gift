@@ -30,7 +30,7 @@ test('mỗi hồi âm là một bưu thiếp: ai gửi ai, người ẩn danh ch
   expect(screen.getByText('Tuấn')).toBeTruthy()
   expect(screen.getByText('một người bạn ẩn danh')).toBeTruthy()
   expect(screen.getByText(/người đã gửi thư lúc/)).toBeTruthy()
-  expect(screen.getByText('các bạn nam 12A1')).toBeTruthy()
+  expect(screen.getByText('các bạn nam K49 - 12A1')).toBeTruthy()
   expect(screen.getByText('3 hồi âm')).toBeTruthy()
   expect(giftRepository.listReplies).toHaveBeenCalledWith({ to: undefined, exact: false })
 })

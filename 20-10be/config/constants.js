@@ -1,5 +1,5 @@
 // Tên lớp in trên bản lưu quà (khớp CLASS_NAME của frontend, src/lib/event.js)
-const CLASS_NAME = '12A1';
+const CLASS_NAME = 'K49 - 12A1';
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
