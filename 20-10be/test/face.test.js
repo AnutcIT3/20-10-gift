@@ -99,9 +99,17 @@ function mockDatabase({ faceEnabled = '1', giftLocked = '0', gallery = GALLERY }
       [scanOutcome] = params;
       return [{ affectedRows: 1 }];
     }
-    // Chỉ khung 42 là khung "match" (của học sinh 1) thuộc lượt SCAN_ID
-    if (sql.includes('SELECT student_id FROM face_match_log')) {
-      return [params[0] === 42 && params[1] === SCAN_ID ? [{ student_id: 1 }] : []];
+    // Khung 42 là khung "match" (của học sinh 1), khung 43 là khung nhận ra cả
+    // nhóm ("many_match", chưa ai được chọn) — cả hai thuộc lượt SCAN_ID
+    if (sql.includes('SELECT student_id, decision FROM face_match_log')) {
+      if (params[1] !== SCAN_ID) return [[]];
+      if (params[0] === 42) return [[{ student_id: 1, decision: 'match' }]];
+      if (params[0] === 43) return [[{ student_id: null, decision: 'many_match' }]];
+      return [[]];
+    }
+    // Thiệp được chọn phải là một thành viên có thật (1 và 2 có, 99 thì không)
+    if (sql.includes('SELECT id FROM students') && sql.includes('WHERE id = ?')) {
+      return [[1, 2].includes(params[0]) ? [{ id: params[0] }] : []];
     }
     if (sql.includes('WHERE access_code = ?')) {
       return [params[0] === 'vy1020' ? [{ id: 1 }] : []];
@@ -289,6 +297,108 @@ test('face match rejects look-alikes without revealing any name', async (t) => {
   assert.equal(data.studentId, undefined);
   // Người giống nhất chỉ nằm trong nhật ký cho admin, không bao giờ về trình duyệt
   assert.equal(data.candidateId, undefined);
+});
+
+// ── Nhiều người cùng quét ───────────────────────────────────────────────────
+
+const GROUP_GALLERY = [
+  ...GALLERY.map((row) => ({ ...row, avatar_url: row.student_id === 1 ? 'https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/vy.png' : null })),
+  ...[3, 4, 5].map((id) => ({
+    student_id: id, kind: 'enroll', embedding: faceService.encodeEmbedding(oneHot(id - 1)),
+    full_name: `Bạn ${id}`, nickname: null, access_code: `ban-${id}`, avatar_url: null,
+  })),
+];
+const face = (embedding, facePx = 150, extra = {}) => ({
+  face_px: facePx, brightness: 120, blur: 90, det_score: 0.9, embedding, ...extra,
+});
+const STRANGER = oneHot(40);
+
+async function matchGroup(t, faces) {
+  const base = await startApp(t);
+  const writes = mockDatabase({ gallery: GROUP_GALLERY });
+  const calls = stubFaceService(healthyService(faces));
+  const { data } = await (await fetch(`${base}/api/face/match`, { method: 'POST', body: frameForm() })).json();
+  const logs = writes.filter((w) => w.sql.includes('INSERT INTO face_match_log')).map(insertedRow);
+  return { data, logs, calls };
+}
+
+test('nhiều người cùng quét, nhận ra 2: chào đúng tên cả hai, người lạ không được nhắc tới', async (t) => {
+  const { data, logs, calls } = await matchGroup(t, [face(oneHot(0), 180), face(STRANGER, 140), face(oneHot(1), 120)]);
+  // Hỏi face-service tới 5 mặt để nhận ra cả nhóm
+  assert.ok(calls.some((url) => url.includes('max_faces=5')));
+  assert.equal(data.decision, 'many_match');
+  assert.equal(data.matchId, 42);
+  assert.deepEqual(data.people.map((p) => [p.studentId, p.displayName, p.giftPath]), [
+    [1, 'Vy', '/gift/vy1020'],
+    [2, 'Hương', '/gift/12a1-huong'],
+  ]);
+  assert.equal(data.people[0].avatarUrl, 'https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/vy.png');
+  assert.equal(data.studentId, undefined);
+  // Nhật ký một dòng cho cả khung: chưa ai được chọn, người mặt to nhất là ứng viên
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0].decision, 'many_match');
+  assert.equal(logs[0].student_id, null);
+  assert.equal(logs[0].candidate_id, 1);
+  assert.equal(logs[0].faces, 3);
+});
+
+test('nhiều mặt nhưng chỉ nhận ra 1 người: như quét một mình, vẫn hỏi "Có phải cậu…?"', async (t) => {
+  const { data, logs } = await matchGroup(t, [face(STRANGER, 200), face(oneHot(1), 130)]);
+  assert.equal(data.decision, 'match');
+  assert.equal(data.studentId, 2);
+  assert.equal(data.giftPath, '/gift/12a1-huong');
+  assert.equal(data.face_px, 130);
+  assert.equal(logs[0].decision, 'match');
+  assert.equal(logs[0].student_id, 2);
+});
+
+test('nhiều mặt mà không nhận ra ai thì là người lạ', async (t) => {
+  const strangers = await matchGroup(t, [face(STRANGER, 160), face(oneHot(60), 120)]);
+  assert.equal(strangers.data.decision, 'reject');
+  assert.equal(strangers.data.people, undefined);
+  assert.equal(strangers.logs[0].decision, 'reject');
+});
+
+test('cả nhóm tối/nhòe thì nhắc chỉnh máy, không coi là người lạ', async (t) => {
+  const { data } = await matchGroup(t, [face(oneHot(0), 160, { blur: 10 }), face(oneHot(1), 120, { brightness: 5 })]);
+  assert.deepEqual(data, { decision: 'low_quality', reason: 'blurry', face_px: 160, brightness: 120, blur: 10 });
+});
+
+test('nhóm đông thì tối đa 4 thiệp; một người không bao giờ có hai thiệp', async (t) => {
+  const five = await matchGroup(t, [0, 1, 2, 3, 4].map((index) => face(oneHot(index), 200 - index * 10)));
+  assert.equal(five.data.decision, 'many_match');
+  assert.deepEqual(five.data.people.map((p) => p.studentId), [1, 2, 3, 4]);
+});
+
+test('cùng một người lọt hai lần (ảnh phản chiếu) chỉ tính một — còn lại một người thì như quét một mình', async (t) => {
+  const { data } = await matchGroup(t, [face(mix(0.95, 0.31), 170), face(oneHot(0), 120), face(STRANGER, 110)]);
+  assert.equal(data.decision, 'match');
+  assert.equal(data.studentId, 1);
+});
+
+test('mặt nhỏ phía sau (dưới 80px) không biến khung một người thành khung cả nhóm', async (t) => {
+  const { data } = await matchGroup(t, [face(oneHot(0), 160), face(oneHot(1), 50)]);
+  assert.equal(data.decision, 'match');
+  assert.equal(data.studentId, 1);
+});
+
+test('chọn thiệp trong khung cả nhóm: lịch sử ghi đúng người được chọn, id lạ thì bỏ trống', async (t) => {
+  const base = await startApp(t);
+  const writes = mockDatabase({ gallery: GROUP_GALLERY });
+  const end = (body) => postJson(`${base}/api/face/scans/${SCAN}/end`, body);
+
+  assert.equal((await end({ outcome: 'confirmed', matchId: 43, studentId: 2 })).status, 200);
+  const update = writes.find((w) => w.sql.includes('UPDATE face_scans'));
+  assert.deepEqual(update.params.slice(0, 2), ['confirmed', 2]);
+  assert.ok(writes.some((w) => w.sql.includes('UPDATE face_match_log') && w.params[1] === 43));
+});
+
+test('chọn thiệp với id không phải thành viên thì không gắn tên ai', async (t) => {
+  const base = await startApp(t);
+  const writes = mockDatabase({ gallery: GROUP_GALLERY });
+  await postJson(`${base}/api/face/scans/${SCAN}/end`, { outcome: 'confirmed', matchId: 43, studentId: 99 });
+  const update = writes.find((w) => w.sql.includes('UPDATE face_scans'));
+  assert.deepEqual(update.params.slice(0, 2), ['confirmed', null]);
 });
 
 test('face match turns quality problems into hints without logging them', async (t) => {

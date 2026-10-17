@@ -10,6 +10,7 @@ import {
   STOP_TITLES,
   RETRYABLE_STOPS,
   greetingFor,
+  greetNames,
   hintFor,
   isTooDark,
   makeScanToken,
@@ -119,6 +120,49 @@ describe('tallyVotes', () => {
     const before = { studentId: 3, count: 1 }
     tallyVotes(before, match(3))
     expect(before).toEqual({ studentId: 3, count: 1 })
+  })
+})
+
+const person = (studentId) => ({
+  studentId, giftPath: `/gift/code${studentId}`, displayName: `Bạn ${studentId}`, avatarUrl: null, score: 0.7,
+})
+const group = (ids, matchId = 500) => ({ decision: 'many_match', matchId, people: ids.map(person), score: 0.7, margin: 0.4 })
+
+describe('cả nhóm cùng quét', () => {
+  it('cùng một nhóm hai khung liên tiếp thì kết luận: chào cả nhóm, cho chọn một thiệp', () => {
+    const first = tallyVotes(INITIAL_VOTES, group([3, 5]))
+    expect(first.conclusion).toBeNull()
+    expect(first.hint).toBe(HINTS.group)
+    // Thứ tự mặt trong khung đổi không sao: vẫn là cùng một nhóm
+    const second = tallyVotes(first.votes, group([5, 3], 501))
+    expect(second.conclusion).toEqual({ group: true, matchId: 501, people: [person(5), person(3)] })
+  })
+
+  it('nhóm đổi (một bạn bước ra, bạn khác bước vào) thì đếm lại', () => {
+    const first = tallyVotes(INITIAL_VOTES, group([3, 5]))
+    expect(tallyVotes(first.votes, group([3, 6])).conclusion).toBeNull()
+    // Từ nhóm về một người: phiếu một người bắt đầu từ 1
+    expect(tallyVotes(first.votes, match(3)).conclusion).toBeNull()
+  })
+
+  it('bỏ người vừa bị bấm "Không phải mình": còn một bạn thì hỏi như quét một mình, không còn ai thì như không khớp', () => {
+    const first = tallyVotes(INITIAL_VOTES, group([3, 5]), [5])
+    expect(first.votes).toEqual({ studentId: 3, count: 1, rejects: 0 })
+    const second = tallyVotes(first.votes, group([3, 5], 502), [5])
+    expect(second.conclusion).toMatchObject({ studentId: 3, matchId: 502, giftPath: '/gift/code3' })
+    expect(second.conclusion.group).toBeUndefined()
+
+    const nobody = tallyVotes(INITIAL_VOTES, group([3, 5]), [3, 5])
+    expect(nobody.votes.rejects).toBe(1)
+    expect(nobody.conclusion).toBeNull()
+  })
+})
+
+describe('greetNames', () => {
+  it('chào đúng tên cả nhóm', () => {
+    expect(greetNames([person(1)])).toBe('Bạn 1')
+    expect(greetNames([person(1), person(2)])).toBe('Bạn 1 và Bạn 2')
+    expect(greetNames([person(1), person(2), person(3), person(4)])).toBe('Bạn 1, Bạn 2, Bạn 3 và Bạn 4')
   })
 })
 
