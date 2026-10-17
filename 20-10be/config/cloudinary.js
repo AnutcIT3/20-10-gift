@@ -101,6 +101,10 @@ function uploadErrorHandler(err, req, res, next) {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(413).json({ success: false, message: 'File too large' });
     }
+    // Lời chúc gửi quá số ảnh (trường image/images, tối đa 4)
+    if (err.code === 'LIMIT_UNEXPECTED_FILE' && (err.field === 'images' || err.field === 'image')) {
+      return res.status(400).json({ success: false, message: 'Mỗi lời chúc kèm tối đa 4 ảnh' });
+    }
     return res.status(400).json({ success: false, message: err.message });
   }
   if (err) {

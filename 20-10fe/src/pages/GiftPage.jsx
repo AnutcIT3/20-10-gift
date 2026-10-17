@@ -10,9 +10,10 @@ import PaperError from '../components/PaperError'
 import ReplyBox from '../components/ReplyBox'
 import TypingText from '../components/TypingText'
 import Petals from '../components/paper/Petals'
-import Polaroid from '../components/paper/Polaroid'
+import PhotoSet from '../components/PhotoSet'
 import { CLASS_LABEL, CLASS_NAME, GUEST_LABEL } from '../lib/event'
 import { greetingRequest } from '../lib/greeting'
+import { wishImageUrls } from '../lib/images'
 import '../styles/gift.css'
 
 const ERROR_VIEWS = {
@@ -316,7 +317,7 @@ function GiftPage() {
         <HeroSection student={student} />
         {/* Lời chúc admin viết riêng: người thật viết nên hiện luôn, không gõ
             từng chữ như câu máy sinh; không viết thì không có ô nào cả */}
-        {(student?.admin_wish || student?.admin_wish_image_url) && (
+        {(student?.admin_wish || wishImageUrls(student, 'admin_wish').length > 0) && (
           <section className="ai-note ai-note--admin">
             <span className="ai-note__clip" aria-hidden="true" />
             <span className="ai-note__label">
@@ -324,9 +325,7 @@ function GiftPage() {
               <span className="ai-note__label-short">💌 TỪ ADMIN</span>
             </span>
             {student.admin_wish && <p>{student.admin_wish}</p>}
-            {student.admin_wish_image_url && (
-              <Polaroid src={student.admin_wish_image_url} alt="Ảnh kèm lời chúc từ admin" small rotate={-2} tape="none" lazy className="ai-note__photo" />
-            )}
+            <PhotoSet urls={wishImageUrls(student, 'admin_wish')} alt="Ảnh kèm lời chúc từ admin" lazy className="ai-note__photo" />
             <ReplyBox
               accessCode={accessCode}
               target="admin"
@@ -346,9 +345,7 @@ function GiftPage() {
               <span className="ai-note__label-short">✨ LỜI CHÚC DÀNH RIÊNG</span>
             </span>
             <p><TypingText text={aiGreeting} /></p>
-            {student?.greeting_image_url && (
-              <Polaroid src={student.greeting_image_url} alt="Ảnh kèm lời chúc" small rotate={2} tape="none" lazy className="ai-note__photo" />
-            )}
+            <PhotoSet urls={wishImageUrls(student, 'greeting')} alt="Ảnh kèm lời chúc" rotate={2} lazy className="ai-note__photo" />
           </section>
         )}
         <PhotoGallery images={gallery} />

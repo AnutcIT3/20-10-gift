@@ -8,10 +8,11 @@ import Petals from '../components/paper/Petals'
 import Envelope from '../components/paper/Envelope'
 import Stamp from '../components/paper/Stamp'
 import Postmark from '../components/paper/Postmark'
-import Polaroid from '../components/paper/Polaroid'
+import PickedImages from '../components/PickedImages'
 import useDialogA11y from '../hooks/useDialogA11y'
 import useEventStatus from '../hooks/useEventStatus'
 import useFaceScan from '../hooks/useFaceScan'
+import useImagePicks, { MAX_WISH_IMAGES, WISH_IMAGE_ACCEPT } from '../hooks/useImagePicks'
 import { CLASS_NAME, EVENT_YEAR, formatStamp } from '../lib/event'
 import { CLD_TINY, cld } from '../lib/cloudinary'
 import { greetingFor, greetNames, showCountdown } from '../lib/faceVote'
@@ -170,8 +171,8 @@ function LandingPage() {
   // Link "gửi lời chúc" từ màn khóa 20/10 mở thẳng modal (/?wish=1)
   const [wishOpen, setWishOpen] = useState(() => searchParams.get('wish') === '1')
   const [wishForm, setWishForm] = useState(EMPTY_WISH)
-  const [wishImage, setWishImage] = useState(null)
-  const [wishImagePreview, setWishImagePreview] = useState('')
+  // Ảnh kèm lời chúc: chọn một lúc nhiều ảnh, tối đa 4
+  const wishImages = useImagePicks()
   const [wishMatches, setWishMatches] = useState([])
   const [wishMessage, setWishMessage] = useState('')
   const [wishError, setWishError] = useState('')
@@ -219,30 +220,14 @@ function LandingPage() {
   }, [visitorRole, faceScope])
 
   const clearWishImage = () => {
-    setWishImage(null)
-    setWishImagePreview((current) => {
-      if (current) URL.revokeObjectURL(current)
-      return ''
-    })
+    wishImages.clear()
     if (wishFileRef.current) wishFileRef.current.value = ''
   }
 
-  const chooseWishImage = (file) => {
-    if (!file) { clearWishImage(); return }
-    if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
-      setWishError('Ảnh phải là JPG, PNG, GIF hoặc WebP.')
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setWishError('Ảnh tối đa 5 MB.')
-      return
-    }
-    setWishError('')
-    setWishImage(file)
-    setWishImagePreview((current) => {
-      if (current) URL.revokeObjectURL(current)
-      return URL.createObjectURL(file)
-    })
+  const chooseWishImages = (fileList) => {
+    setWishError(wishImages.add(fileList))
+    // Cho chọn lại đúng ảnh vừa bỏ
+    if (wishFileRef.current) wishFileRef.current.value = ''
   }
 
   const resetWish = () => {
@@ -366,7 +351,7 @@ function LandingPage() {
   const sendWishToGiftPath = async (giftPath) => {
     const accessCode = accessCodeFromGiftPath(giftPath)
     if (!accessCode) throw new Error('Không xác định được người nhận.')
-    await giftRepository.createLetter(accessCode, wishLetterData(), wishImage)
+    await giftRepository.createLetter(accessCode, wishLetterData(), wishImages.files)
     finishWish()
   }
 
@@ -397,7 +382,7 @@ function LandingPage() {
       if (wishForm.receiverType === 'friend') {
         await giftRepository.createFriendLetter(
           { ...wishLetterData(), receiver_name: receiverName },
-          wishImage,
+          wishImages.files,
         )
         finishWish({ friend: true })
         return
@@ -729,15 +714,24 @@ function LandingPage() {
                     >
                       ⏰ {wishForm.revealAt ? formatReveal(wishForm.revealAt) : <>Hẹn giờ hiện lời chúc <i>tuỳ chọn</i></>}
                     </button>
-                    <button type="button" className={`btn-dashed${wishImage ? ' is-active' : ''}`} onClick={() => wishFileRef.current?.click()}>
-                      📷 {wishImage ? 'Đổi ảnh' : <>Kèm ảnh <i>≤ 5 MB</i></>}
+                    <button
+                      type="button"
+                      className={`btn-dashed${wishImages.picks.length ? ' is-active' : ''}`}
+                      disabled={wishImages.full}
+                      onClick={() => wishFileRef.current?.click()}
+                    >
+                      📷 {wishImages.picks.length
+                        ? (wishImages.full ? `Đủ ${MAX_WISH_IMAGES} ảnh` : <>Thêm ảnh <i>{wishImages.picks.length}/{MAX_WISH_IMAGES}</i></>)
+                        : <>Kèm ảnh <i>tối đa {MAX_WISH_IMAGES} · ≤ 5 MB</i></>}
                     </button>
                     <input
                       ref={wishFileRef}
                       type="file"
                       hidden
-                      accept="image/jpeg,image/png,image/gif,image/webp"
-                      onChange={(e) => chooseWishImage(e.target.files?.[0] || null)}
+                      multiple
+                      accept={WISH_IMAGE_ACCEPT}
+                      aria-label="Ảnh kèm lời chúc"
+                      onChange={(e) => chooseWishImages(e.target.files)}
                     />
                   </div>
                   {showReveal && (
@@ -755,12 +749,7 @@ function LandingPage() {
                       )}
                     </label>
                   )}
-                  {wishImagePreview && (
-                    <div className="wish-image-preview">
-                      <Polaroid src={wishImagePreview} alt="Ảnh sẽ gửi kèm" small rotate={-3} tape="none" />
-                      <button type="button" className="btn-dashed" onClick={clearWishImage}>Bỏ ảnh</button>
-                    </div>
-                  )}
+                  <PickedImages picks={wishImages.picks} onRemove={wishImages.remove} />
                   {wishError && <p className="alert-note wish-alert" role="alert">{wishError}</p>}
                   {wishMatches.length > 0 && (
                     <div className="wish-matches">

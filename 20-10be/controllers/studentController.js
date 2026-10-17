@@ -1,6 +1,6 @@
 const studentService = require('../services/studentService');
 const { sendSuccess, sendError } = require('../utils/response');
-const { extractLetterImage, cleanupLetterImage } = require('../utils/letterUpload');
+const { extractLetterImages, cleanupLetterImages, assertImageCount } = require('../utils/letterUpload');
 
 function parseId(req, res) {
   const id = Number(req.params.id);
@@ -63,25 +63,33 @@ async function updateSeat(req, res) {
   return sendSuccess(res, await studentService.updateSeat(id, req.body));
 }
 
-// Ảnh kèm một trong ba lời chúc riêng (intro / admin_wish / greeting)
+// Ảnh kèm một trong ba lời chúc riêng (intro / admin_wish / greeting): thêm
+// một lúc nhiều ảnh, mỗi lời chúc tối đa 4
 async function uploadWishImage(req, res) {
-  const image = extractLetterImage(req);
+  const images = extractLetterImages(req);
   const id = parseId(req, res);
-  if (id === null) { await cleanupLetterImage(image); return undefined; }
-  if (!image) return sendError(res, 'Chọn một ảnh để tải lên (trường "image")', 400);
+  if (id === null) { await cleanupLetterImages(images); return undefined; }
+  if (!images.length) return sendError(res, 'Chọn ảnh để tải lên (trường "images")', 400);
+  await assertImageCount(images);
   try {
-    return sendSuccess(res, await studentService.setWishImage(id, req.params.kind, image));
+    return sendSuccess(res, await studentService.addWishImages(id, req.params.kind, images));
   } catch (error) {
-    // Loại lời chúc sai hay không có học sinh → dọn ảnh đã lỡ upload
-    await cleanupLetterImage(image);
+    // Loại lời chúc sai, không có học sinh hay quá 4 ảnh → dọn ảnh đã lỡ upload
+    await cleanupLetterImages(images);
     throw error;
   }
 }
 
+// Có :imageId thì bỏ một ảnh, không có thì bỏ hết ảnh của lời chúc đó
 async function removeWishImage(req, res) {
   const id = parseId(req, res);
   if (id === null) return undefined;
-  return sendSuccess(res, await studentService.setWishImage(id, req.params.kind, null));
+  let imageId = null;
+  if (req.params.imageId !== undefined) {
+    imageId = Number(req.params.imageId);
+    if (!Number.isInteger(imageId) || imageId <= 0) return sendError(res, 'ID ảnh không hợp lệ', 400);
+  }
+  return sendSuccess(res, await studentService.removeWishImages(id, req.params.kind, imageId));
 }
 
 module.exports = {

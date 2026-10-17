@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const pool = require('../config/db');
 const normalizeName = require('../utils/normalizeName');
 const { accentKey, sameName } = require('../utils/nameKey');
+const letterImageService = require('./letterImageService');
 const { sanitizeLetterPayload } = require('./letterService');
 
 function httpError(message, statusCode) {
@@ -18,7 +19,7 @@ function generateAccessCode() {
  * pending như mọi lời chúc khác. Khi người đó tìm tên theo luồng "khách",
  * họ sẽ thấy trang cá nhân với những lời chúc đã được duyệt.
  */
-async function createFriendLetter(data, image = null) {
+async function createFriendLetter(data, images = []) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw httpError('Dữ liệu không hợp lệ', 400);
   }
@@ -69,12 +70,15 @@ async function createFriendLetter(data, image = null) {
       }
     }
 
-    await connection.execute(
+    // Cột ảnh cũ = ảnh đầu; đủ ảnh (tối đa 4) ở letter_images
+    const [first] = images;
+    const [letterResult] = await connection.execute(
       `INSERT INTO letters (student_id, sender_name, title, content, is_anonymous, status, reveal_at, image_url, image_public_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [studentId, clean.senderName, clean.title, clean.content, clean.isAnonymous, clean.status, clean.revealAt,
-        image?.url || null, image?.publicId || null],
+        first?.url || null, first?.publicId || null],
     );
+    await letterImageService.saveLetterImages(connection, letterResult.insertId, images);
 
     await connection.commit();
     return { status: 'pending', friend_created: friendCreated };

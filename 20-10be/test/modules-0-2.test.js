@@ -196,12 +196,18 @@ test('module 2: createLetter validates content and forces trusted fields', async
   await assert.rejects(() => giftService.createLetter(1, { content: '   ' }), { statusCode: 400 });
   await assert.rejects(() => giftService.createLetter(1, { content: 'x'.repeat(5001) }), { statusCode: 400 });
 
-  const original = pool.execute;
-  let inserted;
-  pool.execute = async (sql, params) => {
-    inserted = { sql, params };
-    return [{ insertId: 99 }];
-  };
+  const original = pool.getConnection;
+  const inserted = [];
+  pool.getConnection = async () => ({
+    beginTransaction: async () => {},
+    execute: async (sql, params) => {
+      inserted.push({ sql, params });
+      return [{ insertId: 99 }];
+    },
+    commit: async () => {},
+    rollback: async () => assert.fail('must not rollback'),
+    release: () => {},
+  });
   try {
     const result = await giftService.createLetter(7, {
       student_id: 999,
@@ -211,24 +217,40 @@ test('module 2: createLetter validates content and forces trusted fields', async
       is_anonymous: true,
     });
     assert.deepEqual(result, { status: 'pending' });
-    assert.deepEqual(inserted.params, [7, null, null, 'Hello', true, 'pending', null, null, null]);
+    assert.deepEqual(inserted[0].params, [7, null, null, 'Hello', true, 'pending', null, null, null]);
+    // Không kèm ảnh thì không ghi gì vào letter_images
+    assert.equal(inserted.length, 1);
+
+    // Bốn ảnh: cột cũ giữ ảnh đầu, đủ bốn ảnh vào letter_images đúng thứ tự
+    inserted.length = 0;
+    const images = [1, 2, 3, 4].map((n) => ({ url: `https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/${n}.jpg`, publicId: `gift_20_10/${n}` }));
+    await giftService.createLetter(7, { content: 'Bốn ảnh', is_anonymous: true }, images);
+    assert.deepEqual(inserted[0].params.slice(-2), [images[0].url, images[0].publicId]);
+    assert.match(inserted[1].sql, /INSERT INTO letter_images/);
+    assert.deepEqual(inserted[1].params, images.flatMap((image, index) => [99, image.url, image.publicId, index]));
   } finally {
-    pool.execute = original;
+    pool.getConnection = original;
   }
 });
 
 test('module 2: public letters query only approved records', async () => {
   const original = pool.execute;
   pool.execute = async (sql, params) => {
+    if (sql.includes('FROM letter_images')) {
+      return [[{ id: 5, letter_id: 1, image_url: 'a.jpg' }, { id: 6, letter_id: 1, image_url: 'b.jpg' }]];
+    }
     assert.match(sql, /status = 'approved'/);
     assert.match(sql, /reveal_at <= UTC_TIMESTAMP\(\)/);
     assert.deepEqual(params, [3]);
-    return [[{ id: 1, sender_name: null, content: 'Safe' }]];
+    return [[{ id: 1, sender_name: null, content: 'Safe', image_url: 'a.jpg' }, { id: 2, content: 'Cũ', image_url: 'old.jpg' }]];
   };
   try {
     const rows = await giftService.getApprovedLetters(3);
-    assert.equal(rows.length, 1);
+    assert.equal(rows.length, 2);
     assert.equal(rows[0].sender_name, null);
+    assert.deepEqual(rows[0].images, [{ id: 5, url: 'a.jpg' }, { id: 6, url: 'b.jpg' }]);
+    // Thư chưa có dòng ở bảng mới thì lấy ảnh ở cột cũ
+    assert.deepEqual(rows[1].images, [{ id: null, url: 'old.jpg' }]);
   } finally {
     pool.execute = original;
   }
@@ -831,7 +853,8 @@ test('module 4: letter status only accepts approved or rejected', async () => {
   await assert.rejects(() => letterService.updateStatus(1, 'pending'), { statusCode: 400 });
   const original = pool.execute;
   pool.execute = async (sql) => {
-    if (sql.includes('SELECT image_public_id')) return [[{ image_public_id: null }]];
+    if (sql.includes('SELECT image_public_id FROM letters WHERE id = ? LIMIT 1')) return [[{ image_public_id: null }]];
+    if (sql.startsWith('SELECT')) return [[]];
     return [{ affectedRows: 1 }];
   };
   try {
@@ -882,11 +905,16 @@ test('module 4: admin can create one letter for multiple students', async () => 
 test('module 4: an admin letter with a photo gives every recipient the same uploaded photo', async () => {
   const original = pool.getConnection;
   const inserts = [];
+  const imageRows = [];
   pool.getConnection = async () => ({
     beginTransaction: async () => {},
     execute: async (sql, params) => {
       if (sql.includes('FROM students')) return [[{ id: 1 }, { id: 2 }]];
-      if (sql.includes('INSERT INTO letters')) inserts.push(params);
+      if (sql.includes('INSERT INTO letters')) {
+        inserts.push(params);
+        return [{ insertId: 100 + inserts.length }];
+      }
+      if (sql.includes('INSERT INTO letter_images')) imageRows.push(params);
       return [[]];
     },
     commit: async () => {},
@@ -894,11 +922,13 @@ test('module 4: an admin letter with a photo gives every recipient the same uplo
     release: () => {},
   });
   try {
-    const image = { url: 'https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/a.jpg', publicId: 'gift_20_10/a' };
+    const images = ['a', 'b'].map((name) => ({ url: `https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/${name}.jpg`, publicId: `gift_20_10/${name}` }));
     assert.deepEqual(await letterService.createLetters({
       student_ids: [1, 2], sender_name: 'Admin', sender_kind: 'classmate', content: 'Chúc mừng 20/10!',
-    }, image), { created: 2 });
-    assert.deepEqual(inserts.map((params) => params.slice(-2)), [[image.url, image.publicId], [image.url, image.publicId]]);
+    }, images), { created: 2 });
+    // Cột cũ = ảnh đầu; mỗi người nhận có đủ hai ảnh (dùng chung một bản upload)
+    assert.deepEqual(inserts.map((params) => params.slice(-2)), [[images[0].url, images[0].publicId], [images[0].url, images[0].publicId]]);
+    assert.deepEqual(imageRows, [101, 102].map((letterId) => images.flatMap((image, index) => [letterId, image.url, image.publicId, index])));
   } finally {
     pool.getConnection = original;
   }
@@ -908,25 +938,41 @@ test('module 4: deleting one copy of a shared admin photo keeps it for the other
   const original = pool.execute;
   const originalDestroy = cloudinary.uploader.destroy;
   const destroyed = [];
-  // Hai thư (1, 2) dùng chung ảnh 'shared'; thư 3 có ảnh riêng 'own'
+  // Hai thư (1, 2) dùng chung ảnh 'shared' (+ ảnh thứ hai 'shared-2' ở
+  // letter_images); thư 3 có ảnh riêng 'own'
   let letters = [
     { id: 1, image_public_id: 'shared' },
     { id: 2, image_public_id: 'shared' },
     { id: 3, image_public_id: 'own' },
   ];
+  let letterImages = [
+    { letter_id: 1, public_id: 'shared' }, { letter_id: 1, public_id: 'shared-2' },
+    { letter_id: 2, public_id: 'shared' }, { letter_id: 2, public_id: 'shared-2' },
+    { letter_id: 3, public_id: 'own' },
+  ];
   pool.execute = async (sql, params) => {
     if (sql.startsWith('SELECT image_public_id FROM letters WHERE id = ?')) {
       return [letters.filter((row) => row.id === params[0])];
     }
+    if (sql.startsWith('SELECT image_public_id AS public_id FROM letters WHERE id IN')) {
+      return [letters.filter((row) => params.includes(row.id)).map((row) => ({ public_id: row.image_public_id }))];
+    }
+    if (sql.startsWith('SELECT public_id FROM letter_images WHERE letter_id IN')) {
+      return [letterImages.filter((row) => params.includes(row.letter_id))];
+    }
     if (sql.startsWith('DELETE FROM letters WHERE id = ?')) {
       const before = letters.length;
       letters = letters.filter((row) => row.id !== params[0]);
+      letterImages = letterImages.filter((row) => row.letter_id !== params[0]);
       return [{ affectedRows: before - letters.length }];
     }
-    if (sql.startsWith('SELECT DISTINCT image_public_id')) {
-      return [[...new Set(letters.map((row) => row.image_public_id).filter((id) => params.includes(id)))]
-        .map((id) => ({ image_public_id: id }))];
+    if (sql.startsWith('SELECT DISTINCT image_public_id AS public_id FROM letters')) {
+      return [letters.filter((row) => params.includes(row.image_public_id)).map((row) => ({ public_id: row.image_public_id }))];
     }
+    if (sql.startsWith('SELECT DISTINCT public_id AS public_id FROM letter_images')) {
+      return [letterImages.filter((row) => params.includes(row.public_id))];
+    }
+    if (sql.startsWith('SELECT DISTINCT')) return [[]];
     return assert.fail(`unexpected SQL: ${sql}`);
   };
   cloudinary.uploader.destroy = async (publicId) => { destroyed.push(publicId); };
@@ -934,9 +980,9 @@ test('module 4: deleting one copy of a shared admin photo keeps it for the other
     await letterService.deleteLetter(1);
     assert.deepEqual(destroyed, [], 'thư 2 vẫn dùng ảnh — chưa được xoá');
     await letterService.deleteLetter(2);
-    assert.deepEqual(destroyed, ['shared'], 'thư cuối cùng dùng ảnh đã xoá — giờ mới dọn');
+    assert.deepEqual(destroyed, ['shared', 'shared-2'], 'thư cuối cùng dùng ảnh đã xoá — giờ mới dọn');
     await letterService.deleteLetter(3);
-    assert.deepEqual(destroyed, ['shared', 'own']);
+    assert.deepEqual(destroyed, ['shared', 'shared-2', 'own']);
   } finally {
     pool.execute = original;
     cloudinary.uploader.destroy = originalDestroy;
@@ -958,6 +1004,9 @@ test('module 4: deleting a student keeps a shared admin photo another letter sti
           { public_id: 'own', resource_type: 'image', from_letter: 1 },
         ]];
       }
+      // Ảnh thứ hai của thư, và ảnh lời chúc riêng (trùng với ảnh đã có → dọn một lần)
+      if (sql.includes('FROM letter_images')) return [[{ public_id: 'own-2' }]];
+      if (sql.includes('FROM wish_images')) return [[{ public_id: 'own' }]];
       if (sql.startsWith('DELETE FROM students')) return [{ affectedRows: 1 }];
       return [[]];
     },
@@ -967,14 +1016,15 @@ test('module 4: deleting a student keeps a shared admin photo another letter sti
   });
   // Sau khi xoá học sinh, 'shared' vẫn nằm trong thư của một bạn khác
   pool.execute = async (sql) => {
-    assert.match(sql, /SELECT DISTINCT image_public_id/);
-    return [[{ image_public_id: 'shared' }]];
+    assert.match(sql, /SELECT DISTINCT/);
+    if (sql.includes('FROM letters ')) return [[{ public_id: 'shared' }]];
+    return [[]];
   };
   cloudinary.uploader.destroy = async (publicId) => { destroyed.push(publicId); };
   try {
     const result = await studentService.deleteStudent(7);
-    assert.deepEqual(destroyed.sort(), ['gift/photo-1', 'own']);
-    assert.equal(result.assetsDeleted, 2);
+    assert.deepEqual(destroyed.sort(), ['gift/photo-1', 'own', 'own-2']);
+    assert.equal(result.assetsDeleted, 3);
   } finally {
     pool.getConnection = originalGetConnection;
     pool.execute = originalExecute;
@@ -1032,7 +1082,7 @@ test('module 4: bulk letter actions validate ids and report affected rows', asyn
   const calls = [];
   pool.execute = async (sql, params) => {
     calls.push({ sql, params });
-    if (sql.includes('SELECT image_public_id')) return [[]];
+    if (sql.startsWith('SELECT')) return [[]];
     return [{ affectedRows: params.length - (params[0] === 'approved' ? 1 : 0) }];
   };
   try {
@@ -1041,7 +1091,9 @@ test('module 4: bulk letter actions validate ids and report affected rows', asyn
     assert.deepEqual(calls[0].params, ['approved', 1, 2, 3]);
     // bulkDelete: SELECT ảnh trước rồi mới DELETE
     assert.match(calls[1].sql, /SELECT image_public_id/);
-    assert.deepEqual(calls[2].params, [2, 3]);
+    assert.match(calls[2].sql, /FROM letter_images/);
+    assert.match(calls[3].sql, /^DELETE FROM letters/);
+    assert.deepEqual(calls[3].params, [2, 3]);
   } finally {
     pool.execute = original;
   }
@@ -1226,14 +1278,23 @@ test('gift lock: locked blocks viewing with 423 but letter submission still work
     if (sql.includes('FROM students') && sql.includes('access_code')) {
       return [[{ id: 3, full_name: 'Nguyễn A', is_active: 1 }]];
     }
-    if (sql.startsWith('INSERT INTO letters')) return [{ insertId: 50 }];
     if (sql.includes('revision = revision + 1')) return [{ affectedRows: 1 }];
     return [[]];
   };
+  // Gửi lời chúc ghi trong một transaction (thư + ảnh kèm)
+  const originalGetConnection = pool.getConnection;
+  pool.getConnection = async () => ({
+    beginTransaction: async () => {},
+    execute: async () => [{ insertId: 50 }],
+    commit: async () => {},
+    rollback: async () => {},
+    release: () => {},
+  });
   const server = app.listen(0);
   t.after(() => {
     server.close();
     pool.execute = original;
+    pool.getConnection = originalGetConnection;
   });
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -1416,34 +1477,97 @@ test('friend letters: a letter to "Phượng" never lands in the profile of "Ph�
   }
 });
 
-test('ảnh kèm lời chúc riêng: gắn, đổi thì dọn ảnh cũ trên Cloudinary, bỏ thì xoá cả hai cột', async () => {
-  const original = pool.execute;
+test('ảnh kèm lời chúc riêng: thêm tối đa 4 ảnh, cột cũ luôn là ảnh đầu, bỏ ảnh thì dọn trên Cloudinary', async () => {
+  const originalGetConnection = pool.getConnection;
+  const originalExecute = pool.execute;
   const originalDestroy = cloudinary.uploader.destroy;
-  const updates = [];
   const destroyed = [];
-  let stored = 'gift_20_10/old';
-  pool.execute = async (sql, params) => {
-    if (sql.startsWith('SELECT greeting_image_public_id')) return [[{ public_id: stored }]];
+  let rows = [];
+  let nextId = 1;
+  let mirror = { url: null, publicId: null };
+  const execute = async (sql, params) => {
+    if (sql.startsWith('SELECT id FROM students WHERE id = ? FOR UPDATE')) return [params[0] === 10 ? [{ id: 10 }] : []];
+    if (sql.startsWith('SELECT COUNT(*) AS total')) {
+      const mine = rows.filter((row) => row.kind === params[1]);
+      return [[{ total: mine.length, last: mine.length ? Math.max(...mine.map((row) => row.position)) : null }]];
+    }
+    // Ảnh chỉ nằm ở cột cũ (gắn bằng bản chưa cập nhật) được đưa vào bảng trước
+    if (sql.includes('NOT EXISTS (SELECT 1 FROM wish_images')) {
+      if (mirror.url && !rows.some((row) => row.kind === params[0])) {
+        rows.push({ id: nextId++, kind: params[0], image_url: mirror.url, public_id: mirror.publicId, position: 0 });
+      }
+      return [{ affectedRows: 0 }];
+    }
+    if (sql.startsWith('INSERT INTO wish_images')) {
+      for (let i = 0; i < params.length; i += 5) {
+        rows.push({ id: nextId++, kind: params[i + 1], image_url: params[i + 2], public_id: params[i + 3], position: params[i + 4] });
+      }
+      return [{ affectedRows: params.length / 5 }];
+    }
+    if (sql.startsWith('SELECT image_url, public_id FROM wish_images')) {
+      return [rows.filter((row) => row.kind === params[1]).sort((a, b) => a.position - b.position).slice(0, 1)];
+    }
     if (sql.startsWith('UPDATE students SET greeting_image_url')) {
-      updates.push(params);
-      [, stored] = params;
+      mirror = { url: params[0], publicId: params[1] };
       return [{ affectedRows: 1 }];
     }
-    if (sql.includes('FROM students WHERE id = ?')) return [[{ id: 10, full_name: 'Thủy' }]];
+    if (sql.startsWith('SELECT id, public_id FROM wish_images WHERE id = ?')) {
+      return [rows.filter((row) => row.id === params[0] && row.kind === params[2])];
+    }
+    if (sql.startsWith('SELECT id, public_id FROM wish_images')) return [rows.filter((row) => row.kind === params[1])];
+    if (sql.startsWith('SELECT greeting_image_public_id AS public_id')) return [[{ public_id: mirror.publicId }]];
+    if (sql.startsWith('DELETE FROM wish_images')) {
+      rows = rows.filter((row) => !params.includes(row.id));
+      return [{ affectedRows: 1 }];
+    }
+    if (sql.startsWith('SELECT DISTINCT')) return [[]];
+    if (sql.includes('FROM wish_images')) {
+      return [rows.map((row) => ({ ...row, student_id: 10 })).sort((a, b) => a.position - b.position)];
+    }
+    if (sql.includes('FROM students WHERE id = ?')) return [[{ id: 10, full_name: 'Thủy', greeting_image_url: mirror.url }]];
     return [[]];
   };
+  pool.getConnection = async () => ({
+    beginTransaction: async () => {}, execute, commit: async () => {}, rollback: async () => {}, release: () => {},
+  });
+  pool.execute = execute;
   cloudinary.uploader.destroy = async (publicId) => { destroyed.push(publicId); };
+  const photo = (n) => ({ url: `https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/${n}.jpg`, publicId: `gift_20_10/${n}` });
   try {
-    await studentService.setWishImage(10, 'greeting', { url: 'https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/new.jpg', publicId: 'gift_20_10/new' });
-    assert.deepEqual(updates[0], ['https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/new.jpg', 'gift_20_10/new', 10]);
-    assert.deepEqual(destroyed, ['gift_20_10/old']);
-    await studentService.setWishImage(10, 'greeting', null);
-    assert.deepEqual(updates[1], [null, null, 10]);
-    assert.deepEqual(destroyed, ['gift_20_10/old', 'gift_20_10/new']);
+    let student = await studentService.addWishImages(10, 'greeting', [photo(1), photo(2), photo(3)]);
+    assert.deepEqual(student.greeting_images.map((image) => image.url), [photo(1).url, photo(2).url, photo(3).url]);
+    assert.deepEqual(mirror, photo(1));
+    // Đã có 3 ảnh: thêm 2 nữa là quá 4 → từ chối, không ghi gì
+    await assert.rejects(() => studentService.addWishImages(10, 'greeting', [photo(4), photo(5)]), { statusCode: 400, message: /chỉ thêm được 1 ảnh nữa/ });
+    student = await studentService.addWishImages(10, 'greeting', [photo(4)]);
+    assert.equal(student.greeting_images.length, 4);
+    await assert.rejects(() => studentService.addWishImages(10, 'greeting', [photo(5)]), { statusCode: 400, message: /đã đủ 4 ảnh/ });
+
+    // Bỏ ảnh đầu: cột cũ chuyển sang ảnh kế tiếp, ảnh bị bỏ được dọn
+    student = await studentService.removeWishImages(10, 'greeting', 1);
+    assert.deepEqual(student.greeting_images.map((image) => image.id), [2, 3, 4]);
+    assert.deepEqual(mirror, photo(2));
+    assert.deepEqual(destroyed, ['gift_20_10/1']);
+    await assert.rejects(() => studentService.removeWishImages(10, 'greeting', 99), { statusCode: 404 });
+
+    // Bỏ hết: cột cũ về NULL, mọi ảnh còn lại được dọn
+    student = await studentService.removeWishImages(10, 'greeting');
+    assert.deepEqual(student.greeting_images, []);
+    assert.deepEqual(mirror, { url: null, publicId: null });
+    assert.deepEqual(destroyed.sort(), ['gift_20_10/1', 'gift_20_10/2', 'gift_20_10/3', 'gift_20_10/4']);
+
     // Tên cột chỉ lấy từ danh sách cố định, không bao giờ từ dữ liệu gửi lên
-    await assert.rejects(() => studentService.setWishImage(10, 'avatar_url = NULL, x', null), { statusCode: 400 });
+    await assert.rejects(() => studentService.addWishImages(10, 'avatar_url = NULL, x', [photo(6)]), { statusCode: 400 });
+    await assert.rejects(() => studentService.addWishImages(11, 'greeting', [photo(6)]), { statusCode: 404 });
+
+    // Ảnh gắn bằng bản cũ (chỉ có ở cột cũ) được giữ làm ảnh đầu khi thêm ảnh mới
+    mirror = photo(9);
+    student = await studentService.addWishImages(10, 'greeting', [photo(7)]);
+    assert.deepEqual(student.greeting_images.map((image) => image.url), [photo(9).url, photo(7).url]);
+    assert.deepEqual(mirror, photo(9));
   } finally {
-    pool.execute = original;
+    pool.getConnection = originalGetConnection;
+    pool.execute = originalExecute;
     cloudinary.uploader.destroy = originalDestroy;
   }
 });
@@ -1455,8 +1579,9 @@ test('tải ảnh lời chúc riêng cần đăng nhập admin', async (t) => {
   const base = `http://127.0.0.1:${server.address().port}`;
   const form = new FormData();
   form.append('image', new Blob([Buffer.from('x')], { type: 'image/jpeg' }), 'a.jpg');
-  assert.equal((await fetch(`${base}/api/students/10/wish-images/greeting`, { method: 'PUT', body: form })).status, 401);
+  assert.equal((await fetch(`${base}/api/students/10/wish-images/greeting`, { method: 'POST', body: form })).status, 401);
   assert.equal((await fetch(`${base}/api/students/10/wish-images/greeting`, { method: 'DELETE' })).status, 401);
+  assert.equal((await fetch(`${base}/api/students/10/wish-images/greeting/3`, { method: 'DELETE' })).status, 401);
 });
 
 test('trang quà vẫn mở được trên máy chưa chạy migration 023 (chưa có cột ảnh lời chúc)', async () => {

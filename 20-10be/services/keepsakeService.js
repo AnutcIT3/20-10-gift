@@ -264,6 +264,9 @@ h2 small{font:italic 15px var(--body);color:var(--muted)}
 .letter .polaroid{width:min(360px,100%);margin:10px 0 16px;--rot:-2deg}
 .note .polaroid{width:min(320px,100%);margin:16px 0 0;--rot:-2deg}
 .cover .intro-photo{width:min(300px,100%);margin:16px 0 0;--rot:2deg}
+.pics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 14px;max-width:460px;margin:12px 0 16px}
+.pics .polaroid,.pics .intro-photo{width:auto;margin:0;padding:8px 8px 10px}
+.pics .polaroid:nth-child(even){--rot:1.5deg}
 .date{display:block;font:14px var(--hand);color:var(--muted)}
 .empty{margin:18px 0 0;font:20px var(--write);color:var(--muted)}
 .replies{display:grid;gap:18px;margin-top:22px}
@@ -315,7 +318,24 @@ function renderPolaroid({ src, alt, caption, className = '' }) {
     + `${caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : ''}</figure>`;
 }
 
-function renderLetter(letter, src) {
+// Tối đa 4 ảnh kèm một lời chúc: một ảnh giữ khổ lớn như cũ, nhiều ảnh xếp lưới
+function renderPictures(srcs, alt, className = '') {
+  const items = srcs.filter(Boolean);
+  if (items.length <= 1) return renderPolaroid({ src: items[0], alt, className });
+  return `<div class="pics">${items.map((src, index) => renderPolaroid({ src, alt: `${alt} ${index + 1}`, className })).join('')}</div>`;
+}
+
+// Ảnh của một thư / một lời chúc riêng: mảng images mới, không có thì cột cũ
+function pictureUrls(images, fallbackUrl) {
+  if (Array.isArray(images) && images.length) return images.map((image) => image.url).filter(Boolean);
+  return fallbackUrl ? [fallbackUrl] : [];
+}
+
+function wishUrls(student, kind) {
+  return pictureUrls(student[`${kind}_images`], student[`${kind}_image_url`]);
+}
+
+function renderLetter(letter, srcs) {
   const anonymous = Boolean(letter.is_anonymous) || !letter.sender_name;
   return `<article class="letter">`
     + (anonymous
@@ -323,7 +343,7 @@ function renderLetter(letter, src) {
       : `<span class="stamp"><span>20<br>10</span></span><p class="from">${escapeHtml(letter.sender_name)}</p>`)
     + (letter.title ? `<p class="subject">${escapeHtml(letter.title)}</p>` : '')
     + `<p class="body">${escapeHtml(letter.content)}</p>`
-    + renderPolaroid({ src, alt: 'Ảnh kèm lời chúc' })
+    + renderPictures(srcs, 'Ảnh kèm lời chúc')
     + `<span class="date">${escapeHtml(formatStamp(letter.created_at))}</span>`
     + '</article>';
 }
@@ -343,7 +363,7 @@ function renderLetters(letters, srcOf, isFriend = false) {
     .filter((group) => group.items.length);
   const titled = groups.length > 1 || groups[0]?.kind === 'classmate';
   return groups.map((group) => (titled ? `<h3 class="group">${escapeHtml(group.title)}</h3>` : '')
-    + `<div class="letters">${group.items.map((letter) => renderLetter(letter, srcOf(letter.image_url, 'letter'))).join('')}</div>`)
+    + `<div class="letters">${group.items.map((letter) => renderLetter(letter, pictureUrls(letter.images, letter.image_url).map((url) => srcOf(url, 'letter')))).join('')}</div>`)
     .join('');
 }
 
@@ -392,18 +412,19 @@ function renderKeepsake({
     `<section class="cover"><div><span class="postmark">${postmark}<br><b>20.10</b><br>${year}</span>`
       + `<h1>Gửi <span>${escapeHtml(displayName)}</span>,</h1>`
       + (student.intro_message ? `<p class="intro">${escapeHtml(student.intro_message)}</p>` : '')
-      + renderPolaroid({ src: srcOf(student.intro_image_url, 'letter'), alt: 'Ảnh kèm lời chúc riêng', className: 'intro-photo' })
+      + renderPictures(wishUrls(student, 'intro').map((url) => srcOf(url, 'letter')), 'Ảnh kèm lời chúc riêng', 'intro-photo')
       + `</div>${hero}</section>`,
   ];
   // Như trang quà: ô 💌 hiện khi có chữ HOẶC có ảnh
-  if (student.admin_wish || student.admin_wish_image_url) {
+  const adminWishSrcs = wishUrls(student, 'admin_wish').map((url) => srcOf(url, 'letter'));
+  if (student.admin_wish || adminWishSrcs.length) {
     sections.push(`<section class="note note--admin"><span class="label">💌 LỜI CHÚC TỪ ADMIN</span>`
       + (student.admin_wish ? `<p>${escapeHtml(student.admin_wish)}</p>` : '')
-      + `${renderPolaroid({ src: srcOf(student.admin_wish_image_url, 'letter'), alt: 'Ảnh kèm lời chúc từ admin' })}</section>`);
+      + `${renderPictures(adminWishSrcs, 'Ảnh kèm lời chúc từ admin')}</section>`);
   }
   if (greeting) {
     sections.push(`<section class="note"><span class="label">✨ MỘT LỜI CHÚC DÀNH RIÊNG CHO BẠN</span><p>${escapeHtml(greeting)}</p>`
-      + `${renderPolaroid({ src: srcOf(student.greeting_image_url, 'letter'), alt: 'Ảnh kèm lời chúc' })}</section>`);
+      + `${renderPictures(wishUrls(student, 'greeting').map((url) => srcOf(url, 'letter')), 'Ảnh kèm lời chúc')}</section>`);
   }
   if (photos.length) {
     sections.push(`<section><h2>Kỷ niệm <small>${photos.length} tấm ảnh</small></h2><div class="photos">${photos.join('')}</div></section>`);
@@ -455,9 +476,10 @@ async function buildKeepsake({
   const wanted = [
     cloudinaryVariant(student.avatar_url, TRANSFORMS.avatar),
     ...gallery.map((image) => cloudinaryVariant(image.image_url, TRANSFORMS.photo)),
-    ...letters.map((letter) => cloudinaryVariant(letter.image_url, TRANSFORMS.letter)),
-    // Ảnh kèm ba lời chúc riêng (lời chúc riêng, 💌 admin, ✨ tự động)
-    ...[student.intro_image_url, student.admin_wish_image_url, student.greeting_image_url]
+    ...letters.flatMap((letter) => pictureUrls(letter.images, letter.image_url))
+      .map((url) => cloudinaryVariant(url, TRANSFORMS.letter)),
+    // Ảnh kèm ba lời chúc riêng (lời chúc riêng, 💌 admin, ✨ tự động), tối đa 4 mỗi lời
+    ...['intro', 'admin_wish', 'greeting'].flatMap((kind) => wishUrls(student, kind))
       .map((url) => cloudinaryVariant(url, TRANSFORMS.letter)),
   ].filter(Boolean);
   const embedded = await embedImages(wanted, { fetchImpl, now: now.getTime(), logger });

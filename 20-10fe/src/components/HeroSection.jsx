@@ -1,7 +1,9 @@
 import Polaroid from './paper/Polaroid'
 import Postmark from './paper/Postmark'
 import Stamp from './paper/Stamp'
+import PhotoSet from './PhotoSet'
 import { CLASS_NAME, GUEST_POSTMARK } from '../lib/event'
+import { wishImageUrls } from '../lib/images'
 
 function HeroSection({ student }) {
   const displayName = student.nickname || student.full_name
@@ -16,9 +18,7 @@ function HeroSection({ student }) {
         <h1 className="hero__title">Gửi <span>{displayName}</span>,</h1>
         {student.intro_message && <p className="hero__intro">{student.intro_message}</p>}
         {/* Ảnh kèm lời chúc riêng (admin chọn ở Lời chúc → Riêng từng bạn) */}
-        {student.intro_image_url && (
-          <Polaroid src={student.intro_image_url} alt="Ảnh kèm lời chúc riêng" small rotate={2} tape="none" className="hero__intro-photo" />
-        )}
+        <PhotoSet urls={wishImageUrls(student, 'intro')} alt="Ảnh kèm lời chúc riêng" rotate={2} className="hero__intro-photo" />
       </div>
       <div className="hero__photo">
         <Polaroid

@@ -3,7 +3,8 @@ const pool = require('../config/db');
 const { cloudinary } = require('../config/cloudinary');
 const normalizeName = require('../utils/normalizeName');
 const { accentKey } = require('../utils/nameKey');
-const letterService = require('./letterService');
+const letterImageService = require('./letterImageService');
+const wishImageService = require('./wishImageService');
 
 const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'admin_wish', 'greeting_custom', 'class_name', 'member_type'];
 // Admin chỉ đổi qua lại giữa thành viên lớp và tài khoản thử; hồ sơ bạn ngoài
@@ -190,7 +191,7 @@ async function listStudents() {
     if (error?.code !== 'ER_NO_SUCH_TABLE') throw error;
     [rows] = await pool.execute(listStudentsSql(false));
   }
-  return rows.map(presentStudent);
+  return wishImageService.withWishImages(rows.map(presentStudent));
 }
 
 async function getStudent(id) {
@@ -201,7 +202,9 @@ async function getStudent(id) {
      FROM students WHERE id = ? LIMIT 1`,
     [id],
   );
-  return rows[0] ? presentStudent(rows[0]) : null;
+  if (!rows[0]) return null;
+  const [student] = await wishImageService.withWishImages([presentStudent(rows[0])]);
+  return student;
 }
 
 // Khách trùng tên với một khách đã có là mở nhầm trang của nhau (lời chúc gửi
@@ -316,14 +319,28 @@ async function deleteStudent(id) {
        UNION ALL
        SELECT image_public_id AS public_id, 'image' AS resource_type, 1 AS from_letter FROM letters WHERE student_id = ? AND image_public_id IS NOT NULL
        UNION ALL
-       SELECT intro_image_public_id, 'image', 0 FROM students WHERE id = ? AND intro_image_public_id IS NOT NULL
+       SELECT intro_image_public_id, 'image', 1 FROM students WHERE id = ? AND intro_image_public_id IS NOT NULL
        UNION ALL
-       SELECT admin_wish_image_public_id, 'image', 0 FROM students WHERE id = ? AND admin_wish_image_public_id IS NOT NULL
+       SELECT admin_wish_image_public_id, 'image', 1 FROM students WHERE id = ? AND admin_wish_image_public_id IS NOT NULL
        UNION ALL
-       SELECT greeting_image_public_id, 'image', 0 FROM students WHERE id = ? AND greeting_image_public_id IS NOT NULL`,
+       SELECT greeting_image_public_id, 'image', 1 FROM students WHERE id = ? AND greeting_image_public_id IS NOT NULL`,
       [id, id, id, id, id, id, id],
     );
     assets = assetRows;
+    // Ảnh nhiều-ảnh (migration 025): đọc TRƯỚC khi xoá vì dòng đi theo
+    // ON DELETE CASCADE. Máy chưa migrate thì không có gì thêm
+    for (const sql of [
+      `SELECT li.public_id FROM letter_images li JOIN letters l ON l.id = li.letter_id
+       WHERE l.student_id = ? AND li.public_id IS NOT NULL`,
+      'SELECT public_id FROM wish_images WHERE student_id = ? AND public_id IS NOT NULL',
+    ]) {
+      try {
+        const [rows] = await connection.execute(sql, [id]);
+        assets.push(...rows.map((row) => ({ public_id: row.public_id, resource_type: 'image', from_letter: 1 })));
+      } catch (error) {
+        if (error?.code !== 'ER_NO_SUCH_TABLE') throw error;
+      }
+    }
 
     const [result] = await connection.execute('DELETE FROM students WHERE id = ?', [id]);
     if (!result.affectedRows) throw httpError('Không tìm thấy học sinh', 404);
@@ -335,13 +352,21 @@ async function deleteStudent(id) {
     connection.release();
   }
 
-  // Ảnh trong lời chúc admin gửi nhiều người dùng chung: thư của bạn khác
-  // còn trỏ tới thì giữ ảnh lại. Không kiểm tra được thì cũng giữ lại.
-  const letterImages = assets.filter((asset) => Number(asset.from_letter) === 1).map((asset) => asset.public_id);
-  if (letterImages.length) {
+  // Ảnh trong lời chúc admin gửi nhiều người dùng chung, và cột ảnh cũ là bản
+  // sao của ảnh đầu: chỗ khác còn trỏ tới thì giữ ảnh lại. Không kiểm tra được
+  // thì cũng giữ lại. Mỗi ảnh chỉ dọn một lần.
+  const seen = new Set();
+  assets = assets.filter((asset) => {
+    const key = `${asset.resource_type || 'image'}:${asset.public_id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const sharedImages = assets.filter((asset) => Number(asset.from_letter) === 1).map((asset) => asset.public_id);
+  if (sharedImages.length) {
     let orphans = [];
     try {
-      orphans = await letterService.unreferencedLetterImages(letterImages);
+      orphans = await letterImageService.unreferencedImages(sharedImages);
     } catch (error) {
       console.error('Letter image reference check failed:', error.message);
     }
@@ -441,45 +466,20 @@ async function updateSeat(id, data) {
   return { action, student, affectedStudent };
 }
 
-// Ảnh kèm ba lời chúc riêng của một bạn (migration 023). Tên cột cố định theo
-// loại, không bao giờ lấy từ dữ liệu người gửi
-const WISH_IMAGE_COLUMNS = Object.freeze({
-  intro: ['intro_image_url', 'intro_image_public_id'],
-  admin_wish: ['admin_wish_image_url', 'admin_wish_image_public_id'],
-  greeting: ['greeting_image_url', 'greeting_image_public_id'],
-});
-
-function wishImageColumns(kind) {
-  const columns = WISH_IMAGE_COLUMNS[kind];
-  if (!columns) throw httpError('Loại lời chúc không hợp lệ (intro, admin_wish hoặc greeting)', 400);
-  return columns;
+// Ảnh kèm ba lời chúc riêng (tối đa 4 ảnh mỗi loại) — xem wishImageService.
+// Trả về hồ sơ mới để admin cập nhật ngay
+async function addWishImages(id, kind, images) {
+  await wishImageService.addWishImages(id, kind, images);
+  return getStudent(id);
 }
 
-// Ghi DB trước, dọn ảnh cũ trên Cloudinary sau (best-effort): lỗi dọn chỉ để
-// lại file mồ côi vô hại
-async function destroyQuietly(publicId) {
-  if (!publicId) return;
-  try {
-    await cloudinary.uploader.destroy(publicId);
-  } catch (error) {
-    console.error(`Cloudinary cleanup failed for ${publicId}:`, error.message);
-  }
-}
-
-// image: { url, publicId } vừa upload; null = bỏ ảnh. Ảnh cũ (nếu có) bị dọn.
-async function setWishImage(id, kind, image) {
-  const [urlColumn, publicIdColumn] = wishImageColumns(kind);
-  const [rows] = await pool.execute(`SELECT ${publicIdColumn} AS public_id FROM students WHERE id = ? LIMIT 1`, [id]);
-  if (!rows.length) throw httpError('Không tìm thấy học sinh', 404);
-  await pool.execute(
-    `UPDATE students SET ${urlColumn} = ?, ${publicIdColumn} = ? WHERE id = ?`,
-    [image?.url || null, image?.publicId || null, id],
-  );
-  if (rows[0].public_id && rows[0].public_id !== image?.publicId) await destroyQuietly(rows[0].public_id);
+async function removeWishImages(id, kind, imageId = null) {
+  await wishImageService.removeWishImages(id, kind, imageId);
   return getStudent(id);
 }
 
 module.exports = {
   listStudents, getStudent, createStudent, updateStudent, deactivateStudent, activateStudent,
-  deleteStudent, updateAccessCode, updateSeat, validateAvatarUrl, setWishImage, WISH_IMAGE_COLUMNS,
+  deleteStudent, updateAccessCode, updateSeat, validateAvatarUrl, addWishImages, removeWishImages,
+  WISH_IMAGE_COLUMNS: wishImageService.WISH_IMAGE_COLUMNS,
 };

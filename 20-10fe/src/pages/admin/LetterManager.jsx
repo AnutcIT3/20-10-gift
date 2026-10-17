@@ -3,8 +3,12 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { adminApi } from '../../api/adminApi'
 import useDialogA11y from '../../hooks/useDialogA11y'
 import Polaroid from '../../components/paper/Polaroid'
+import PhotoSet from '../../components/PhotoSet'
+import PickedImages from '../../components/PickedImages'
+import useImagePicks, { MAX_WISH_IMAGES, WISH_IMAGE_ACCEPT } from '../../hooks/useImagePicks'
 import PersonalWishes from './PersonalWishes'
 import { CLASS_NAME, formatStamp } from '../../lib/event'
+import { letterImageUrls } from '../../lib/images'
 
 const STATUSES = [
   { value: 'pending', label: 'Chờ duyệt' },
@@ -108,8 +112,8 @@ function LetterManager() {
   const [selectedIds, setSelectedIds] = useState([])
   const [composeForm, setComposeForm] = useState(EMPTY_COMPOSE_FORM)
   const [composeOpen, setComposeOpen] = useState(false)
-  const [composeImage, setComposeImage] = useState(null)
-  const [composeImagePreview, setComposeImagePreview] = useState('')
+  // Ảnh kèm lời chúc: chọn một lúc nhiều ảnh, tối đa 4
+  const composeImages = useImagePicks()
   const composeFileRef = useRef(null)
   const [revealLimits] = useState(computeRevealLimits)
   const [loading, setLoading] = useState(true)
@@ -219,34 +223,19 @@ function LetterManager() {
   })
 
   // Cùng giới hạn với ảnh khách gửi kèm lời chúc (backend chặn 5 MB)
-  const clearComposeImage = () => {
-    setComposeImage(null)
-    setComposeImagePreview('')
+  const clearComposeImages = () => {
+    composeImages.clear()
     if (composeFileRef.current) composeFileRef.current.value = ''
   }
 
-  const chooseComposeImage = (file) => {
-    if (!file) return
-    if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
-      setError('Ảnh phải là JPG, PNG, GIF hoặc WebP.')
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Ảnh tối đa 5 MB.')
-      return
-    }
-    setError('')
-    setComposeImage(file)
-    setComposeImagePreview(URL.createObjectURL(file))
+  const chooseComposeImages = (fileList) => {
+    setError(composeImages.add(fileList))
+    // Cho chọn lại đúng ảnh vừa bỏ
+    if (composeFileRef.current) composeFileRef.current.value = ''
   }
 
-  // Đổi ảnh, bỏ ảnh hay rời trang đều trả lại bộ nhớ của ảnh xem trước cũ
-  useEffect(() => () => {
-    if (composeImagePreview) URL.revokeObjectURL(composeImagePreview)
-  }, [composeImagePreview])
-
   const closeCompose = () => {
-    clearComposeImage()
+    clearComposeImages()
     setComposeOpen(false)
   }
 
@@ -258,10 +247,11 @@ function LetterManager() {
     try {
       const payload = buildPayload(composeForm)
       if (!payload.student_ids.length) throw new Error('Chọn ít nhất một người nhận.')
-      await adminApi.createLetters(payload, composeImage)
+      const photoCount = composeImages.files.length
+      await adminApi.createLetters(payload, composeImages.files)
       setComposeForm(EMPTY_COMPOSE_FORM)
       closeCompose()
-      setMessage(`Đã gửi lời chúc${composeImage ? ' kèm ảnh' : ''} cho ${payload.student_ids.length} người nhận.`)
+      setMessage(`Đã gửi lời chúc${photoCount ? ` kèm ${photoCount} ảnh` : ''} cho ${payload.student_ids.length} người nhận.`)
       await load()
     } catch (err) {
       setError(err.message)
@@ -485,27 +475,33 @@ function LetterManager() {
           <label className="admin-field">Tiêu đề<input className="input-hand" maxLength={200} value={composeForm.title} onChange={(event) => setComposeForm({ ...composeForm, title: event.target.value })} /></label>
           <label className="admin-field admin-field--full">Nội dung<textarea className="input-hand" required maxLength={5000} rows={3} value={composeForm.content} onChange={(event) => setComposeForm({ ...composeForm, content: event.target.value })} /></label>
           <div className="admin-inline admin-field--full">
-            <button type="button" className="admin-btn admin-btn--sm" onClick={() => composeFileRef.current?.click()}>
-              📷 {composeImage ? 'Đổi ảnh' : 'Kèm ảnh (≤ 5 MB)'}
+            <button type="button" className="admin-btn admin-btn--sm" disabled={composeImages.full} onClick={() => composeFileRef.current?.click()}>
+              📷 {composeImages.picks.length
+                ? (composeImages.full ? `Đủ ${MAX_WISH_IMAGES} ảnh` : `Thêm ảnh (${composeImages.picks.length}/${MAX_WISH_IMAGES})`)
+                : `Kèm ảnh (tối đa ${MAX_WISH_IMAGES}, mỗi ảnh ≤ 5 MB)`}
             </button>
             <input
               ref={composeFileRef}
               type="file"
               hidden
-              accept="image/jpeg,image/png,image/gif,image/webp"
+              multiple
+              accept={WISH_IMAGE_ACCEPT}
               aria-label="Ảnh kèm lời chúc"
-              onChange={(event) => chooseComposeImage(event.target.files?.[0] || null)}
+              onChange={(event) => chooseComposeImages(event.target.files)}
             />
-            {composeImage && (
+            {composeImages.picks.length > 0 && (
               <>
-                <span>{composeImage.name}{composeForm.studentIds.length > 1 ? ` · dùng chung cho ${composeForm.studentIds.length} người nhận` : ''}</span>
-                <button type="button" className="admin-btn admin-btn--sm" onClick={clearComposeImage}>Bỏ ảnh</button>
+                <span>
+                  {composeImages.picks.length} ảnh
+                  {composeForm.studentIds.length > 1 ? ` · dùng chung cho ${composeForm.studentIds.length} người nhận` : ''}
+                </span>
+                <button type="button" className="admin-btn admin-btn--sm" onClick={clearComposeImages}>Bỏ hết ảnh</button>
               </>
             )}
           </div>
-          {composeImagePreview && (
+          {composeImages.picks.length > 0 && (
             <div className="admin-field--full">
-              <Polaroid src={composeImagePreview} alt="Ảnh sẽ gửi kèm" small rotate={-2} tape="none" />
+              <PickedImages picks={composeImages.picks} onRemove={composeImages.remove} buttonClassName="admin-btn admin-btn--sm" />
             </div>
           )}
           <div className="admin-form__actions">
@@ -533,6 +529,7 @@ function LetterManager() {
         <div className={`admin-letter-list${loading ? ' refreshing' : ''}`}>
           {data.items.map((letter) => {
             const anonymous = letter.is_anonymous || !letter.sender_name
+            const photos = letterImageUrls(letter)
             const tone = letter.status === 'approved' ? ' letter-row--approved' : letter.status === 'rejected' ? ' letter-row--rejected' : ''
             return (
               <article key={letter.id} className={`letter-row${tone}`}>
@@ -550,7 +547,7 @@ function LetterManager() {
                     </b>
                     <span className="letter-row__to">→ <b>{letter.student_name}</b></span>
                     {letter.reveal_at && <span className="chip chip--peach">⏰ hiện {formatReveal(letter.reveal_at)}</span>}
-                    {letter.image_url && <span className="chip chip--beige">📷 1 ảnh</span>}
+                    {photos.length > 0 && <span className="chip chip--beige">📷 {photos.length} ảnh</span>}
                     {letter.member_type === 'friend' && <span className="chip chip--moss">bạn ngoài lớp</span>}
                     {letter.member_type === 'test' && <span className="chip chip--moss">tài khoản thử</span>}
                     {letter.sender_kind === 'classmate' && <span className="chip chip--beige">bạn nam {CLASS_NAME}</span>}
@@ -561,9 +558,9 @@ function LetterManager() {
                   {letter.title && <p className="letter-row__title">{letter.title}</p>}
                   <p className="letter-row__content">{letter.content}</p>
                   <div className="letter-row__foot">
-                    {letter.image_url && (
-                      <Polaroid src={letter.image_url} alt="Ảnh kèm lời chúc" small rotate={-2} tape="none" lazy className="letter-row__photo" />
-                    )}
+                    {photos.map((url, index) => (
+                      <Polaroid key={`${index}-${url}`} src={url} alt={`Ảnh kèm lời chúc ${index + 1}`} small rotate={index % 2 ? 2 : -2} tape="none" lazy className="letter-row__photo" />
+                    ))}
                     <time className="letter-row__time" dateTime={letter.created_at}>Gửi {formatStamp(letter.created_at)}</time>
                     <ReactionSummary reactions={letter.reactions} />
                   </div>
@@ -646,9 +643,7 @@ function LetterManager() {
               {selectedLetter.confirmDelete ? 'Xóa lời chúc' : (selectedLetter.title || 'Nội dung lời chúc')}
             </h3>
             <p className="admin-letter-full">{selectedLetter.content}</p>
-            {selectedLetter.image_url && (
-              <Polaroid src={selectedLetter.image_url} alt="Ảnh kèm lời chúc" rotate={-1} tape="none" style={{ width: 'min(320px, 100%)', margin: '10px 0' }} />
-            )}
+            <PhotoSet urls={letterImageUrls(selectedLetter)} alt="Ảnh kèm lời chúc" rotate={-1} className="admin-letter-photos" />
             <p>
               Người nhận: <b>{selectedLetter.student_name}</b> · Người gửi: {selectedLetter.is_anonymous || !selectedLetter.sender_name ? 'Ẩn danh' : selectedLetter.sender_name}
               {' · '}Gửi {formatStamp(selectedLetter.created_at)}

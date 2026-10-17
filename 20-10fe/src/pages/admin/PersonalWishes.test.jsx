@@ -6,8 +6,9 @@ import PersonalWishes from './PersonalWishes'
 vi.mock('../../api/adminApi', () => ({
   adminApi: {
     updateStudent: vi.fn(),
-    setWishImage: vi.fn(),
-    clearWishImage: vi.fn(),
+    addWishImages: vi.fn(),
+    removeWishImage: vi.fn(),
+    clearWishImages: vi.fn(),
     previewGreeting: vi.fn(),
   },
 }))
@@ -19,6 +20,7 @@ const STUDENTS = [
   {
     id: 10, full_name: 'Thủy', nickname: 'Thủy Phin', member_type: 'class', is_active: true,
     intro_message: 'Thủy là cô gái nhí nhảnh', admin_wish: null, intro_image_url: IMAGE,
+    intro_images: [{ id: 5, url: IMAGE }, { id: 6, url: `${IMAGE}?2` }],
   },
   {
     id: 29, full_name: 'Trần Hoàng Quyên', nickname: 'quyeniuu', member_type: 'friend', is_active: true,
@@ -30,8 +32,9 @@ const STUDENTS = [
 beforeEach(() => {
   vi.clearAllMocks()
   adminApi.updateStudent.mockImplementation(async (id, data) => ({ id, ...data }))
-  adminApi.setWishImage.mockImplementation(async (id, kind) => ({ id, [`${kind}_image_url`]: IMAGE }))
-  adminApi.clearWishImage.mockImplementation(async (id, kind) => ({ id, [`${kind}_image_url`]: null }))
+  adminApi.addWishImages.mockImplementation(async (id, kind, files) => ({ id, [`${kind}_images`]: files.map((_, n) => ({ id: n + 1, url: IMAGE })) }))
+  adminApi.removeWishImage.mockImplementation(async (id, kind) => ({ id, [`${kind}_images`]: [] }))
+  adminApi.clearWishImages.mockImplementation(async (id, kind) => ({ id, [`${kind}_images`]: [] }))
   adminApi.previewGreeting.mockResolvedValue({ greeting: 'Gửi quyeniuu — người bạn thân của tụi tớ!' })
 })
 
@@ -43,7 +46,8 @@ test('mỗi bạn một thẻ với ba lời chúc riêng; thành viên lớp tr
   expect(names).toEqual(['Lời chúc riêng của Thủy', 'Lời chúc riêng của Trần Hoàng Quyên', 'Lời chúc riêng của Minh Thư'])
   const thuy = within(card('Thủy'))
   expect(thuy.getByLabelText('Lời chúc riêng của Thủy')).toHaveValue('Thủy là cô gái nhí nhảnh')
-  expect(thuy.getByRole('img', { name: 'Ảnh kèm lời chúc riêng' })).toBeTruthy()
+  expect(thuy.getAllByRole('img', { name: /kèm lời chúc riêng/ })).toHaveLength(2)
+  expect(thuy.getByRole('button', { name: /Thêm ảnh \(2\/4\)/ })).toBeEnabled()
   expect(thuy.getByText(/máy tự viết khi trang quà mở/)).toHaveTextContent('bạn trong lớp')
   // Khách có Face ID là bạn thân, khách thường giữ lời chúc lịch sự
   expect(within(card('Trần Hoàng Quyên')).getByText(/máy tự viết khi trang quà mở/)).toHaveTextContent('bạn thân')
@@ -61,13 +65,17 @@ test('sửa chữ 💌 rồi lưu; thêm ảnh và bỏ ảnh của từng loạ
   await waitFor(() => expect(adminApi.updateStudent).toHaveBeenCalledWith(10, { admin_wish: 'Chúc Thủy vui!' }))
   expect(onStudentSaved).toHaveBeenCalledWith({ id: 10, admin_wish: 'Chúc Thủy vui!' })
 
-  const photo = new File(['x'], 'hoa.jpg', { type: 'image/jpeg' })
-  fireEvent.change(thuy.getByLabelText('Ảnh kèm ✨ lời chúc tự động của Thủy'), { target: { files: [photo] } })
-  await waitFor(() => expect(adminApi.setWishImage).toHaveBeenCalledWith(10, 'greeting', photo))
+  // Chọn một lúc nhiều ảnh
+  const photos = ['hoa', 'la'].map((name) => new File(['x'], `${name}.jpg`, { type: 'image/jpeg' }))
+  fireEvent.change(thuy.getByLabelText('Ảnh kèm ✨ lời chúc tự động của Thủy'), { target: { files: photos } })
+  await waitFor(() => expect(adminApi.addWishImages).toHaveBeenCalledWith(10, 'greeting', photos))
 
+  // Bỏ riêng một ảnh, hay bỏ hết
   const intro = within(thuy.getByRole('region', { name: 'Lời chúc riêng — Thủy' }))
-  fireEvent.click(intro.getByRole('button', { name: 'Bỏ ảnh' }))
-  await waitFor(() => expect(adminApi.clearWishImage).toHaveBeenCalledWith(10, 'intro'))
+  fireEvent.click(intro.getByRole('button', { name: 'Bỏ ảnh 2' }))
+  await waitFor(() => expect(adminApi.removeWishImage).toHaveBeenCalledWith(10, 'intro', 6))
+  fireEvent.click(intro.getByRole('button', { name: 'Bỏ hết ảnh' }))
+  await waitFor(() => expect(adminApi.clearWishImages).toHaveBeenCalledWith(10, 'intro'))
 })
 
 test('ảnh sai định dạng bị chặn trước khi gửi; xem thử lời chúc tự động đúng kiểu của bạn đó', async () => {
@@ -77,7 +85,13 @@ test('ảnh sai định dạng bị chặn trước khi gửi; xem thử lời c
     target: { files: [new File(['x'], 'a.pdf', { type: 'application/pdf' })] },
   })
   expect(quyen.getByRole('alert')).toHaveTextContent('Ảnh phải là JPG, PNG, GIF hoặc WebP.')
-  expect(adminApi.setWishImage).not.toHaveBeenCalled()
+  // Đã có 2 ảnh: chọn thêm 3 là quá 4 → chặn, không tải gì
+  const thuy = within(card('Thủy'))
+  fireEvent.change(thuy.getByLabelText('Ảnh kèm lời chúc riêng của Thủy'), {
+    target: { files: ['a', 'b', 'c'].map((name) => new File(['x'], `${name}.jpg`, { type: 'image/jpeg' })) },
+  })
+  expect(thuy.getByRole('alert')).toHaveTextContent('chỉ thêm được 2 ảnh nữa')
+  expect(adminApi.addWishImages).not.toHaveBeenCalled()
 
   fireEvent.click(quyen.getByRole('button', { name: 'Xem thử' }))
   expect(await quyen.findByText('Gửi quyeniuu — người bạn thân của tụi tớ!')).toBeTruthy()

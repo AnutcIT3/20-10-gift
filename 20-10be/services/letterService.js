@@ -1,6 +1,6 @@
 const pool = require('../config/db');
 const reactionService = require('./reactionService');
-const { cloudinary } = require('../config/cloudinary');
+const letterImageService = require('./letterImageService');
 
 const STATUSES = ['pending', 'approved', 'rejected'];
 // Nhóm người gửi trên trang quà: 'classmate' là các bạn nam 12A1 admin nhập
@@ -198,12 +198,13 @@ async function listLetters(query) {
     params,
   );
 
-  // Enrich với reaction counts
+  // Enrich với reaction counts và đủ ảnh kèm (tối đa 4) của từng thư
   let enrichedItems = items;
   if (items.length) {
     const letterIds = items.map((item) => item.id);
     const counts = await reactionService.getReactionCounts(letterIds);
-    enrichedItems = items.map((item) => ({ ...item, reactions: counts[item.id] || {} }));
+    enrichedItems = (await letterImageService.withLetterImages(items))
+      .map((item) => ({ ...item, reactions: counts[item.id] || {} }));
   }
 
   return {
@@ -233,22 +234,25 @@ async function assertStudentsExist(connection, studentIds) {
   }
 }
 
-// Ảnh kèm (nếu có) được upload MỘT lần và gắn vào thư của mọi người nhận —
-// xem unreferencedLetterImages: xoá thư của một bạn không xoá ảnh của bạn khác
-async function createLetters(data, image = null) {
+// Ảnh kèm (tối đa 4) được upload MỘT lần và gắn vào thư của mọi người nhận —
+// xem letterImageService.unreferencedImages: xoá thư của một bạn không xoá ảnh
+// của bạn khác. Cột image_url/image_public_id = ảnh đầu tiên (cho code cũ)
+async function createLetters(data, images = []) {
   const clean = sanitizeLetterPayload(data, { requireStudentIds: true });
+  const [first] = images;
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
     await assertStudentsExist(connection, clean.studentIds);
 
     for (const studentId of clean.studentIds) {
-      await connection.execute(
+      const [result] = await connection.execute(
         `INSERT INTO letters (student_id, sender_name, sender_kind, title, content, is_anonymous, status, reveal_at, image_url, image_public_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [studentId, clean.senderName, clean.senderKind, clean.title, clean.content, clean.isAnonymous,
-          clean.status, clean.revealAt, image?.url || null, image?.publicId || null],
+          clean.status, clean.revealAt, first?.url || null, first?.publicId || null],
       );
+      await letterImageService.saveLetterImages(connection, result.insertId, images);
     }
 
     await connection.commit();
@@ -307,63 +311,29 @@ async function bulkUpdateStatus(ids, status) {
   return { updated: result.affectedRows };
 }
 
-// Lời chúc admin gửi nhiều người nhận dùng chung MỘT ảnh. Gọi SAU khi đã xoá
-// thư khỏi DB: chỉ trả về ảnh không còn lá thư nào trỏ tới — ảnh còn được
-// dùng thì giữ lại trên Cloudinary.
-async function unreferencedLetterImages(publicIds) {
-  const unique = [...new Set(publicIds.filter(Boolean))];
-  if (!unique.length) return [];
-  const [rows] = await pool.execute(
-    `SELECT DISTINCT image_public_id FROM letters WHERE image_public_id IN (${unique.map(() => '?').join(',')})`,
-    unique,
-  );
-  const stillUsed = new Set(rows.map((row) => row.image_public_id));
-  return unique.filter((publicId) => !stillUsed.has(publicId));
-}
-
-// Xóa DB trước, dọn ảnh Cloudinary sau (best-effort) — lỗi dọn chỉ để lại
-// file mồ côi vô hại, giống quy ước của galleryService.deleteImage
-async function cleanupLetterImages(publicIds) {
-  let orphans;
-  try {
-    orphans = await unreferencedLetterImages(publicIds);
-  } catch (error) {
-    // Không chắc ảnh còn được dùng hay không thì để lại: mồ côi vô hại hơn
-    // một lá thư mất ảnh
-    console.error('Letter image reference check failed:', error.message);
-    return;
-  }
-  const results = await Promise.allSettled(
-    orphans.map((publicId) => cloudinary.uploader.destroy(publicId)),
-  );
-  const failed = results.filter((result) => result.status === 'rejected').length;
-  if (failed) console.error(`Cloudinary cleanup failed for ${failed} letter image(s)`);
-}
-
 async function deleteLetter(id) {
   const [rows] = await pool.execute(
     'SELECT image_public_id FROM letters WHERE id = ? LIMIT 1',
     [id],
   );
   if (!rows.length) throw httpError('Không tìm thấy lời chúc', 404);
+  // Đọc mọi ảnh của thư TRƯỚC khi xoá: dòng ở letter_images đi theo thư
+  const publicIds = await letterImageService.letterPublicIds([id]);
   const [result] = await pool.execute('DELETE FROM letters WHERE id = ?', [id]);
   if (!result.affectedRows) throw httpError('Không tìm thấy lời chúc', 404);
-  await cleanupLetterImages([rows[0].image_public_id]);
+  await letterImageService.destroyUnreferenced(publicIds);
   return {};
 }
 
 async function bulkDelete(ids) {
   const cleanIds = parseIdList(ids);
   const placeholders = cleanIds.map(() => '?').join(',');
-  const [rows] = await pool.execute(
-    `SELECT image_public_id FROM letters WHERE id IN (${placeholders}) AND image_public_id IS NOT NULL`,
-    cleanIds,
-  );
+  const publicIds = await letterImageService.letterPublicIds(cleanIds);
   const [result] = await pool.execute(
     `DELETE FROM letters WHERE id IN (${placeholders})`,
     cleanIds,
   );
-  await cleanupLetterImages(rows.map((row) => row.image_public_id));
+  await letterImageService.destroyUnreferenced(publicIds);
   return { deleted: result.affectedRows };
 }
 
@@ -376,5 +346,4 @@ module.exports = {
   deleteLetter,
   bulkDelete,
   sanitizeLetterPayload,
-  unreferencedLetterImages,
 };

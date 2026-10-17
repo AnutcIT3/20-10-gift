@@ -468,19 +468,6 @@
   font: 14px var(--font-hand);
 }
 
-.wish-image-preview {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-top: 10px;
-  line-height: 1.4;
-}
-
-.wish-image-preview .polaroid {
-  width: 120px;
-  flex: none;
-}
-
 .wish-alert {
   margin-top: 10px;
   line-height: 1.5;

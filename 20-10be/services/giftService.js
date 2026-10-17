@@ -1,5 +1,7 @@
 const pool = require('../config/db');
 const { sanitizeLetterPayload } = require('./letterService');
+const letterImageService = require('./letterImageService');
+const wishImageService = require('./wishImageService');
 
 function httpError(message, statusCode) {
   return Object.assign(new Error(message), { statusCode });
@@ -41,8 +43,10 @@ async function getStudentByCode(accessCode) {
     if (error?.code !== 'ER_BAD_FIELD_ERROR') throw error;
     [rows] = await findStudentByCode(accessCode, false);
   }
-  const student = rows[0] || null;
-  if (student?.member_type === 'friend') {
+  if (!rows[0]) return null;
+  // intro_images / admin_wish_images / greeting_images: tối đa 4 ảnh mỗi lời chúc
+  const [student] = await wishImageService.withWishImages([rows[0]]);
+  if (student.member_type === 'friend') {
     return { ...student, close_friend: await isCloseFriend(student.id) };
   }
   return student;
@@ -67,14 +71,17 @@ async function getApprovedLetters(studentId) {
      ORDER BY created_at DESC`,
     [studentId],
   );
-  return rows.map((r) => ({
+  // images: [{ id, url }] — đủ ảnh kèm (tối đa 4); image_url giữ = ảnh đầu
+  const letters = await letterImageService.withLetterImages(rows);
+  return letters.map((r) => ({
     ...r,
     sender_name: r.sender_name || null,
     reveal_at: r.reveal_at ? r.reveal_at.toISOString() : null,
   }));
 }
 
-async function createLetter(studentId, data, image = null) {
+// images: [{ url, publicId }] tối đa 4, đúng thứ tự khách chọn
+async function createLetter(studentId, data, images = []) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw httpError('Dữ liệu không hợp lệ', 400);
   }
@@ -88,12 +95,24 @@ async function createLetter(studentId, data, image = null) {
     { defaultStatus: 'pending' },
   );
 
-  await pool.execute(
-    `INSERT INTO letters (student_id, sender_name, sender_kind, title, content, is_anonymous, status, reveal_at, image_url, image_public_id)
-     VALUES (?, ?, 'guest', ?, ?, ?, ?, ?, ?, ?)`,
-    [studentId, clean.senderName, clean.title, clean.content, clean.isAnonymous, clean.status, clean.revealAt,
-      image?.url || null, image?.publicId || null],
-  );
+  const [first] = images;
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [result] = await connection.execute(
+      `INSERT INTO letters (student_id, sender_name, sender_kind, title, content, is_anonymous, status, reveal_at, image_url, image_public_id)
+       VALUES (?, ?, 'guest', ?, ?, ?, ?, ?, ?, ?)`,
+      [studentId, clean.senderName, clean.title, clean.content, clean.isAnonymous, clean.status, clean.revealAt,
+        first?.url || null, first?.publicId || null],
+    );
+    await letterImageService.saveLetterImages(connection, result.insertId, images);
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 
   return { status: 'pending' };
 }

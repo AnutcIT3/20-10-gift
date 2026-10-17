@@ -28,6 +28,11 @@ const ORPHAN_CLEANUP = [
    WHERE s.id IS NULL`,
   `DELETE o FROM gift_opens o LEFT JOIN students s ON s.id = o.student_id
    WHERE s.id IS NULL`,
+  // Ảnh kèm (migration 025) của thư / học sinh không còn
+  `DELETE i FROM letter_images i LEFT JOIN letters l ON l.id = i.letter_id
+   WHERE l.id IS NULL`,
+  `DELETE i FROM wish_images i LEFT JOIN students s ON s.id = i.student_id
+   WHERE s.id IS NULL`,
 ];
 
 const TABLES = [
@@ -38,6 +43,8 @@ const TABLES = [
   'student_views',
   'letter_replies',
   'gift_opens',
+  'letter_images',
+  'wish_images',
 ];
 
 function getDefaultBackup() {
