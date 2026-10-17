@@ -2,7 +2,8 @@ const { Router } = require('express');
 const authMiddleware = require('../middleware/auth');
 const studentController = require('../controllers/studentController');
 const { asyncHandler } = require('../utils/response');
-const { uploadImage, uploadErrorHandler } = require('../config/cloudinary');
+const { uploadErrorHandler } = require('../config/cloudinary');
+const { letterImageUpload } = require('../utils/letterUpload');
 
 const router = Router();
 
@@ -17,7 +18,10 @@ router.patch('/:id/access-code', asyncHandler(studentController.updateAccessCode
 router.patch('/:id/seat', asyncHandler(studentController.updateSeat));
 // Ảnh kèm lời chúc riêng / 💌 admin / ✨ tự động; authMiddleware (router.use ở
 // trên) chạy trước multer nên request chưa đăng nhập không đẩy được ảnh lên
-router.put('/:id/wish-images/:kind', uploadImage.single('image'), uploadErrorHandler, asyncHandler(studentController.uploadWishImage));
+router.post('/:id/wish-images/:kind', letterImageUpload, uploadErrorHandler, asyncHandler(studentController.uploadWishImage));
+// Đường cũ (một ảnh) của bản admin chưa tải lại — giờ cũng là thêm ảnh
+router.put('/:id/wish-images/:kind', letterImageUpload, uploadErrorHandler, asyncHandler(studentController.uploadWishImage));
+router.delete('/:id/wish-images/:kind/:imageId', asyncHandler(studentController.removeWishImage));
 router.delete('/:id/wish-images/:kind', asyncHandler(studentController.removeWishImage));
 router.delete('/:id', asyncHandler(studentController.remove));
 

@@ -6,14 +6,15 @@ async function resolveStudent(name, scope = 'class') {
   return response.data.data
 }
 
-// Kèm ảnh → gửi multipart; không ảnh → JSON như cũ
-function toLetterPayload(data, imageFile) {
-  if (!imageFile) return data
+// Kèm ảnh (tối đa 4) → gửi multipart; không ảnh → JSON như cũ
+function toLetterPayload(data, imageFiles) {
+  const files = [imageFiles].flat().filter(Boolean)
+  if (!files.length) return data
   const form = new FormData()
   Object.entries(data).forEach(([key, value]) => {
     if (value !== null && value !== undefined) form.append(key, value)
   })
-  form.append('image', imageFile)
+  files.forEach((file) => form.append('images', file))
   return form
 }
 
@@ -37,17 +38,17 @@ async function getLetters(accessCode) {
   return response.data.data
 }
 
-async function createLetter(accessCode, data, imageFile = null) {
+async function createLetter(accessCode, data, imageFiles = []) {
   const response = await api.post(
     `/api/gifts/${encodeURIComponent(accessCode)}/letters`,
-    toLetterPayload(data, imageFile),
+    toLetterPayload(data, imageFiles),
   )
   return response.data.data
 }
 
 // Gửi lời chúc cho người NGOÀI lớp — backend tự tạo hồ sơ "bạn bè"
-async function createFriendLetter(data, imageFile = null) {
-  const response = await api.post('/api/friends/letters', toLetterPayload(data, imageFile))
+async function createFriendLetter(data, imageFiles = []) {
+  const response = await api.post('/api/friends/letters', toLetterPayload(data, imageFiles))
   return response.data.data
 }
 

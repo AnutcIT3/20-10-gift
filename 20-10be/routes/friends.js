@@ -3,7 +3,8 @@ const { asyncHandler } = require('../utils/response');
 const friendController = require('../controllers/friendController');
 const honeypot = require('../middleware/honeypot');
 const { friendLetterLimiter } = require('../middleware/rateLimit');
-const { uploadImage, uploadErrorHandler } = require('../config/cloudinary');
+const { uploadErrorHandler } = require('../config/cloudinary');
+const { letterImageUpload } = require('../utils/letterUpload');
 
 const router = Router();
 
@@ -15,7 +16,7 @@ const router = Router();
 router.post(
   '/letters',
   friendLetterLimiter,
-  uploadImage.single('image'),
+  letterImageUpload,
   uploadErrorHandler,
   honeypot,
   asyncHandler(friendController.createLetter),

@@ -1,7 +1,7 @@
 const letterService = require('../services/letterService');
 const { sendSuccess, sendError } = require('../utils/response');
 const {
-  normalizeMultipartLetterBody, extractLetterImage, cleanupLetterImage,
+  normalizeMultipartLetterBody, extractLetterImages, cleanupLetterImages, assertImageCount,
 } = require('../utils/letterUpload');
 
 function parseId(req, res) {
@@ -18,12 +18,13 @@ async function list(req, res) {
 }
 
 async function create(req, res) {
-  const image = extractLetterImage(req);
+  const images = extractLetterImages(req);
+  await assertImageCount(images);
   try {
-    return sendSuccess(res, await letterService.createLetters(normalizeMultipartLetterBody(req), image), 201);
+    return sendSuccess(res, await letterService.createLetters(normalizeMultipartLetterBody(req), images), 201);
   } catch (error) {
     // Validation/DB lỗi → dọn ảnh đã lỡ upload lên Cloudinary
-    await cleanupLetterImage(image);
+    await cleanupLetterImages(images);
     throw error;
   }
 }

@@ -1,10 +1,11 @@
 import { useState, useCallback, useRef } from 'react'
 import EmptyState from './EmptyState'
 import ReplyBox from './ReplyBox'
-import Polaroid from './paper/Polaroid'
+import PhotoSet from './PhotoSet'
 import Stamp from './paper/Stamp'
 import api from '../services/api'
 import { CLASS_NAME, formatStamp } from '../lib/event'
+import { letterImageUrls } from '../lib/images'
 
 // ── Reaction config — 8 emoji, 4 đầu hiện sẵn, còn lại sau chip "+N" ────────
 const REACTIONS = [
@@ -122,9 +123,7 @@ function LetterCard({ letter, accessCode, index, replies, onReplied }) {
         : <p className="letter__sender">{letter.sender_name}</p>}
       {letter.title && <p className="letter__title">{letter.title}</p>}
       <p className="letter__content">{letter.content}</p>
-      {letter.image_url && (
-        <Polaroid src={letter.image_url} alt="Ảnh kèm lời chúc" small rotate={-2} lazy className="letter__photo" />
-      )}
+      <PhotoSet urls={letterImageUrls(letter)} alt="Ảnh kèm lời chúc" tape="center" lazy className="letter__photo" />
       <div className="letter__footer">
         <time dateTime={letter.created_at}>{formatStamp(letter.created_at)}</time>
         <ReactionBar letter={letter} accessCode={accessCode} />

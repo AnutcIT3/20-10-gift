@@ -1,15 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { adminApi } from '../../api/adminApi'
 import Polaroid from '../../components/paper/Polaroid'
+import { MAX_WISH_IMAGES, WISH_IMAGE_ACCEPT, WISH_IMAGE_TYPES } from '../../hooks/useImagePicks'
 import { AUDIENCE_LABELS, greetingRequest } from '../../lib/greeting'
+import { wishImages } from '../../lib/images'
 
-// Cùng giới hạn với mọi ảnh kèm lời chúc (backend chặn 5 MB)
-const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+// Cùng giới hạn với mọi ảnh kèm lời chúc (backend chặn 5 MB, tối đa 4 ảnh)
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
-function imageProblem(file) {
-  if (!IMAGE_TYPES.includes(file.type)) return 'Ảnh phải là JPG, PNG, GIF hoặc WebP.'
-  if (file.size > MAX_IMAGE_BYTES) return 'Ảnh tối đa 5 MB.'
+function imageProblem(files, room) {
+  if (files.some((file) => !WISH_IMAGE_TYPES.includes(file.type))) return 'Ảnh phải là JPG, PNG, GIF hoặc WebP.'
+  if (files.some((file) => file.size > MAX_IMAGE_BYTES)) return 'Mỗi ảnh tối đa 5 MB.'
+  if (files.length > room) {
+    return room > 0
+      ? `Mỗi lời chúc kèm tối đa ${MAX_WISH_IMAGES} ảnh — chỉ thêm được ${room} ảnh nữa.`
+      : `Lời chúc này đã đủ ${MAX_WISH_IMAGES} ảnh.`
+  }
   return ''
 }
 
@@ -19,7 +25,8 @@ function WishBlock({
   student, kind, title, hint, field, onSaved, children, placeholder = 'Để trống thì không hiện gì',
 }) {
   const fileRef = useRef(null)
-  const imageUrl = student[`${kind}_image_url`]
+  const images = wishImages(student, kind)
+  const room = MAX_WISH_IMAGES - images.length
   const saved = field ? (student[field] || '') : ''
   const [text, setText] = useState(saved)
   const [busy, setBusy] = useState(false)
@@ -46,15 +53,22 @@ function WishBlock({
 
   const saveText = () => run(() => adminApi.updateStudent(student.id, { [field]: text.trim() || null }), 'Đã lưu chữ.')
 
-  const chooseImage = (file) => {
+  // Chọn một lúc nhiều ảnh: thêm vào sau các ảnh đang có, tổng tối đa 4
+  const chooseImages = (fileList) => {
+    const files = Array.from(fileList || [])
     if (fileRef.current) fileRef.current.value = ''
-    if (!file) return
-    const problem = imageProblem(file)
+    if (!files.length) return
+    const problem = imageProblem(files, room)
     if (problem) { setError(problem); setNote(''); return }
-    run(() => adminApi.setWishImage(student.id, kind, file), imageUrl ? 'Đã đổi ảnh.' : 'Đã thêm ảnh.')
+    run(() => adminApi.addWishImages(student.id, kind, files), `Đã thêm ${files.length} ảnh.`)
   }
 
-  const removeImage = () => run(() => adminApi.clearWishImage(student.id, kind), 'Đã bỏ ảnh.')
+  // Ảnh chưa có id là ảnh ở cột cũ (máy chủ chưa cập nhật) — bỏ hết là bỏ nó
+  const removeImage = (image) => run(
+    () => (image.id ? adminApi.removeWishImage(student.id, kind, image.id) : adminApi.clearWishImages(student.id, kind)),
+    'Đã bỏ ảnh.',
+  )
+  const removeAll = () => run(() => adminApi.clearWishImages(student.id, kind), 'Đã bỏ hết ảnh.')
 
   return (
     <section className="wish-block" aria-label={`${title} — ${student.full_name}`}>
@@ -75,21 +89,41 @@ function WishBlock({
         </>
       )}
       {typeof children === 'function' ? children({ setText }) : children}
+      {images.length > 0 && (
+        <ul className="wish-block__images" aria-label={`Ảnh kèm ${title.toLowerCase()}`}>
+          {images.map((image, index) => (
+            <li key={image.id ?? image.url}>
+              <Polaroid src={image.url} alt={`Ảnh ${index + 1} kèm ${title.toLowerCase()}`} small rotate={index % 2 ? 2 : -2} tape="none" />
+              <button
+                type="button"
+                className="admin-btn admin-btn--sm admin-btn--danger"
+                onClick={() => removeImage(image)}
+                disabled={busy}
+                aria-label={`Bỏ ảnh ${index + 1}`}
+              >
+                Bỏ
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="wish-block__image">
-        {imageUrl && <Polaroid src={imageUrl} alt={`Ảnh kèm ${title.toLowerCase()}`} small rotate={-2} tape="none" />}
-        <button type="button" className="admin-btn admin-btn--sm" onClick={() => fileRef.current?.click()} disabled={busy}>
-          📷 {imageUrl ? 'Đổi ảnh' : 'Kèm ảnh (≤ 5 MB)'}
+        <button type="button" className="admin-btn admin-btn--sm" onClick={() => fileRef.current?.click()} disabled={busy || room <= 0}>
+          📷 {room <= 0
+            ? `Đủ ${MAX_WISH_IMAGES} ảnh`
+            : images.length ? `Thêm ảnh (${images.length}/${MAX_WISH_IMAGES})` : `Kèm ảnh (tối đa ${MAX_WISH_IMAGES}, mỗi ảnh ≤ 5 MB)`}
         </button>
         <input
           ref={fileRef}
           type="file"
           hidden
-          accept={IMAGE_TYPES.join(',')}
+          multiple
+          accept={WISH_IMAGE_ACCEPT}
           aria-label={`Ảnh kèm ${title.toLowerCase()} của ${student.full_name}`}
-          onChange={(event) => chooseImage(event.target.files?.[0] || null)}
+          onChange={(event) => chooseImages(event.target.files)}
         />
-        {imageUrl && (
-          <button type="button" className="admin-btn admin-btn--sm admin-btn--danger" onClick={removeImage} disabled={busy}>Bỏ ảnh</button>
+        {images.length > 1 && (
+          <button type="button" className="admin-btn admin-btn--sm admin-btn--danger" onClick={removeAll} disabled={busy}>Bỏ hết ảnh</button>
         )}
       </div>
       {busy && <p className="admin-hint">Đang lưu…</p>}

@@ -20,6 +20,8 @@ const TABLES = [
   'student_views',
   'letter_replies',
   'gift_opens',
+  'letter_images',
+  'wish_images',
 ];
 
 function escapeValue(value) {

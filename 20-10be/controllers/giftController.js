@@ -4,7 +4,7 @@ const reactionService = require('../services/reactionService');
 const replyService = require('../services/replyService');
 const statsService = require('../services/statsService');
 const {
-  normalizeMultipartLetterBody, extractLetterImage, cleanupLetterImage,
+  normalizeMultipartLetterBody, extractLetterImages, cleanupLetterImages, assertImageCount,
 } = require('../utils/letterUpload');
 
 const SESSION_HEADER = 'x-session-id';
@@ -74,17 +74,18 @@ async function getLetters(req, res) {
 }
 
 async function createLetter(req, res) {
-  const image = extractLetterImage(req);
+  const images = extractLetterImages(req);
+  await assertImageCount(images);
   try {
     const student = await giftService.getStudentByCode(req.params.accessCode);
     if (!student) {
-      await cleanupLetterImage(image);
+      await cleanupLetterImages(images);
       return sendError(res, 'Not found', 404);
     }
-    const result = await giftService.createLetter(student.id, normalizeMultipartLetterBody(req), image);
+    const result = await giftService.createLetter(student.id, normalizeMultipartLetterBody(req), images);
     return sendSuccess(res, result, 201);
   } catch (error) {
-    await cleanupLetterImage(image);
+    await cleanupLetterImages(images);
     throw error;
   }
 }

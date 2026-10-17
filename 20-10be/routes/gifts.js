@@ -9,7 +9,8 @@ const honeypot = require('../middleware/honeypot');
 const perGiftLimiter = require('../middleware/perGiftLimiter');
 const giftLockGuard = require('../middleware/giftLock');
 const { reactionLimiter, replyLimiter, keepsakeLimiter } = require('../middleware/rateLimit');
-const { uploadImage, uploadErrorHandler } = require('../config/cloudinary');
+const { uploadErrorHandler } = require('../config/cloudinary');
+const { letterImageUpload } = require('../utils/letterUpload');
 
 const router = Router();
 
@@ -30,7 +31,7 @@ router.get('/:accessCode/gallery', giftLockGuard, asyncHandler(giftController.ge
 router.get('/:accessCode/letters', giftLockGuard, asyncHandler(giftController.getLetters));
 // THỨ TỰ QUAN TRỌNG: limiter TRƯỚC multer (request 429 không được upload ảnh);
 // honeypot sau multer (multipart body chỉ có sau parse) và tự dọn req.file
-router.post('/:accessCode/letters', perGiftLimiter, uploadImage.single('image'), uploadErrorHandler, honeypot, asyncHandler(giftController.createLetter));
+router.post('/:accessCode/letters', perGiftLimiter, letterImageUpload, uploadErrorHandler, honeypot, asyncHandler(giftController.createLetter));
 router.post('/:accessCode/letters/:letterId/react', reactionLimiter, asyncHandler(reactionController.react));
 // Ba việc chỉ làm được SAU khi quà đã mở, nên đều qua giftLockGuard: ghi lượt
 // mở quà (bông hoa 12A1), hồi âm người viết thư, và tải bản lưu về máy

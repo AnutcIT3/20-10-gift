@@ -78,14 +78,20 @@ test('gift content resolves the student once and returns the complete initial pa
 // quyền tự nhận mình là bạn cùng lớp.
 test('lời chúc gửi qua form công khai luôn vào nhóm khách, dù payload khai là bạn cùng lớp', async () => {
   const pool = require('../config/db');
-  const original = pool.execute;
+  const original = pool.getConnection;
   let insertSql;
   let insertParams;
-  pool.execute = async (sql, params) => {
-    insertSql = sql;
-    insertParams = params;
-    return [{ insertId: 1 }];
-  };
+  pool.getConnection = async () => ({
+    beginTransaction: async () => {},
+    execute: async (sql, params) => {
+      insertSql = sql;
+      insertParams = params;
+      return [{ insertId: 1 }];
+    },
+    commit: async () => {},
+    rollback: async () => {},
+    release: () => {},
+  });
   try {
     const result = await giftService.createLetter(7, {
       sender_name: 'Người lạ',
@@ -99,7 +105,7 @@ test('lời chúc gửi qua form công khai luôn vào nhóm khách, dù payload
     // status bị ép về 'pending' và sender_kind không nằm trong tham số
     assert.deepEqual(insertParams, [7, 'Người lạ', null, 'Chúc mừng 20/10', false, 'pending', null, null, null]);
   } finally {
-    pool.execute = original;
+    pool.getConnection = original;
   }
 });
 

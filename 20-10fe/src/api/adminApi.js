@@ -65,13 +65,15 @@ export const adminApi = {
   }),
   verifySession: () => request('/api/auth/admin/me'),
   listStudents: () => request('/api/students'),
-  // Ảnh kèm ba lời chúc riêng của một bạn: kind = intro | admin_wish | greeting
-  setWishImage: (id, kind, file) => {
+  // Ảnh kèm ba lời chúc riêng của một bạn: kind = intro | admin_wish | greeting,
+  // mỗi lời chúc tối đa 4 ảnh. Thêm nhiều ảnh một lúc, bỏ từng ảnh hay bỏ hết
+  addWishImages: (id, kind, files) => {
     const form = new FormData()
-    form.append('image', file)
-    return request(`/api/students/${id}/wish-images/${kind}`, { method: 'PUT', body: form })
+    files.forEach((file) => form.append('images', file))
+    return request(`/api/students/${id}/wish-images/${kind}`, { method: 'POST', body: form })
   },
-  clearWishImage: (id, kind) => request(`/api/students/${id}/wish-images/${kind}`, { method: 'DELETE' }),
+  removeWishImage: (id, kind, imageId) => request(`/api/students/${id}/wish-images/${kind}/${imageId}`, { method: 'DELETE' }),
+  clearWishImages: (id, kind) => request(`/api/students/${id}/wish-images/${kind}`, { method: 'DELETE' }),
   // Xem thử lời chúc tự động đúng như trang quà sẽ gọi (máy viết mỗi lần một khác)
   previewGreeting: (name, audienceType) => request('/api/greetings/generate', {
     method: 'POST', body: JSON.stringify({ name, audienceType }),
@@ -102,10 +104,11 @@ export const adminApi = {
     if (search) params.set('search', search)
     return request(`/api/admin/letters?${params}`)
   },
-  // Kèm ảnh → multipart (ảnh upload một lần, dùng chung cho mọi người nhận);
-  // không ảnh → JSON như cũ
-  createLetters: (data, imageFile = null) => {
-    if (!imageFile) {
+  // Kèm ảnh (tối đa 4) → multipart (ảnh upload một lần, dùng chung cho mọi
+  // người nhận); không ảnh → JSON như cũ
+  createLetters: (data, imageFiles = []) => {
+    const files = [imageFiles].flat().filter(Boolean)
+    if (!files.length) {
       return request('/api/admin/letters', { method: 'POST', body: JSON.stringify(data) })
     }
     const form = new FormData()
@@ -114,7 +117,7 @@ export const adminApi = {
       if (Array.isArray(value)) value.forEach((item) => form.append(key, item))
       else form.append(key, value)
     })
-    form.append('image', imageFile)
+    files.forEach((file) => form.append('images', file))
     return request('/api/admin/letters', { method: 'POST', body: form })
   },
   updateLetter: (id, data) => request(`/api/letters/${id}`, {

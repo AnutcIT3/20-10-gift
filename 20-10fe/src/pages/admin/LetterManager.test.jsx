@@ -40,43 +40,71 @@ async function openComposeWithTwoRecipients() {
   fireEvent.change(screen.getByLabelText('Nội dung'), { target: { value: 'Chúc mừng 20/10!' } })
 }
 
-test('admin kèm một ảnh vào lời chúc gửi nhiều người, ảnh đi cùng lần gửi', async () => {
+test('admin chọn một lúc nhiều ảnh (tối đa 4) cho lời chúc gửi nhiều người, đủ ảnh đi cùng lần gửi', async () => {
   await openComposeWithTwoRecipients()
-  const photo = new File(['x'], 'hoa.jpg', { type: 'image/jpeg' })
-  fireEvent.change(screen.getByLabelText('Ảnh kèm lời chúc'), { target: { files: [photo] } })
+  const photos = ['a', 'b', 'c'].map((name) => new File(['x'], `${name}.jpg`, { type: 'image/jpeg' }))
+  fireEvent.change(screen.getByLabelText('Ảnh kèm lời chúc'), { target: { files: photos } })
 
-  expect(screen.getByText('hoa.jpg · dùng chung cho 2 người nhận')).toBeInTheDocument()
-  expect(screen.getByRole('img', { name: 'Ảnh sẽ gửi kèm' })).toHaveAttribute('src', 'blob:preview')
+  expect(screen.getByText(/3 ảnh · dùng chung cho 2 người nhận/)).toBeInTheDocument()
+  expect(screen.getAllByRole('img', { name: /sẽ gửi kèm/ })).toHaveLength(3)
+  expect(screen.getByRole('button', { name: /Thêm ảnh \(3\/4\)/ })).toBeEnabled()
+
+  // Chọn thêm 2 ảnh khi chỉ còn chỗ cho 1: lấy 1, báo đã đủ 4
+  const more = ['d', 'e'].map((name) => new File(['x'], `${name}.jpg`, { type: 'image/jpeg' }))
+  fireEvent.change(screen.getByLabelText('Ảnh kèm lời chúc'), { target: { files: more } })
+  expect(screen.getByRole('alert')).toHaveTextContent('tối đa 4 ảnh')
+  expect(screen.getAllByRole('img', { name: /sẽ gửi kèm/ })).toHaveLength(4)
+  expect(screen.getByRole('button', { name: /Đủ 4 ảnh/ })).toBeDisabled()
+
+  // Bỏ riêng ảnh thứ hai
+  fireEvent.click(screen.getByRole('button', { name: 'Bỏ ảnh 2' }))
+  expect(screen.getAllByRole('img', { name: /sẽ gửi kèm/ })).toHaveLength(3)
 
   fireEvent.click(screen.getByRole('button', { name: 'Dán tem & gửi ✉' }))
   await waitFor(() => expect(adminApi.createLetters).toHaveBeenCalledTimes(1))
-  const [payload, image] = adminApi.createLetters.mock.calls[0]
+  const [payload, images] = adminApi.createLetters.mock.calls[0]
   expect(payload.student_ids).toEqual([9, 10])
   expect(payload.content).toBe('Chúc mừng 20/10!')
-  expect(image).toBe(photo)
-  expect(await screen.findByText('Đã gửi lời chúc kèm ảnh cho 2 người nhận.')).toBeInTheDocument()
+  expect(images).toEqual([photos[0], photos[2], more[0]])
+  expect(await screen.findByText('Đã gửi lời chúc kèm 3 ảnh cho 2 người nhận.')).toBeInTheDocument()
 })
 
-test('ảnh sai định dạng hay quá 5 MB bị chặn trước khi gửi; bỏ ảnh thì gửi chữ như cũ', async () => {
+test('ảnh sai định dạng hay quá 5 MB bị chặn trước khi gửi; bỏ hết ảnh thì gửi chữ như cũ', async () => {
   await openComposeWithTwoRecipients()
   const input = screen.getByLabelText('Ảnh kèm lời chúc')
 
   fireEvent.change(input, { target: { files: [new File(['x'], 'ghi-chu.pdf', { type: 'application/pdf' })] } })
-  expect(screen.getByRole('alert')).toHaveTextContent('Ảnh phải là JPG, PNG, GIF hoặc WebP.')
+  expect(screen.getByRole('alert')).toHaveTextContent('Ảnh phải là JPG, PNG, GIF hoặc WebP, tối đa 5 MB.')
 
   const big = new File(['x'], 'to.jpg', { type: 'image/jpeg' })
   Object.defineProperty(big, 'size', { value: 6 * 1024 * 1024 })
-  fireEvent.change(input, { target: { files: [big] } })
-  expect(screen.getByRole('alert')).toHaveTextContent('Ảnh tối đa 5 MB.')
+  // Lẫn một ảnh hỏng trong nhiều ảnh: ảnh tốt vẫn được lấy
+  fireEvent.change(input, { target: { files: [big, new File(['x'], 'hoa.png', { type: 'image/png' })] } })
+  expect(screen.getByRole('alert')).toHaveTextContent('đã bỏ qua')
+  expect(screen.getAllByRole('img', { name: /sẽ gửi kèm/ })).toHaveLength(1)
 
-  fireEvent.change(input, { target: { files: [new File(['x'], 'hoa.png', { type: 'image/png' })] } })
-  fireEvent.click(screen.getByRole('button', { name: 'Bỏ ảnh' }))
-  expect(screen.queryByRole('img', { name: 'Ảnh sẽ gửi kèm' })).not.toBeInTheDocument()
+  fireEvent.change(input, { target: { files: [new File(['x'], 'la.png', { type: 'image/png' })] } })
+  fireEvent.click(screen.getByRole('button', { name: 'Bỏ hết ảnh' }))
+  expect(screen.queryByRole('img', { name: /sẽ gửi kèm/ })).not.toBeInTheDocument()
 
   fireEvent.click(screen.getByRole('button', { name: 'Dán tem & gửi ✉' }))
   await waitFor(() => expect(adminApi.createLetters).toHaveBeenCalledTimes(1))
-  expect(adminApi.createLetters.mock.calls[0][1]).toBeNull()
+  expect(adminApi.createLetters.mock.calls[0][1]).toEqual([])
   expect(await screen.findByText('Đã gửi lời chúc cho 2 người nhận.')).toBeInTheDocument()
+})
+
+test('hộp thư hiện đủ ảnh của từng lời chúc và đếm số ảnh', async () => {
+  adminApi.listLetters.mockResolvedValue({
+    items: [{
+      id: 1, student_name: 'Thủy', sender_name: 'An', content: 'Chúc mừng', status: 'pending',
+      created_at: '2026-10-17T01:00:00Z', image_url: 'https://x/1.jpg',
+      images: [{ id: 1, url: 'https://x/1.jpg' }, { id: 2, url: 'https://x/2.jpg' }],
+    }],
+    pagination: { total: 1, totalPages: 1 },
+  })
+  renderPage()
+  expect(await screen.findByText('📷 2 ảnh')).toBeInTheDocument()
+  expect(screen.getAllByRole('img', { name: /Ảnh kèm lời chúc \d/ })).toHaveLength(2)
 })
 
 test('tab "Riêng từng bạn" quản lý ba lời chúc riêng của từng bạn, không tải danh sách thư', async () => {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { adminApi } from '../../api/adminApi'
 import EventCard from './EventCard'
+import { letterImageUrls } from '../../lib/images'
 
 const EMOJI_MAP = {
   smile: '🙂', laugh: '😄', angry: '😠', kiss: '😘',
@@ -247,7 +248,7 @@ function Dashboard() {
                     </b>
                     <span className="inbox-row__to">→ {letter.student_name}</span>
                     {letter.reveal_at && <span className="chip chip--peach">⏰ hiện {formatReveal(letter.reveal_at)}</span>}
-                    {letter.image_url && <span className="chip chip--beige">📷 1 ảnh</span>}
+                    {letterImageUrls(letter).length > 0 && <span className="chip chip--beige">📷 {letterImageUrls(letter).length} ảnh</span>}
                     {letter.member_type === 'friend' && <span className="chip chip--moss">bạn ngoài lớp</span>}
                     {letter.member_type === 'test' && <span className="chip chip--moss">tài khoản thử</span>}
                   </div>
