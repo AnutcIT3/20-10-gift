@@ -5,7 +5,7 @@ const normalizeName = require('../utils/normalizeName');
 const { accentKey } = require('../utils/nameKey');
 const letterService = require('./letterService');
 
-const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'admin_wish', 'class_name', 'member_type'];
+const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'admin_wish', 'greeting_custom', 'class_name', 'member_type'];
 // Admin chỉ đổi qua lại giữa thành viên lớp và tài khoản thử; hồ sơ bạn ngoài
 // lớp nằm ở không gian tên riêng
 const ADMIN_MEMBER_TYPES = ['class', 'test'];
@@ -75,6 +75,8 @@ function sanitizeInput(data, requireName = false, memberTypes = ADMIN_MEMBER_TYP
   clean.avatar_url = validateAvatarUrl(validateText(data.avatar_url, 'avatar_url', 500));
   clean.intro_message = validateText(data.intro_message, 'intro_message', 65535);
   clean.admin_wish = validateText(data.admin_wish, 'admin_wish', 65535);
+  // Lời chúc ✨ admin tự viết; để trống (null) thì máy viết như cũ
+  clean.greeting_custom = validateText(data.greeting_custom, 'greeting_custom', 2000);
   clean.class_name = validateText(data.class_name, 'class_name', 20);
   if (data.member_type !== undefined) {
     if (!memberTypes.includes(data.member_type)) throw httpError('Loại thành viên không hợp lệ', 400);
@@ -171,7 +173,7 @@ const FACE_COUNT_SQL = ',\n      (SELECT COUNT(*) FROM face_profiles fp WHERE fp
 
 function listStudentsSql(withFaces) {
   return `SELECT s.id, s.full_name, s.nickname, s.avatar_url, s.intro_message, s.admin_wish, s.class_name,
-      s.intro_image_url, s.admin_wish_image_url, s.greeting_image_url,
+      s.intro_image_url, s.admin_wish_image_url, s.greeting_image_url, s.greeting_custom,
       s.seat_row, s.seat_col, s.is_active, s.access_code, s.member_type, s.view_count,
       s.created_at, s.updated_at,
       (SELECT COUNT(*) FROM gallery g WHERE g.student_id = s.id) AS gallery_count,
@@ -194,7 +196,7 @@ async function listStudents() {
 async function getStudent(id) {
   const [rows] = await pool.execute(
     `SELECT id, full_name, nickname, avatar_url, intro_message, admin_wish, class_name,
-      intro_image_url, admin_wish_image_url, greeting_image_url,
+      intro_image_url, admin_wish_image_url, greeting_image_url, greeting_custom,
       seat_row, seat_col, is_active, access_code, member_type, view_count, created_at, updated_at
      FROM students WHERE id = ? LIMIT 1`,
     [id],

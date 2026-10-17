@@ -113,3 +113,13 @@ test('ảnh kèm lời chúc riêng, 💌 admin và ✨ tự động hiện đú
   // Ảnh của lời chúc tự động nằm trong ô ✨, hiện khi lời chúc đã viết xong
   await waitFor(() => expect(document.querySelectorAll('.ai-note:not(.ai-note--admin) .ai-note__photo')).toHaveLength(1))
 })
+
+test('admin đã tự viết lời chúc ✨ thì trang quà dùng đúng câu đó, máy không viết nữa', async () => {
+  giftRepository.getGiftContent.mockResolvedValue({
+    ...CONTENT, student: { ...CONTENT.student, greeting_custom: 'Chúc Vy 20/10 rực rỡ — tụi tớ viết riêng' },
+  })
+  renderGift(undefined)
+  expect(await screen.findByRole('heading', { name: /Cất quà vào máy/ })).toBeTruthy()
+  await waitFor(() => expect(document.querySelector('.ai-note:not(.ai-note--admin)')).toBeTruthy())
+  expect(giftRepository.generateGreeting).not.toHaveBeenCalled()
+})

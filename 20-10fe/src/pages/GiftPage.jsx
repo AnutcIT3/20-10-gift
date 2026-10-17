@@ -239,10 +239,16 @@ function GiftPage() {
         // Khách ngoài lớp có Face ID là bạn thân (close_friend): lời chúc thân
         // mật, gọi bằng biệt danh — dù mở bằng Face ID hay gõ tên. Khách
         // thường giữ lời chúc lịch sự kiểu "khách ghé thăm".
-        const greeting = greetingRequest({ ...studentData, closeFriend: Boolean(studentData.close_friend) })
-        giftRepository.generateGreeting(greeting.name, greeting.audience)
-          .then((result) => { if (!cancelled) setAiGreeting(result.greeting) })
-          .catch(() => {})
+        // Admin đã tự viết lời chúc ✨ (Lời chúc → Riêng từng bạn) thì dùng đúng
+        // câu đó, máy không viết nữa
+        if (studentData.greeting_custom) {
+          setAiGreeting(studentData.greeting_custom)
+        } else {
+          const greeting = greetingRequest({ ...studentData, closeFriend: Boolean(studentData.close_friend) })
+          giftRepository.generateGreeting(greeting.name, greeting.audience)
+            .then((result) => { if (!cancelled) setAiGreeting(result.greeting) })
+            .catch(() => {})
+        }
       } catch (err) {
         if (!cancelled) {
           if (err.status === 423) {

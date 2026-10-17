@@ -471,7 +471,8 @@ async function buildKeepsake({
     gallery,
     letters,
     replies,
-    greeting: cleanGreeting(greeting),
+    // Admin đã tự viết lời chúc ✨ thì bản lưu dùng đúng câu đó
+    greeting: student.greeting_custom || cleanGreeting(greeting),
     srcOf,
     logo: loadLogo(),
     fontCss: loadFontCss(),

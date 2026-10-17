@@ -1480,3 +1480,23 @@ test('trang quà vẫn mở được trên máy chưa chạy migration 023 (chư
     pool.execute = original;
   }
 });
+
+test('admin lưu được lời chúc ✨ tự viết (tối đa 2000 ký tự); để trống là trả lại cho máy viết', async () => {
+  const original = pool.execute;
+  const updates = [];
+  pool.execute = async (sql, params) => {
+    if (sql.startsWith('UPDATE students SET')) { updates.push({ sql, params }); return [{ affectedRows: 1 }]; }
+    if (sql.includes('FROM students WHERE id = ?')) return [[{ id: 10, full_name: 'Thủy' }]];
+    return [[]];
+  };
+  try {
+    await studentService.updateStudent(10, { greeting_custom: '  Chúc Thủy rực rỡ  ' });
+    assert.match(updates[0].sql, /greeting_custom = \?/);
+    assert.equal(updates[0].params[0], 'Chúc Thủy rực rỡ');
+    await studentService.updateStudent(10, { greeting_custom: null });
+    assert.equal(updates[1].params[0], null);
+    await assert.rejects(() => studentService.updateStudent(10, { greeting_custom: 'x'.repeat(2001) }), { statusCode: 400 });
+  } finally {
+    pool.execute = original;
+  }
+});
