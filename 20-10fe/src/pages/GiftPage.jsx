@@ -10,7 +10,9 @@ import PaperError from '../components/PaperError'
 import ReplyBox from '../components/ReplyBox'
 import TypingText from '../components/TypingText'
 import Petals from '../components/paper/Petals'
+import Polaroid from '../components/paper/Polaroid'
 import { CLASS_LABEL, CLASS_NAME, GUEST_LABEL } from '../lib/event'
+import { greetingRequest } from '../lib/greeting'
 import '../styles/gift.css'
 
 const ERROR_VIEWS = {
@@ -237,13 +239,8 @@ function GiftPage() {
         // Khách ngoài lớp có Face ID là bạn thân (close_friend): lời chúc thân
         // mật, gọi bằng biệt danh — dù mở bằng Face ID hay gõ tên. Khách
         // thường giữ lời chúc lịch sự kiểu "khách ghé thăm".
-        const audience = studentData.member_type !== 'friend'
-          ? 'student'
-          : studentData.close_friend ? 'close_friend' : 'visitor'
-        giftRepository.generateGreeting(
-          audience === 'close_friend' ? (studentData.nickname || studentData.full_name) : studentData.full_name,
-          audience,
-        )
+        const greeting = greetingRequest({ ...studentData, closeFriend: Boolean(studentData.close_friend) })
+        giftRepository.generateGreeting(greeting.name, greeting.audience)
           .then((result) => { if (!cancelled) setAiGreeting(result.greeting) })
           .catch(() => {})
       } catch (err) {
@@ -313,14 +310,17 @@ function GiftPage() {
         <HeroSection student={student} />
         {/* Lời chúc admin viết riêng: người thật viết nên hiện luôn, không gõ
             từng chữ như câu máy sinh; không viết thì không có ô nào cả */}
-        {student?.admin_wish && (
+        {(student?.admin_wish || student?.admin_wish_image_url) && (
           <section className="ai-note ai-note--admin">
             <span className="ai-note__clip" aria-hidden="true" />
             <span className="ai-note__label">
               <span className="ai-note__label-long">💌 LỜI CHÚC TỪ ADMIN</span>
               <span className="ai-note__label-short">💌 TỪ ADMIN</span>
             </span>
-            <p>{student.admin_wish}</p>
+            {student.admin_wish && <p>{student.admin_wish}</p>}
+            {student.admin_wish_image_url && (
+              <Polaroid src={student.admin_wish_image_url} alt="Ảnh kèm lời chúc từ admin" small rotate={-2} tape="none" lazy className="ai-note__photo" />
+            )}
             <ReplyBox
               accessCode={accessCode}
               target="admin"
@@ -340,6 +340,9 @@ function GiftPage() {
               <span className="ai-note__label-short">✨ LỜI CHÚC DÀNH RIÊNG</span>
             </span>
             <p><TypingText text={aiGreeting} /></p>
+            {student?.greeting_image_url && (
+              <Polaroid src={student.greeting_image_url} alt="Ảnh kèm lời chúc" small rotate={2} tape="none" lazy className="ai-note__photo" />
+            )}
           </section>
         )}
         <PhotoGallery images={gallery} />

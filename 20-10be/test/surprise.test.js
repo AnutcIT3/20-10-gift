@@ -787,3 +787,32 @@ test('mã trang quà có dấu hay ký tự lạ bị chặn trước mọi hạ
   }
   assert.deepEqual(lookups, []);
 });
+
+test('bản lưu có ảnh kèm lời chúc riêng (trên bìa), 💌 admin và ✨ tự động (trong ô của mỗi loại)', () => {
+  const url = (name) => `https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/${name}.jpg`;
+  const html = keepsakeService.renderKeepsake({
+    student: {
+      ...KEEPSAKE_STUDENT,
+      intro_image_url: url('intro'),
+      admin_wish_image_url: url('admin'),
+      greeting_image_url: url('auto'),
+    },
+    greeting: 'Chúc Vy vui',
+    srcOf: (src) => (src ? `data:image/jpeg;base64,${Buffer.from(src).toString('base64')}` : null),
+    now: new Date('2026-10-20T03:00:00.000Z'),
+  });
+  const cover = html.slice(html.indexOf('<section class="cover">'), html.indexOf('</section>', html.indexOf('<section class="cover">')));
+  assert.match(cover, /class="polaroid intro-photo"/);
+  assert.match(html, /LỜI CHÚC TỪ ADMIN<\/span><p>[^<]*<\/p><figure class="polaroid ">/);
+  assert.match(html, /DÀNH RIÊNG CHO BẠN<\/span><p>Chúc Vy vui<\/p><figure class="polaroid ">/);
+  assert.equal(html.includes('res.cloudinary.com'), false);
+});
+
+test('bản lưu: ô 💌 chỉ có ảnh (chưa viết chữ) vẫn hiện, như trên trang quà', () => {
+  const html = keepsakeService.renderKeepsake({
+    student: { ...KEEPSAKE_STUDENT, admin_wish: null, admin_wish_image_url: 'https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/a.jpg' },
+    srcOf: (src) => (src ? 'data:image/jpeg;base64,AAAA' : null),
+    now: new Date('2026-10-20T03:00:00.000Z'),
+  });
+  assert.match(html, /LỜI CHÚC TỪ ADMIN<\/span><figure class="polaroid ">/);
+});

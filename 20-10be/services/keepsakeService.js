@@ -262,6 +262,8 @@ h2 small{font:italic 15px var(--body);color:var(--muted)}
 .subject{margin:0;padding-right:70px;font:italic 15px/32px var(--body);color:var(--muted)}
 .body{margin:0 0 8px;font:22px/32px var(--write);white-space:pre-wrap;overflow-wrap:break-word}
 .letter .polaroid{width:min(360px,100%);margin:10px 0 16px;--rot:-2deg}
+.note .polaroid{width:min(320px,100%);margin:16px 0 0;--rot:-2deg}
+.cover .intro-photo{width:min(300px,100%);margin:16px 0 0;--rot:2deg}
 .date{display:block;font:14px var(--hand);color:var(--muted)}
 .empty{margin:18px 0 0;font:20px var(--write);color:var(--muted)}
 .replies{display:grid;gap:18px;margin-top:22px}
@@ -390,13 +392,18 @@ function renderKeepsake({
     `<section class="cover"><div><span class="postmark">${postmark}<br><b>20.10</b><br>${year}</span>`
       + `<h1>Gửi <span>${escapeHtml(displayName)}</span>,</h1>`
       + (student.intro_message ? `<p class="intro">${escapeHtml(student.intro_message)}</p>` : '')
+      + renderPolaroid({ src: srcOf(student.intro_image_url, 'letter'), alt: 'Ảnh kèm lời chúc riêng', className: 'intro-photo' })
       + `</div>${hero}</section>`,
   ];
-  if (student.admin_wish) {
-    sections.push(`<section class="note note--admin"><span class="label">💌 LỜI CHÚC TỪ ADMIN</span><p>${escapeHtml(student.admin_wish)}</p></section>`);
+  // Như trang quà: ô 💌 hiện khi có chữ HOẶC có ảnh
+  if (student.admin_wish || student.admin_wish_image_url) {
+    sections.push(`<section class="note note--admin"><span class="label">💌 LỜI CHÚC TỪ ADMIN</span>`
+      + (student.admin_wish ? `<p>${escapeHtml(student.admin_wish)}</p>` : '')
+      + `${renderPolaroid({ src: srcOf(student.admin_wish_image_url, 'letter'), alt: 'Ảnh kèm lời chúc từ admin' })}</section>`);
   }
   if (greeting) {
-    sections.push(`<section class="note"><span class="label">✨ MỘT LỜI CHÚC DÀNH RIÊNG CHO BẠN</span><p>${escapeHtml(greeting)}</p></section>`);
+    sections.push(`<section class="note"><span class="label">✨ MỘT LỜI CHÚC DÀNH RIÊNG CHO BẠN</span><p>${escapeHtml(greeting)}</p>`
+      + `${renderPolaroid({ src: srcOf(student.greeting_image_url, 'letter'), alt: 'Ảnh kèm lời chúc' })}</section>`);
   }
   if (photos.length) {
     sections.push(`<section><h2>Kỷ niệm <small>${photos.length} tấm ảnh</small></h2><div class="photos">${photos.join('')}</div></section>`);
@@ -449,6 +456,9 @@ async function buildKeepsake({
     cloudinaryVariant(student.avatar_url, TRANSFORMS.avatar),
     ...gallery.map((image) => cloudinaryVariant(image.image_url, TRANSFORMS.photo)),
     ...letters.map((letter) => cloudinaryVariant(letter.image_url, TRANSFORMS.letter)),
+    // Ảnh kèm ba lời chúc riêng (lời chúc riêng, 💌 admin, ✨ tự động)
+    ...[student.intro_image_url, student.admin_wish_image_url, student.greeting_image_url]
+      .map((url) => cloudinaryVariant(url, TRANSFORMS.letter)),
   ].filter(Boolean);
   const embedded = await embedImages(wanted, { fetchImpl, now: now.getTime(), logger });
   const srcOf = (url, kind) => {

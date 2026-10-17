@@ -2349,3 +2349,64 @@
   font: italic 13px var(--font-body);
   color: var(--muted);
 }
+
+/* ── Lời chúc → Riêng từng bạn: ba lời chúc riêng, mỗi loại kèm được ảnh ── */
+.wish-card {
+  margin-bottom: 16px;
+  padding: 16px 18px;
+}
+
+.wish-card__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 12px;
+  font: 400 22px/1.2 var(--font-write);
+}
+
+.wish-card__name small {
+  font: italic 14px var(--font-body);
+  color: var(--muted);
+}
+
+.wish-card__blocks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.wish-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.wish-block__title {
+  margin: 0;
+  font: 600 14px var(--font-body);
+}
+
+.wish-block__title small {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.wish-block__text {
+  width: 100%;
+}
+
+.wish-block__image {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.wish-block__preview {
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--clay);
+  font: 18px/1.5 var(--font-write);
+}

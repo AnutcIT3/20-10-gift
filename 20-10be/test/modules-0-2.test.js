@@ -1415,3 +1415,68 @@ test('friend letters: a letter to "Phượng" never lands in the profile of "Ph�
     pool.getConnection = original;
   }
 });
+
+test('ảnh kèm lời chúc riêng: gắn, đổi thì dọn ảnh cũ trên Cloudinary, bỏ thì xoá cả hai cột', async () => {
+  const original = pool.execute;
+  const originalDestroy = cloudinary.uploader.destroy;
+  const updates = [];
+  const destroyed = [];
+  let stored = 'gift_20_10/old';
+  pool.execute = async (sql, params) => {
+    if (sql.startsWith('SELECT greeting_image_public_id')) return [[{ public_id: stored }]];
+    if (sql.startsWith('UPDATE students SET greeting_image_url')) {
+      updates.push(params);
+      [, stored] = params;
+      return [{ affectedRows: 1 }];
+    }
+    if (sql.includes('FROM students WHERE id = ?')) return [[{ id: 10, full_name: 'Thủy' }]];
+    return [[]];
+  };
+  cloudinary.uploader.destroy = async (publicId) => { destroyed.push(publicId); };
+  try {
+    await studentService.setWishImage(10, 'greeting', { url: 'https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/new.jpg', publicId: 'gift_20_10/new' });
+    assert.deepEqual(updates[0], ['https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/new.jpg', 'gift_20_10/new', 10]);
+    assert.deepEqual(destroyed, ['gift_20_10/old']);
+    await studentService.setWishImage(10, 'greeting', null);
+    assert.deepEqual(updates[1], [null, null, 10]);
+    assert.deepEqual(destroyed, ['gift_20_10/old', 'gift_20_10/new']);
+    // Tên cột chỉ lấy từ danh sách cố định, không bao giờ từ dữ liệu gửi lên
+    await assert.rejects(() => studentService.setWishImage(10, 'avatar_url = NULL, x', null), { statusCode: 400 });
+  } finally {
+    pool.execute = original;
+    cloudinary.uploader.destroy = originalDestroy;
+  }
+});
+
+test('tải ảnh lời chúc riêng cần đăng nhập admin', async (t) => {
+  const server = app.listen(0);
+  t.after(() => server.close());
+  await new Promise((resolve) => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const form = new FormData();
+  form.append('image', new Blob([Buffer.from('x')], { type: 'image/jpeg' }), 'a.jpg');
+  assert.equal((await fetch(`${base}/api/students/10/wish-images/greeting`, { method: 'PUT', body: form })).status, 401);
+  assert.equal((await fetch(`${base}/api/students/10/wish-images/greeting`, { method: 'DELETE' })).status, 401);
+});
+
+test('trang quà vẫn mở được trên máy chưa chạy migration 023 (chưa có cột ảnh lời chúc)', async () => {
+  const original = pool.execute;
+  const seen = [];
+  pool.execute = async (sql) => {
+    seen.push(sql);
+    if (sql.includes('WHERE access_code = ?')) {
+      if (sql.includes('intro_image_url')) {
+        throw Object.assign(new Error("Unknown column 'intro_image_url' in 'field list'"), { code: 'ER_BAD_FIELD_ERROR' });
+      }
+      return [[{ id: 3, full_name: 'Vy', member_type: 'class' }]];
+    }
+    return [[]];
+  };
+  try {
+    const student = await giftService.getStudentByCode('vy');
+    assert.equal(student.full_name, 'Vy');
+    assert.equal(seen.filter((sql) => sql.includes('WHERE access_code = ?')).length, 2);
+  } finally {
+    pool.execute = original;
+  }
+});

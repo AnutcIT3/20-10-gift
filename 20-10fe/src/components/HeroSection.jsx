@@ -15,6 +15,10 @@ function HeroSection({ student }) {
         <Postmark className="hero__postmark" lines={isFriend ? GUEST_POSTMARK : undefined} />
         <h1 className="hero__title">Gửi <span>{displayName}</span>,</h1>
         {student.intro_message && <p className="hero__intro">{student.intro_message}</p>}
+        {/* Ảnh kèm lời chúc riêng (admin chọn ở Lời chúc → Riêng từng bạn) */}
+        {student.intro_image_url && (
+          <Polaroid src={student.intro_image_url} alt="Ảnh kèm lời chúc riêng" small rotate={2} tape="none" className="hero__intro-photo" />
+        )}
       </div>
       <div className="hero__photo">
         <Polaroid

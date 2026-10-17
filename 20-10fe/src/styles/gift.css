@@ -1172,3 +1172,10 @@
     width: 210px;
   }
 }
+
+/* Ảnh kèm lời chúc riêng / 💌 admin / ✨ tự động — cùng cỡ ảnh kèm thư */
+.hero__intro-photo,
+.ai-note__photo {
+  width: min(320px, 100%);
+  margin: 14px 0 4px;
+}
