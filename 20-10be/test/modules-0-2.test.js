@@ -158,6 +158,41 @@ test('module 2: resolve endpoint stays public despite sharing /api/students with
   assert.equal(body.data.giftPath, '/gift/code-a');
 });
 
+test('khoá chờ 20/10: tra tên vẫn chạy cho form gửi lời chúc nhưng không lộ ảnh đại diện hay chỗ ngồi', async (t) => {
+  const original = pool.execute;
+  let locked = '1';
+  pool.execute = async (sql) => {
+    if (sql.includes('FROM app_settings')) return [[{ setting_value: locked }]];
+    return [[
+      { full_name: 'Diệu Linh', nickname: 'Linh Tần', avatar_url: 'https://res.cloudinary.com/demo/image/upload/v1/a.jpg', access_code: 'linh-a', seat_row: 2, seat_col: 3 },
+      { full_name: 'Phương Linh', nickname: null, avatar_url: 'https://res.cloudinary.com/demo/image/upload/v1/b.jpg', access_code: 'linh-b', seat_row: 4, seat_col: 1 },
+    ]];
+  };
+  const server = app.listen(0);
+  t.after(() => {
+    server.close();
+    pool.execute = original;
+  });
+  await new Promise((resolve) => server.once('listening', resolve));
+  const lookup = async () => (await (await fetch(`http://127.0.0.1:${server.address().port}/api/students/resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'linh' }),
+  })).json()).data;
+
+  const hidden = await lookup();
+  // Họ tên + biệt danh đủ để chọn đúng người nhận lời chúc
+  assert.deepEqual(hidden.matches.map((match) => [match.displayName, match.nickname]), [['Diệu Linh', 'Linh Tần'], ['Phương Linh', '']]);
+  assert.ok(hidden.matches.every((match) => match.avatarUrl === '' && match.seatRow === null && match.seatCol === null));
+  assert.equal(JSON.stringify(hidden).includes('cloudinary'), false);
+
+  // Quà mở: danh sách trùng tên có lại ảnh và chỗ ngồi
+  locked = '0';
+  const shown = await lookup();
+  assert.equal(shown.matches[0].avatarUrl, 'https://res.cloudinary.com/demo/image/upload/v1/a.jpg');
+  assert.deepEqual([shown.matches[0].seatRow, shown.matches[0].seatCol], [2, 3]);
+});
+
 test('module 0: ipKey collapses IPv6 to /64 and keeps IPv4 intact', () => {
   const ipKey = require('../utils/ipKey');
   assert.equal(ipKey('203.0.113.7'), '203.0.113.7');

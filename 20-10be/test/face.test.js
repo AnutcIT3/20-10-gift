@@ -256,9 +256,9 @@ test('face status turns on only with switch, healthy service and enrolled profil
   assert.equal(down.data.enabled, false);
 });
 
-test('face match names the student, logs numbers only, and ignores the 20/10 lock', async (t) => {
+test('face match names the student and logs numbers only', async (t) => {
   const base = await startApp(t);
-  const writes = mockDatabase({ giftLocked: '1' });
+  const writes = mockDatabase();
   stubFaceService(healthyService([{ face_px: 150, brightness: 120, blur: 90, embedding: mix(0.8, 0.6) }]));
 
   const response = await fetch(`${base}/api/face/match`, { method: 'POST', body: frameForm() });
@@ -285,6 +285,25 @@ test('face match names the student, logs numbers only, and ignores the 20/10 loc
   for (const value of log.params) {
     assert.ok(value === null || typeof value === 'number' || value === 'match');
   }
+});
+
+test('trang quà đang khoá chờ 20/10: Face ID báo tắt và không quét, không lộ tên ai', async (t) => {
+  const base = await startApp(t);
+  const writes = mockDatabase({ giftLocked: '1' });
+  const calls = stubFaceService(healthyService([{ face_px: 150, brightness: 120, blur: 90, embedding: mix(0.8, 0.6) }]));
+
+  for (const scope of ['', '?scope=friend']) {
+    const { data } = await (await fetch(`${base}/api/face/status${scope}`)).json();
+    assert.equal(data.enabled, false);
+    assert.equal(data.locked, true);
+  }
+  const response = await fetch(`${base}/api/face/match`, { method: 'POST', body: frameForm() });
+  assert.equal(response.status, 423);
+  const body = await response.json();
+  assert.equal(body.data, undefined);
+  assert.equal(JSON.stringify(body).includes('Vy'), false);
+  assert.equal(calls.length, 0, 'không gửi gì sang face-service');
+  assert.equal(writes.filter((w) => w.sql.includes('face_match_log')).length, 0);
 });
 
 test('face match rejects look-alikes without revealing any name', async (t) => {

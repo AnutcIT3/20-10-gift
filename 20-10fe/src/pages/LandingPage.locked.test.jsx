@@ -1,0 +1,92 @@
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import giftRepository from '../api/giftRepository'
+import LandingPage from './LandingPage'
+
+// Trang quà khoá chờ 20/10: trang chủ chỉ còn đếm ngược và gửi lời chúc —
+// không chọn vai trò, không tra tên để mở quà, không Face ID
+
+const event = vi.hoisted(() => ({ status: null }))
+
+vi.mock('../hooks/useFaceScan', () => ({
+  default: () => ({
+    active: false, status: 'idle', hint: '', kind: null, message: '', title: '', candidate: null, people: [],
+    secondsLeft: 30, canRetry: false, videoRef: { current: null },
+    open: vi.fn(), close: vi.fn(), accept: vi.fn(), deny: vi.fn(), retry: vi.fn(), claim: vi.fn(),
+  }),
+}))
+
+vi.mock('../hooks/useEventStatus', () => ({
+  default: () => ({ status: event.status, offset: 0, justOpened: false, refresh: vi.fn() }),
+}))
+
+vi.mock('../api/giftRepository', () => ({
+  default: {
+    faceStatus: vi.fn(), resolveStudent: vi.fn(), getGift: vi.fn(), recordOpen: vi.fn(), createLetter: vi.fn(),
+  },
+}))
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true })
+  Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: vi.fn() }, configurable: true })
+  giftRepository.faceStatus.mockResolvedValue({ enabled: true })
+})
+afterEach(cleanup)
+
+const renderPage = () => render(<MemoryRouter><LandingPage /></MemoryRouter>)
+const LOCKED = { locked: true, unlockAt: new Date(Date.now() + 3 * 86_400_000).toISOString(), total: 18, opened: 0, replies: 0 }
+
+test('đang khoá: chỉ có đếm ngược và nút gửi lời chúc, không có lối vào trang cá nhân hay Face ID', () => {
+  event.status = LOCKED
+  renderPage()
+  expect(screen.getByRole('region', { name: 'Đếm ngược tới lúc mở quà' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: /Gửi lời chúc cho một bạn/ })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: /Mình là thành viên trong lớp/ })).toBeNull()
+  expect(screen.queryByRole('button', { name: /Mình là khách ghé thăm/ })).toBeNull()
+  expect(screen.queryByRole('button', { name: /Face ID/ })).toBeNull()
+  expect(screen.queryByLabelText('Tên:')).toBeNull()
+  expect(giftRepository.faceStatus).not.toHaveBeenCalled()
+})
+
+test('khoá mà chưa hẹn giờ thì hẹn ngày 20/10 thay cho đồng hồ', () => {
+  event.status = { ...LOCKED, unlockAt: null }
+  renderPage()
+  expect(screen.queryByRole('region', { name: 'Đếm ngược tới lúc mở quà' })).toBeNull()
+  expect(screen.getByText('Hẹn bạn ngày 20/10 nhé!')).toBeTruthy()
+})
+
+test('đang khoá vẫn gửi được lời chúc; trùng tên thì chọn theo họ tên kèm biệt danh, không có ảnh', async () => {
+  event.status = LOCKED
+  // Máy chủ đang khoá trả danh sách không ảnh, không chỗ ngồi
+  giftRepository.resolveStudent.mockResolvedValue({
+    matches: [
+      { displayName: 'Diệu Linh', nickname: 'Linh Tần', avatarUrl: '', giftPath: '/gift/a', seatRow: null, seatCol: null },
+      { displayName: 'Phương Linh', nickname: '', avatarUrl: '', giftPath: '/gift/b', seatRow: null, seatCol: null },
+    ],
+  })
+  giftRepository.createLetter.mockResolvedValue({ status: 'pending' })
+  renderPage()
+  fireEvent.click(screen.getByRole('button', { name: /Gửi lời chúc cho một bạn/ }))
+  const dialog = within(screen.getByRole('dialog'))
+  fireEvent.click(dialog.getByLabelText(/Ẩn danh/))
+  fireEvent.change(dialog.getByLabelText('Tên người nhận'), { target: { value: 'linh' } })
+  fireEvent.change(dialog.getByLabelText('Lời chúc'), { target: { value: 'Chúc mừng 20/10!' } })
+  fireEvent.submit(dialog.getByLabelText('Lời chúc').closest('form'))
+
+  const first = await dialog.findByRole('button', { name: /Diệu Linh/ })
+  expect(first).toHaveTextContent('"Linh Tần"')
+  expect(dialog.getByRole('button', { name: /Phương Linh/ })).toBeTruthy()
+  expect(dialog.queryAllByRole('img')).toHaveLength(0)
+  fireEvent.click(first)
+  await vi.waitFor(() => expect(giftRepository.createLetter).toHaveBeenCalledWith('a', expect.objectContaining({ content: 'Chúc mừng 20/10!' }), []))
+})
+
+test('quà đã mở: trang chủ trở lại như cũ', () => {
+  event.status = { ...LOCKED, locked: false, unlockAt: null }
+  renderPage()
+  expect(screen.getByRole('button', { name: /Mình là thành viên trong lớp/ })).toBeTruthy()
+  expect(screen.getByRole('button', { name: /Mình là khách ghé thăm/ })).toBeTruthy()
+  expect(screen.getByRole('button', { name: /Mình muốn gửi lời chúc cho một bạn/ })).toBeTruthy()
+})

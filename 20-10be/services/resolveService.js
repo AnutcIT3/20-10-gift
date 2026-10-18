@@ -22,7 +22,10 @@ function narrowByAccents(rows, typed, normalized) {
   return rows;
 }
 
-async function resolve(name, scope = 'class') {
+// locked: trang quà đang khoá chờ 20/10. Tra tên lúc đó chỉ để form gửi lời
+// chúc chọn đúng người nhận — trả họ tên + biệt danh, KHÔNG kèm ảnh đại diện
+// hay chỗ ngồi (ảnh của các bạn chỉ lộ ra khi quà đã mở)
+async function resolve(name, scope = 'class', { locked = false } = {}) {
   const trimmed = name.trim();
   if (!trimmed) return { error: 'Vui lòng nhập tên cần tìm', status: 400 };
   if (trimmed.length < 2) return { error: 'Tên tìm kiếm phải có ít nhất 2 ký tự', status: 400 };
@@ -62,10 +65,10 @@ async function resolve(name, scope = 'class') {
   const matches = resultRows.slice(0, 10).map((r) => ({
     displayName: r.full_name,
     nickname: r.nickname || '',
-    avatarUrl: r.avatar_url || '',
+    avatarUrl: locked ? '' : r.avatar_url || '',
     giftPath: `/gift/${r.access_code}`,
-    seatRow: r.seat_row ?? null,
-    seatCol: r.seat_col ?? null,
+    seatRow: locked ? null : r.seat_row ?? null,
+    seatCol: locked ? null : r.seat_col ?? null,
   }));
 
   return {

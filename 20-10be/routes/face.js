@@ -5,6 +5,7 @@ const { faceMatchLimiter, faceEventLimiter } = require('../middleware/rateLimit'
 const { uploadErrorHandler } = require('../config/cloudinary');
 const { FACE_FRAME_MAX_BYTES } = require('../config/constants');
 const faceController = require('../controllers/faceController');
+const giftLockGuard = require('../middleware/giftLock');
 
 const FRAME_MIMES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
 
@@ -25,12 +26,13 @@ const router = Router();
 
 router.get('/status', asyncHandler(faceController.status));
 
-// Cố ý KHÔNG gắn giftLockGuard: khóa chờ 20/10 chặn XEM trang quà, còn nhận
-// diện chỉ trả về đường dẫn — trang quà tự chặn khi mở. Limiter đứng trước
-// multer để request bị 429 không tốn công đọc thân multipart.
+// Khoá chờ 20/10 chặn cả nhận diện: kết quả quét chào đúng tên (và cả nhóm)
+// trước giờ mở quà. giftLockGuard đứng trước multer để request bị chặn (423)
+// hay 429 không tốn công đọc thân multipart.
 router.post(
   '/match',
   faceMatchLimiter,
+  giftLockGuard,
   uploadFrame.single('frame'),
   uploadErrorHandler,
   asyncHandler(faceController.match),

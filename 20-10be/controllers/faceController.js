@@ -1,8 +1,13 @@
 const { sendSuccess, sendError } = require('../utils/response');
 const faceService = require('../services/faceService');
+const settingsService = require('../services/settingsService');
 
-// ?scope=friend: thẻ Face ID ở nhánh "khách ghé thăm" chỉ hiện khi đã có khách đăng ký
+// ?scope=friend: thẻ Face ID ở nhánh "khách ghé thăm" chỉ hiện khi đã có khách đăng ký.
+// Trang quà đang khoá chờ 20/10: Face ID coi như tắt — trang chủ ẩn thẻ ✨,
+// không ai quét để thấy tên bạn mình trước giờ mở quà
 async function status(req, res) {
+  const { locked } = await settingsService.getGiftLockState();
+  if (locked) return sendSuccess(res, { enabled: false, model: null, profiles: 0, locked: true });
   return sendSuccess(res, await faceService.getStatus(req.query?.scope));
 }
 
