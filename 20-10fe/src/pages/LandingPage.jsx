@@ -145,7 +145,10 @@ function LandingPage() {
   // nhóm nào đã sẵn sàng, để đổi vai trò không mượn kết quả của nhóm kia.
   const faceScope = visitorRole === 'guest' ? 'friend' : 'class'
   const [faceReadyScope, setFaceReadyScope] = useState(null)
-  const faceAvailable = visitorRole !== null && faceReadyScope === faceScope
+  // Trang quà đang khoá chờ 20/10: trang chủ chỉ còn đếm ngược và gửi lời
+  // chúc — không chọn vai trò, không tra tên, không Face ID (máy chủ cũng chặn)
+  const giftsLocked = Boolean(eventStatus?.locked)
+  const faceAvailable = !giftsLocked && visitorRole !== null && faceReadyScope === faceScope
   // Destructure ngay tại đây: videoRef là ref, phần còn lại là giá trị render —
   // gộp chung một object thì React Compiler coi mọi lần đọc thuộc tính là đọc ref
   const {
@@ -490,15 +493,26 @@ function LandingPage() {
           <Envelope open={Boolean(visitorRole)} sealWiggle />
         </div>
         <div className="landing__content">
-          {!visitorRole ? (
+          {giftsLocked ? (
+            <>
+              <p className="kicker">20 · 10 · {EVENT_YEAR}</p>
+              <h1 className="landing__title">Một món quà nhỏ dành riêng cho bạn</h1>
+              <p className="landing__intro">Góc lưu bút các bạn nam {CLASS_NAME} làm tặng đang được gói, sẽ mở vào ngày 20/10.</p>
+              {eventStatus.unlockAt
+                ? <EventCountdown unlockAt={eventStatus.unlockAt} offset={eventOffset} onDone={handleCountdownDone} />
+                : <p className="landing__ask">Hẹn bạn ngày 20/10 nhé!</p>}
+              <p className="landing__ask">Trong lúc chờ, bạn có thể gửi trước một lời chúc:</p>
+              <div className="landing__roles">
+                <button type="button" className="btn-stamp" style={{ '--rot': '-1deg' }} onClick={openWish}>
+                  <span className="btn-stamp__icon" aria-hidden="true">✉</span>Gửi lời chúc cho một bạn
+                </button>
+              </div>
+            </>
+          ) : !visitorRole ? (
             <>
               <p className="kicker">20 · 10 · {EVENT_YEAR}</p>
               <h1 className="landing__title">Một món quà nhỏ dành riêng cho bạn</h1>
               <p className="landing__intro">Nhập tên để mở góc lưu bút các bạn nam {CLASS_NAME} làm tặng, cùng những lời chúc gửi tới bạn.</p>
-              {/* Admin hẹn giờ tự mở → các bạn nữ cùng đếm ngược; về 0 thì quà mở */}
-              {eventStatus?.locked && eventStatus.unlockAt && (
-                <EventCountdown unlockAt={eventStatus.unlockAt} offset={eventOffset} onDone={handleCountdownDone} />
-              )}
               {justOpened && (
                 <p className="event-opened" role="status">
                   🎉 Quà đã mở rồi! Cho tụi mình biết bạn là ai để mở tiếp nhé.
@@ -571,9 +585,11 @@ function LandingPage() {
               </p>
             </>
           )}
-          <button type="button" className="landing__wish" onClick={openWish}>
-            <span className="link-dashed">✉ Mình muốn gửi lời chúc cho một bạn</span>
-          </button>
+          {!giftsLocked && (
+            <button type="button" className="landing__wish" onClick={openWish}>
+              <span className="link-dashed">✉ Mình muốn gửi lời chúc cho một bạn</span>
+            </button>
+          )}
           {eventStatus && !eventStatus.locked && eventStatus.replies > 0 && (
             <Link to="/hoi-am" className="landing__wish landing__replies">
               <span className="link-dashed">📬 Hộp thư hồi âm · {eventStatus.replies} lá</span>
