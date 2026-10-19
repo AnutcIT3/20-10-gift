@@ -21,6 +21,8 @@ async function match(req, res) {
     // scope: 'friend' khi khách quét — chỉ so với thư viện khách; còn lại là lớp
     const context = {
       scan: req.body?.scan, t: req.body?.t, userAgent: req.get('user-agent'), scope: req.body?.scope,
+      // Mã lệnh quay đầu máy chủ đã ra (chống giơ ảnh)
+      challenge: req.body?.challenge,
     };
     return sendSuccess(res, await faceService.matchFrame(req.file.buffer, req.file.mimetype, context));
   } catch (error) {

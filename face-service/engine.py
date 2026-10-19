@@ -74,6 +74,21 @@ def shrink(img, max_side=MAX_SIDE):
                       interpolation=cv2.INTER_AREA), scale
 
 
+def yaw_of(kps):
+    """Chi so quay dau tu 5 diem moc (mat trai, mat phai, mui, 2 khoe mieng):
+    do lech cua mui so voi giua hai mat, chia cho khoang cach hai mat, do theo
+    duong noi hai mat (nghieng dau khong anh huong). ~0 la nhin thang; duong
+    la mui lech ve ben phai anh (nguoi quay sang TRAI cua ho, voi camera truoc
+    khong lat anh), am la nguoc lai. Anh phang nghieng di thi ti le gan nhu
+    khong doi — vi vay dung de phan biet mat that voi anh gio len."""
+    le, re, nose = np.asarray(kps[0], float), np.asarray(kps[1], float), np.asarray(kps[2], float)
+    eye = re - le
+    dist = float(np.linalg.norm(eye))
+    if dist < 1e-6:
+        return 0.0
+    return float(np.dot(nose - (le + re) / 2, eye / dist) / dist)
+
+
 class Engine:
     def __init__(self, model_key=DEFAULT_MODEL, det_size=640, use_gpu=False):
         from insightface.app import FaceAnalysis
@@ -127,6 +142,7 @@ class Engine:
                 'det_score': round(float(face.det_score), 3),
                 'brightness': round(float(gray.mean()), 1),
                 'blur': round(float(cv2.Laplacian(gray, cv2.CV_64F).var()), 1),
+                'yaw': round(yaw_of(face.kps), 3),
                 'crop': crop,
             })
         return out

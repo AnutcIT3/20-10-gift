@@ -1429,3 +1429,29 @@
   flex-basis: 100%;
   margin: 0;
 }
+
+/* Chống giơ ảnh: mũi tên to bảo quay đầu (theo khung xem trước lật như gương) */
+.face-turn {
+  margin: 8px 0 0;
+  font-size: 44px;
+  line-height: 1;
+  text-align: center;
+  color: var(--clay);
+  animation: faceTurnNudge 1s ease-in-out infinite;
+}
+
+.face-turn--left { --nudge: -10px; }
+.face-turn--right { --nudge: 10px; }
+
+.face-hint--turn {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+@keyframes faceTurnNudge {
+  50% { transform: translateX(var(--nudge)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .face-turn { animation: none; }
+}

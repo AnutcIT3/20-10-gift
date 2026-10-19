@@ -15,13 +15,14 @@ function AdminLayout() {
   // Sidebar: số lời chúc chờ duyệt (badge), trạng thái khóa trang quà và công
   // tắc Face ID (null = chưa biết, chưa cho bấm)
   const [sidebar, setSidebar] = useState({
-    pending: null, repliesPending: null, locked: null, unlockAt: null, faceEnabled: null, faceOnly: null,
+    pending: null, repliesPending: null, locked: null, unlockAt: null, faceEnabled: null, faceOnly: null, faceLiveness: null,
   })
   const [lockSaving, setLockSaving] = useState(false)
   const [lockError, setLockError] = useState('')
   const [faceSaving, setFaceSaving] = useState(false)
   const [faceError, setFaceError] = useState('')
   const [faceOnlySaving, setFaceOnlySaving] = useState(false)
+  const [livenessSaving, setLivenessSaving] = useState(false)
 
   const loadSidebar = useCallback(async () => {
     try {
@@ -33,6 +34,7 @@ function AdminLayout() {
         unlockAt: settings?.gift_unlock_at || null,
         faceEnabled: Boolean(settings?.face_enabled),
         faceOnly: Boolean(settings?.face_only),
+        faceLiveness: settings?.face_liveness !== false,
       })
     } catch {
       // Giữ giá trị cũ — badge/khóa lệch vài giây không đáng chặn thao tác
@@ -152,6 +154,22 @@ function AdminLayout() {
     }
   }
 
+  // Chống giơ ảnh: nhận ra mặt rồi phải quay đầu theo lệnh mới mở quà. Tắt
+  // khi có bạn quay mãi không qua (camera lạ, máy cũ) — mở như trước
+  const toggleLiveness = async () => {
+    if (sidebar.faceLiveness === null || livenessSaving) return
+    setLivenessSaving(true)
+    setFaceError('')
+    try {
+      const updated = await adminApi.updateSettings({ face_liveness: !sidebar.faceLiveness })
+      setSidebar((current) => ({ ...current, faceLiveness: Boolean(updated?.face_liveness) }))
+    } catch (err) {
+      setFaceError(err.message)
+    } finally {
+      setLivenessSaving(false)
+    }
+  }
+
   const logout = () => {
     adminAuth.clear()
     navigate('/', { replace: true })
@@ -160,6 +178,7 @@ function AdminLayout() {
   const locked = sidebar.locked
   const faceEnabled = sidebar.faceEnabled
   const faceOnly = sidebar.faceOnly
+  const faceLiveness = sidebar.faceLiveness
   return (
     <div className="admin-shell">
       <aside className="admin-sidebar">
@@ -249,6 +268,25 @@ function AdminLayout() {
               : faceOnly
                 ? <>Đang <b>CHỈ MỞ BẰNG FACE ID</b> — trang chủ ẩn ô gõ tên.{!faceEnabled && <> <b>Face ID đang tắt</b> nên chưa ai mở quà được!</>}</>
                 : <>Gõ tên hay Face ID đều mở được quà.</>}
+          </p>
+          <div className="admin-lock__row">
+            <span>🛡️ Chống giơ ảnh</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={Boolean(faceLiveness)}
+              aria-label={faceLiveness ? 'Đang bắt quay đầu khi quét Face ID — bấm để tắt' : 'Đang tắt chống giơ ảnh — bấm để bật'}
+              className={`admin-toggle${faceLiveness ? ' is-on' : ''}`}
+              disabled={faceLiveness === null || livenessSaving}
+              onClick={toggleLiveness}
+            />
+          </div>
+          <p>
+            {faceLiveness === null
+              ? 'Đang kiểm tra trạng thái…'
+              : faceLiveness
+                ? <>Đang <b>BẬT</b> — nhận ra mặt rồi phải quay đầu sang trái/phải theo lệnh mới mở quà; giơ ảnh không mở được.</>
+                : <>Đang <b>TẮT</b> — nhận ra mặt là mở, như trước.</>}
           </p>
         </div>
         <button type="button" className="admin-logout" onClick={logout}>Đăng xuất</button>

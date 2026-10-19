@@ -96,10 +96,12 @@ async function faceStatus(scope) {
 // giờ ở trình duyệt trước thì lượt quét dừng oan với câu "Face ID nghỉ".
 // scan/t (mã lượt quét, ms từ lúc camera chạy) để admin xem lại lượt đó.
 // scope 'friend' khi khách quét: chỉ so với thư viện khách.
-async function matchFace(blob, { signal, timeout = 10000, scan, t, scope } = {}) {
+async function matchFace(blob, { signal, timeout = 10000, scan, t, scope, challenge } = {}) {
   const form = new FormData()
   form.append('frame', blob, 'frame.jpg')
   if (scan) form.append('scan', scan)
+  // Mã lệnh quay đầu máy chủ vừa ra (chống giơ ảnh)
+  if (challenge) form.append('challenge', challenge)
   if (Number.isFinite(t)) form.append('t', String(Math.round(t)))
   if (scope === 'friend') form.append('scope', scope)
   const response = await api.post('/api/face/match', form, { signal, timeout })

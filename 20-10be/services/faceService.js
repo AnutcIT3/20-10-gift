@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const pool = require('../config/db');
 const settingsService = require('./settingsService');
 const { describeUserAgent } = require('../utils/userAgent');
@@ -36,6 +37,53 @@ const CLAIM_WINDOW_MINUTES = 30;
 const MAX_MEDIUMINT = 16777215;
 // Câu này đi thẳng qua sendError ở controller: errorHandler production thay
 // mọi thông điệp ≥ 500 bằng câu chung, mà frontend cần đúng câu này để hiện
+// ── Chống giơ ảnh: thử thách quay đầu ───────────────────────────────────────
+// Nhận ra mặt rồi máy chủ CHƯA trả link trang quà: ra lệnh quay sang trái hay
+// phải (ngẫu nhiên), giữ lệnh trong bộ nhớ. Khung sau phải là đúng người đó và
+// mũi đã lệch đủ về hướng được bảo (yaw, xem face-service/engine.py yaw_of) thì
+// mới trả link. Ảnh phẳng nghiêng đi thì yaw gần như không đổi; video quay sẵn
+// không biết trước hướng. Đo trên 222 ảnh trong bench: nhìn thẳng |yaw| < 0.1.
+const LIVENESS_YAW_MIN = 0.15;      // đã quay rõ về hướng được bảo
+const LIVENESS_YAW_DELTA = 0.12;    // và lệch hẳn so với lúc nhìn thẳng
+const LIVENESS_TTL_MS = 25 * 1000;  // một lệnh sống chừng này, quá thì ra lệnh mới
+const LIVENESS_SAME_PERSON = 0.30;  // quay nghiêng điểm giảm: chỉ cần vẫn là người đó, đứng đầu
+const LIVENESS_MAX = 500;
+const challenges = new Map();
+
+function pruneChallenges(now = Date.now()) {
+  for (const [id, item] of challenges) {
+    if (now - item.createdAt > LIVENESS_TTL_MS) challenges.delete(id);
+  }
+  while (challenges.size > LIVENESS_MAX) challenges.delete(challenges.keys().next().value);
+}
+
+function newChallenge({ studentId, scope, yaw }) {
+  pruneChallenges();
+  const id = crypto.randomBytes(12).toString('hex');
+  const item = {
+    id, studentId, scope, direction: crypto.randomInt(2) === 0 ? 'left' : 'right', baseline: Number(yaw) || 0, createdAt: Date.now(),
+  };
+  challenges.set(id, item);
+  return item;
+}
+
+function liveChallenge(id, scope) {
+  if (typeof id !== 'string' || !/^[a-f0-9]{24}$/.test(id)) return null;
+  const item = challenges.get(id);
+  if (!item || item.scope !== scope || Date.now() - item.createdAt > LIVENESS_TTL_MS) {
+    challenges.delete(id);
+    return null;
+  }
+  return item;
+}
+
+// Đã quay đủ về hướng được bảo chưa (left: yaw dương — xem yaw_of)
+function turnedEnough(challenge, yaw) {
+  if (!Number.isFinite(Number(yaw))) return false;
+  const sign = challenge.direction === 'left' ? 1 : -1;
+  return sign * Number(yaw) >= LIVENESS_YAW_MIN && sign * (Number(yaw) - challenge.baseline) >= LIVENESS_YAW_DELTA;
+}
+
 const UNAVAILABLE_MESSAGE = 'Face ID tạm nghỉ, gõ tên giúp mình nhé 🌷';
 
 function httpError(message, statusCode) {
@@ -490,6 +538,10 @@ async function matchFrame(buffer, mimetype, context = {}) {
   // đứng chung; khung một người thì service cũng chỉ trả một mặt
   const payload = await embedImage(buffer, mimetype, GROUP_MAX_FACES);
   const [primary] = payload.faces;
+  // face-service cũ chưa trả yaw thì không làm thử thách — kẻo không ai mở được
+  const liveness = (await settingsService.isFaceLivenessOn())
+    && (!primary || Number.isFinite(Number(primary.yaw)));
+  const scope = normalizeScope(context.scope);
   // Khung thuộc một lượt quét thì ghi cả khi bị cổng chất lượng chặn: admin
   // cần biết lượt đó hỏng vì tối, xa hay nhòe. Không kèm mã lượt thì như cũ —
   // chỉ ghi khung đã chấm điểm.
@@ -497,9 +549,10 @@ async function matchFrame(buffer, mimetype, context = {}) {
   const frame = { scanId, primary, faces: payload.faces.length, tMs: context.t };
 
   const bigFaces = payload.faces.filter((face) => Number(face.face_px) >= FACE_MIN_FACE_PX);
-  if (bigFaces.length >= 2) return matchGroup({ gallery, bigFaces, frame, started });
+  // Chống giơ ảnh: không có màn "cả nhóm" — chỉ xét mặt to nhất, từng bạn quét
+  if (bigFaces.length >= 2 && !liveness) return matchGroup({ gallery, bigFaces, frame, started });
 
-  const gated = gate(payload.faces);
+  const gated = gate(liveness ? payload.faces.slice(0, 1) : payload.faces);
   if (gated) {
     if (scanId) {
       await logFrame({
@@ -520,6 +573,11 @@ async function matchFrame(buffer, mimetype, context = {}) {
   const verdict = decide(candidates);
   const score = round4(verdict.score);
   const margin = round4(verdict.margin);
+  // Đang làm thử thách quay đầu: mặt nghiêng điểm thấp hơn, chỉ cần vẫn là
+  // người đó và đứng đầu
+  const challenge = liveness ? liveChallenge(context.challenge, scope) : null;
+  const top = candidates.reduce((best, item) => (item.score > (best?.score ?? -Infinity) ? item : best), null);
+  const samePerson = Boolean(challenge && top && top.studentId === challenge.studentId && top.score >= LIVENESS_SAME_PERSON);
 
   // Chỉ ghi số: quyết định, điểm, chất lượng khung — không ảnh, không vector
   const matchId = await logFrame({
@@ -531,6 +589,41 @@ async function matchFrame(buffer, mimetype, context = {}) {
     margin,
     elapsedMs: Date.now() - started,
   });
+
+  if (liveness && (verdict.decision === 'match' || samePerson)) {
+    const studentId = samePerson ? challenge.studentId : verdict.studentId;
+    const person = gallery.students.find((item) => item.studentId === studentId);
+    const current = challenge && challenge.studentId === studentId ? challenge : null;
+    if (current && turnedEnough(current, primary.yaw)) {
+      challenges.delete(current.id);
+      return {
+        decision: 'match',
+        liveness: true,
+        matchId,
+        studentId,
+        giftPath: `/gift/${person.accessCode}`,
+        displayName: person.displayName,
+        score,
+        margin,
+        face_px: primary.face_px,
+        brightness: primary.brightness,
+      };
+    }
+    // Chưa quay (hay vừa nhận ra): ra lệnh / nhắc lại lệnh — chưa có link quà
+    const pending = current || newChallenge({ studentId, scope, yaw: primary.yaw });
+    return {
+      decision: 'challenge',
+      challenge: pending.id,
+      direction: pending.direction,
+      matchId,
+      studentId,
+      displayName: person.displayName,
+      score,
+      margin,
+      face_px: primary.face_px,
+      brightness: primary.brightness,
+    };
+  }
 
   if (verdict.decision !== 'match') {
     // Người lạ hay khung khó đều chỉ nhận về con số — không bao giờ lộ tên
@@ -652,6 +745,9 @@ async function claimScans(tokens, accessCode) {
 }
 
 module.exports = {
+  LIVENESS_YAW_MIN,
+  LIVENESS_YAW_DELTA,
+  resetChallengesForTests: () => challenges.clear(),
   EMBEDDING_DIM,
   EMBEDDING_BYTES,
   UNAVAILABLE_MESSAGE,

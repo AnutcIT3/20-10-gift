@@ -197,6 +197,7 @@ function LandingPage() {
     active: faceActive,
     status: faceStatus,
     hint: faceHint,
+    turn: faceTurn,
     kind: faceKind,
     message: faceMessage,
     title: faceTitle,
@@ -1105,7 +1106,10 @@ function LandingPage() {
                 </div>
                 {/* Chữ luôn hiện song song với vòng quét: prefers-reduced-motion
                     tắt animation thì người dùng vẫn biết máy đang làm gì */}
-                <p className="face-hint" role="status" aria-live="polite">{faceHint}</p>
+                {faceStatus === 'scanning' && faceTurn && (
+                  <p className={`face-turn face-turn--${faceTurn}`} aria-hidden="true">{faceTurn === 'left' ? '⬅' : '➡'}</p>
+                )}
+                <p className={`face-hint${faceTurn ? ' face-hint--turn' : ''}`} role="status" aria-live="polite">{faceHint}</p>
                 {/* Đồng hồ chỉ hiện ở 10 giây cuối — thấy "còn 29 giây" ngay từ đầu
                     dễ tưởng phải chờ đủ chừng ấy, trong khi thường ~2 giây là xong */}
                 {faceStatus === 'scanning' && (

@@ -26,6 +26,7 @@ import {
   showCountdown,
   tallyVotes,
   timeoutKind,
+  turnHint,
 } from './faceVote'
 
 describe('makeScanToken', () => {
@@ -354,4 +355,22 @@ describe('meanLuma / isTooDark — đo sáng vùng giữa trước khi gửi', (
     expect(isTooDark(meanLuma(pixels(35, 35, 35, 8)))).toBe(false)
     expect(isTooDark(meanLuma(pixels(120, 100, 90, 8)))).toBe(false)
   })
+})
+
+it('chống giơ ảnh: lệnh quay đầu không kết luận, không tính là "không nhận ra"; quay xong thì kết luận ngay', () => {
+  const challenge = { decision: 'challenge', challenge: 'a'.repeat(24), direction: 'left', studentId: 1, displayName: 'Vy', matchId: 5 }
+  const step = tallyVotes({ ...INITIAL_VOTES, rejects: 4 }, challenge)
+  expect(step.conclusion).toBeNull()
+  expect(step.giveUp).toBe(false)
+  expect(step.votes.rejects).toBe(0)
+  expect(step.turn).toBe('left')
+  expect(step.hint).toBe('Chào Vy! Quay mặt sang TRÁI một chút để mở quà nhé ⬅')
+  expect(turnHint({ direction: 'right' })).toMatch(/PHẢI.*➡/)
+
+  // Một khung "match" có liveness là đủ (không cần hai khung liên tiếp)
+  const done = tallyVotes(step.votes, { decision: 'match', liveness: true, studentId: 1, matchId: 6, giftPath: '/gift/vy', displayName: 'Vy', score: 0.5, margin: 0.3 })
+  expect(done.conclusion).toMatchObject({ studentId: 1, giftPath: '/gift/vy', matchId: 6 })
+
+  // Người vừa bị bấm "Không phải mình" thì lệnh của họ không được tính
+  expect(tallyVotes(INITIAL_VOTES, challenge, [1]).turn).toBeUndefined()
 })
