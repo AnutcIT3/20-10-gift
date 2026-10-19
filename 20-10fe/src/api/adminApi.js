@@ -75,7 +75,8 @@ export const adminApi = {
   removeWishImage: (id, kind, imageId) => request(`/api/students/${id}/wish-images/${kind}/${imageId}`, { method: 'DELETE' }),
   clearWishImages: (id, kind) => request(`/api/students/${id}/wish-images/${kind}`, { method: 'DELETE' }),
   // Xem thử lời chúc tự động đúng như trang quà sẽ gọi (máy viết mỗi lần một khác)
-  previewGreeting: (name, audienceType) => request('/api/greetings/generate', {
+  // Đường riêng của admin: xem thử được cả khi trang quà đang khoá chờ 20/10
+  previewGreeting: (name, audienceType) => request('/api/admin/greetings/preview', {
     method: 'POST', body: JSON.stringify({ name, audienceType }),
   }),
   createStudent: (data) => request('/api/students', { method: 'POST', body: JSON.stringify(data) }),

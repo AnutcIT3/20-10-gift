@@ -148,7 +148,7 @@ function GreetingPreview({ student, onUse }) {
       const result = await adminApi.previewGreeting(name, audience)
       setPreview(result?.greeting || '')
     } catch (err) {
-      setError(err.status === 423 ? 'Trang quà đang khoá chờ 20/10 nên chưa xem thử được.' : err.message)
+      setError(err.message)
     } finally {
       setLoading(false)
     }

@@ -1409,6 +1409,35 @@ test('gift lock: locked also blocks the celebrate greeting endpoint', async (t) 
   assert.equal(response.status, 423);
 });
 
+test('admin xem thử được lời chúc tự động cả khi trang quà đang khoá; người ngoài thì không', async (t) => {
+  const original = pool.execute;
+  const key = process.env.GEMINI_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  pool.execute = async (sql) => {
+    if (sql.includes('FROM app_settings')) return [[{ setting_value: '1' }]];
+    if (sql.includes('FROM admins')) return [[{ id: 1 }]];
+    return [[]];
+  };
+  const server = app.listen(0);
+  t.after(() => {
+    server.close();
+    pool.execute = original;
+    if (key !== undefined) process.env.GEMINI_API_KEY = key;
+  });
+  await new Promise((resolve) => server.once('listening', resolve));
+  const preview = (headers) => fetch(`http://127.0.0.1:${server.address().port}/api/admin/greetings/preview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ name: 'Bó tần', audienceType: 'close_friend' }),
+  });
+
+  assert.equal((await preview({})).status, 401);
+  const response = await preview({ Authorization: `Bearer ${signToken({ sub: 1 })}` });
+  assert.equal(response.status, 200);
+  const { data } = await response.json();
+  assert.match(data.greeting, /Bó tần/);
+});
+
 test('endpoint lời chúc nhận kiểu "bạn thân" — controller và service dùng chung một danh sách', async (t) => {
   const original = pool.execute;
   const key = process.env.GEMINI_API_KEY;
