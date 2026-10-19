@@ -1179,3 +1179,8 @@
   width: min(320px, 100%);
   margin: 14px 0 4px;
 }
+
+/* Nhiều lời chúc riêng dưới tên: mỗi lời một đoạn, ảnh ngay dưới lời đó */
+.hero__note + .hero__note {
+  margin-top: 14px;
+}

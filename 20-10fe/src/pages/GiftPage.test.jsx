@@ -123,3 +123,29 @@ test('admin đã tự viết lời chúc ✨ thì trang quà dùng đúng câu �
   await waitFor(() => expect(document.querySelector('.ai-note:not(.ai-note--admin)')).toBeTruthy())
   expect(giftRepository.generateGreeting).not.toHaveBeenCalled()
 })
+
+test('nhiều lời chúc riêng hiện lần lượt dưới tên; mỗi lời 💌 một ô, hồi âm admin chỉ ở ô cuối', async () => {
+  giftRepository.getGiftContent.mockResolvedValue({
+    ...CONTENT,
+    student: {
+      ...CONTENT.student,
+      intro_message: 'Lời riêng một',
+      intro_notes: [{ id: 1, content: 'Lời riêng hai', images: [{ id: 9, url: 'https://res.cloudinary.com/demo/image/upload/i2.jpg' }] }],
+      admin_wish: 'Lời admin một',
+      admin_wish_notes: [
+        { id: 2, content: 'Lời admin hai', images: [] },
+        { id: 3, content: '', images: [] }, // lời trống không ảnh thì không có ô
+        { id: 4, content: 'Lời admin bốn', images: [] },
+      ],
+    },
+  })
+  renderGift(undefined)
+  expect(await screen.findByText('Lời riêng một')).toBeTruthy()
+  expect(screen.getByText('Lời riêng hai')).toBeTruthy()
+  expect(screen.getByRole('img', { name: 'Ảnh kèm lời chúc riêng' })).toBeTruthy()
+
+  const boxes = document.querySelectorAll('.ai-note--admin')
+  expect([...boxes].map((box) => box.querySelector('p')?.textContent)).toEqual(['Lời admin một', 'Lời admin hai', 'Lời admin bốn'])
+  expect(screen.getAllByRole('button', { name: /Hồi âm admin/ })).toHaveLength(1)
+  expect(boxes[2].textContent).toContain('Hồi âm admin')
+})

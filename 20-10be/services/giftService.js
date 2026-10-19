@@ -2,6 +2,7 @@ const pool = require('../config/db');
 const { sanitizeLetterPayload } = require('./letterService');
 const letterImageService = require('./letterImageService');
 const wishImageService = require('./wishImageService');
+const wishNoteService = require('./wishNoteService');
 
 function httpError(message, statusCode) {
   return Object.assign(new Error(message), { statusCode });
@@ -44,8 +45,9 @@ async function getStudentByCode(accessCode) {
     [rows] = await findStudentByCode(accessCode, false);
   }
   if (!rows[0]) return null;
-  // intro_images / admin_wish_images / greeting_images: tối đa 4 ảnh mỗi lời chúc
-  const [student] = await wishImageService.withWishImages([rows[0]]);
+  // intro_images / admin_wish_images / greeting_images: tối đa 4 ảnh mỗi lời chúc;
+  // intro_notes / admin_wish_notes: các lời nhắn thêm (lời thứ 2–4)
+  const [student] = await wishNoteService.withWishNotes(await wishImageService.withWishImages([rows[0]]));
   if (student.member_type === 'friend') {
     return { ...student, close_friend: await isCloseFriend(student.id) };
   }

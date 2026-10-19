@@ -22,7 +22,7 @@ test('list students carries gallery, letter and view counts for the admin table'
   let capturedSql = '';
   pool.execute = async (sql) => {
     // Ảnh kèm lời chúc riêng đọc ở truy vấn sau — bảng này giữ nguyên câu SQL chính
-    if (sql.includes('FROM wish_images')) return [[]];
+    if (sql.includes('FROM wish_images') || sql.includes('FROM wish_notes')) return [[]];
     capturedSql = sql;
     return [[{
       id: 1, full_name: 'Nguyễn An', access_code: 'safe-code', is_active: 1,

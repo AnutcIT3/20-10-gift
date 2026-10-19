@@ -22,6 +22,8 @@ const TABLES = [
   'gift_opens',
   'letter_images',
   'wish_images',
+  'wish_notes',
+  'wish_note_images',
 ];
 
 function escapeValue(value) {

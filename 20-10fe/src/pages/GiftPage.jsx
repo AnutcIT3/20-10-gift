@@ -13,7 +13,7 @@ import Petals from '../components/paper/Petals'
 import PhotoSet from '../components/PhotoSet'
 import { CLASS_LABEL, CLASS_NAME, GUEST_LABEL } from '../lib/event'
 import { greetingRequest } from '../lib/greeting'
-import { wishImageUrls } from '../lib/images'
+import { wishImageUrls, wishNotes } from '../lib/images'
 import '../styles/gift.css'
 
 const ERROR_VIEWS = {
@@ -283,6 +283,8 @@ function GiftPage() {
 
   const studentName = student?.nickname || student?.full_name
   const isFriend = student?.member_type === 'friend'
+  // 💌 lời chúc từ admin: mỗi lời (tối đa 4) một ô riêng
+  const adminNotes = student ? wishNotes(student, 'admin_wish') : []
 
   if (loading) {
     return (
@@ -317,26 +319,29 @@ function GiftPage() {
         <HeroSection student={student} />
         {/* Lời chúc admin viết riêng: người thật viết nên hiện luôn, không gõ
             từng chữ như câu máy sinh; không viết thì không có ô nào cả */}
-        {(student?.admin_wish || wishImageUrls(student, 'admin_wish').length > 0) && (
-          <section className="ai-note ai-note--admin">
+        {/* Tối đa 4 lời, mỗi lời một ô; hồi âm admin chỉ ở ô cuối */}
+        {adminNotes.map((note, index) => (
+          <section key={note.key} className="ai-note ai-note--admin">
             <span className="ai-note__clip" aria-hidden="true" />
             <span className="ai-note__label">
               <span className="ai-note__label-long">💌 LỜI CHÚC TỪ ADMIN</span>
               <span className="ai-note__label-short">💌 TỪ ADMIN</span>
             </span>
-            {student.admin_wish && <p>{student.admin_wish}</p>}
-            <PhotoSet urls={wishImageUrls(student, 'admin_wish')} alt="Ảnh kèm lời chúc từ admin" lazy className="ai-note__photo" />
-            <ReplyBox
-              accessCode={accessCode}
-              target="admin"
-              recipient="admin"
-              replies={replies.filter((reply) => reply.target === 'admin')}
-              onSent={addReply}
-              openLabel="✉ Hồi âm admin"
-              className="ai-note__reply"
-            />
+            {note.content && <p>{note.content}</p>}
+            <PhotoSet urls={note.urls} alt="Ảnh kèm lời chúc từ admin" lazy className="ai-note__photo" />
+            {index === adminNotes.length - 1 && (
+              <ReplyBox
+                accessCode={accessCode}
+                target="admin"
+                recipient="admin"
+                replies={replies.filter((reply) => reply.target === 'admin')}
+                onSent={addReply}
+                openLabel="✉ Hồi âm admin"
+                className="ai-note__reply"
+              />
+            )}
           </section>
-        )}
+        ))}
         {aiGreeting && (
           <section className="ai-note" aria-live="polite">
             <span className="ai-note__clip" aria-hidden="true" />

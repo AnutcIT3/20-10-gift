@@ -9,6 +9,11 @@ vi.mock('../../api/adminApi', () => ({
     addWishImages: vi.fn(),
     removeWishImage: vi.fn(),
     clearWishImages: vi.fn(),
+    addWishNote: vi.fn(),
+    updateWishNote: vi.fn(),
+    removeWishNote: vi.fn(),
+    addWishNoteImages: vi.fn(),
+    removeWishNoteImage: vi.fn(),
     previewGreeting: vi.fn(),
   },
 }))
@@ -120,4 +125,51 @@ test('đã có câu admin viết thì báo trang quà đang dùng câu đó', ()
   const thuy = within(card('Thủy'))
   expect(thuy.getByLabelText('✨ Lời chúc tự động của Thủy')).toHaveValue('Câu admin viết')
   expect(thuy.getByText(/Trang quà đang dùng/)).toHaveTextContent('câu admin viết')
+})
+
+test('lời chúc riêng và 💌 thêm được tới 4 lời; mỗi lời sửa, xoá và kèm ảnh riêng', async () => {
+  const onStudentSaved = vi.fn()
+  const notes = [
+    { id: 21, content: 'Lời hai', images: [{ id: 31, url: IMAGE }] },
+    { id: 22, content: 'Lời ba', images: [] },
+  ]
+  adminApi.addWishNote.mockResolvedValue({ id: 10 })
+  adminApi.updateWishNote.mockResolvedValue({ id: 10 })
+  adminApi.removeWishNote.mockResolvedValue({ id: 10 })
+  adminApi.addWishNoteImages.mockResolvedValue({ id: 10 })
+  adminApi.removeWishNoteImage.mockResolvedValue({ id: 10 })
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  render(<PersonalWishes students={[{ ...STUDENTS[0], admin_wish: 'Lời một', admin_wish_notes: notes }]} onStudentSaved={onStudentSaved} />)
+  const admin = within(screen.getByRole('region', { name: '💌 Lời chúc từ admin — Thủy' }))
+
+  // Đã có 3 lời → còn chỗ cho 1
+  fireEvent.click(admin.getByRole('button', { name: '+ Thêm lời nhắn (3/4)' }))
+  fireEvent.change(admin.getByRole('textbox', { name: '💌 Lời chúc từ admin — lời mới của Thủy' }), { target: { value: '  Lời bốn  ' } })
+  fireEvent.click(admin.getByRole('button', { name: 'Lưu lời nhắn' }))
+  await waitFor(() => expect(adminApi.addWishNote).toHaveBeenCalledWith(10, 'admin_wish', 'Lời bốn'))
+
+  const second = within(admin.getByRole('group', { name: '💌 Lời chúc từ admin — lời 2 của Thủy' }))
+  fireEvent.change(second.getByRole('textbox', { name: '💌 Lời chúc từ admin — lời 2 của Thủy' }), { target: { value: 'Lời hai đã sửa' } })
+  fireEvent.click(second.getByRole('button', { name: 'Lưu chữ' }))
+  await waitFor(() => expect(adminApi.updateWishNote).toHaveBeenCalledWith(10, 21, 'Lời hai đã sửa'))
+
+  fireEvent.click(second.getByRole('button', { name: 'Bỏ ảnh 1' }))
+  await waitFor(() => expect(adminApi.removeWishNoteImage).toHaveBeenCalledWith(10, 21, 31))
+
+  const third = within(admin.getByRole('group', { name: '💌 Lời chúc từ admin — lời 3 của Thủy' }))
+  const photos = ['a', 'b'].map((name) => new File(['x'], `${name}.jpg`, { type: 'image/jpeg' }))
+  fireEvent.change(third.getByLabelText('Ảnh kèm 💌 Lời chúc từ admin — lời 3 của Thủy'), { target: { files: photos } })
+  await waitFor(() => expect(adminApi.addWishNoteImages).toHaveBeenCalledWith(10, 22, photos))
+
+  fireEvent.click(third.getByRole('button', { name: 'Xoá lời này' }))
+  await waitFor(() => expect(adminApi.removeWishNote).toHaveBeenCalledWith(10, 22))
+})
+
+test('đủ 4 lời thì không thêm được nữa; ✨ lời chúc tự động không có lời nhắn thêm', () => {
+  const full = [{ id: 1, content: 'a', images: [] }, { id: 2, content: 'b', images: [] }, { id: 3, content: 'c', images: [] }]
+  render(<PersonalWishes students={[{ ...STUDENTS[0], intro_notes: full }]} onStudentSaved={vi.fn()} />)
+  const intro = within(screen.getByRole('region', { name: 'Lời chúc riêng — Thủy' }))
+  expect(intro.getByRole('button', { name: 'Đủ 4 lời nhắn' })).toBeDisabled()
+  const auto = within(screen.getByRole('region', { name: '✨ Lời chúc tự động — Thủy' }))
+  expect(auto.queryByRole('button', { name: /Thêm lời nhắn/ })).toBeNull()
 })

@@ -94,6 +94,7 @@ const REFERENCE_QUERIES = [
   ['letters', 'image_public_id'],
   ['letter_images', 'public_id'],
   ['wish_images', 'public_id'],
+  ['wish_note_images', 'public_id'],
   ['students', 'intro_image_public_id'],
   ['students', 'admin_wish_image_public_id'],
   ['students', 'greeting_image_public_id'],

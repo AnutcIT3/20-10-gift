@@ -335,6 +335,19 @@ function wishUrls(student, kind) {
   return pictureUrls(student[`${kind}_images`], student[`${kind}_image_url`]);
 }
 
+// Lời chúc riêng / 💌: lời thứ nhất ở cột cũ, các lời thêm ở `${kind}_notes`
+// (tối đa 4 lời, mỗi lời tối đa 4 ảnh). Lời không chữ không ảnh thì bỏ qua.
+const NOTE_FIELDS = { intro: 'intro_message', admin_wish: 'admin_wish' };
+
+function wishNotes(student, kind) {
+  const main = { content: student[NOTE_FIELDS[kind]] || '', urls: wishUrls(student, kind) };
+  const extras = (student[`${kind}_notes`] || []).map((note) => ({
+    content: note.content || '',
+    urls: pictureUrls(note.images, null),
+  }));
+  return [main, ...extras].filter((note) => note.content || note.urls.length);
+}
+
 function renderLetter(letter, srcs) {
   const anonymous = Boolean(letter.is_anonymous) || !letter.sender_name;
   return `<article class="letter">`
@@ -411,16 +424,15 @@ function renderKeepsake({
   const sections = [
     `<section class="cover"><div><span class="postmark">${postmark}<br><b>20.10</b><br>${year}</span>`
       + `<h1>Gửi <span>${escapeHtml(displayName)}</span>,</h1>`
-      + (student.intro_message ? `<p class="intro">${escapeHtml(student.intro_message)}</p>` : '')
-      + renderPictures(wishUrls(student, 'intro').map((url) => srcOf(url, 'letter')), 'Ảnh kèm lời chúc riêng', 'intro-photo')
+      + wishNotes(student, 'intro').map((note) => (note.content ? `<p class="intro">${escapeHtml(note.content)}</p>` : '')
+        + renderPictures(note.urls.map((url) => srcOf(url, 'letter')), 'Ảnh kèm lời chúc riêng', 'intro-photo')).join('')
       + `</div>${hero}</section>`,
   ];
-  // Như trang quà: ô 💌 hiện khi có chữ HOẶC có ảnh
-  const adminWishSrcs = wishUrls(student, 'admin_wish').map((url) => srcOf(url, 'letter'));
-  if (student.admin_wish || adminWishSrcs.length) {
+  // Như trang quà: mỗi lời 💌 một ô riêng, hiện khi có chữ HOẶC có ảnh
+  for (const note of wishNotes(student, 'admin_wish')) {
     sections.push(`<section class="note note--admin"><span class="label">💌 LỜI CHÚC TỪ ADMIN</span>`
-      + (student.admin_wish ? `<p>${escapeHtml(student.admin_wish)}</p>` : '')
-      + `${renderPictures(adminWishSrcs, 'Ảnh kèm lời chúc từ admin')}</section>`);
+      + (note.content ? `<p>${escapeHtml(note.content)}</p>` : '')
+      + `${renderPictures(note.urls.map((url) => srcOf(url, 'letter')), 'Ảnh kèm lời chúc từ admin')}</section>`);
   }
   if (greeting) {
     sections.push(`<section class="note"><span class="label">✨ MỘT LỜI CHÚC DÀNH RIÊNG CHO BẠN</span><p>${escapeHtml(greeting)}</p>`
@@ -480,6 +492,9 @@ async function buildKeepsake({
       .map((url) => cloudinaryVariant(url, TRANSFORMS.letter)),
     // Ảnh kèm ba lời chúc riêng (lời chúc riêng, 💌 admin, ✨ tự động), tối đa 4 mỗi lời
     ...['intro', 'admin_wish', 'greeting'].flatMap((kind) => wishUrls(student, kind))
+      .map((url) => cloudinaryVariant(url, TRANSFORMS.letter)),
+    // Ảnh của các lời nhắn thêm (lời chúc riêng / 💌 thứ 2–4)
+    ...['intro', 'admin_wish'].flatMap((kind) => (student[`${kind}_notes`] || []).flatMap((note) => pictureUrls(note.images, null)))
       .map((url) => cloudinaryVariant(url, TRANSFORMS.letter)),
   ].filter(Boolean);
   const embedded = await embedImages(wanted, { fetchImpl, now: now.getTime(), logger });

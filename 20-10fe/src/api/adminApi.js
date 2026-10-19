@@ -74,6 +74,20 @@ export const adminApi = {
   },
   removeWishImage: (id, kind, imageId) => request(`/api/students/${id}/wish-images/${kind}/${imageId}`, { method: 'DELETE' }),
   clearWishImages: (id, kind) => request(`/api/students/${id}/wish-images/${kind}`, { method: 'DELETE' }),
+  // Lời chúc riêng / 💌: lời nhắn thêm (lời thứ 2–4), mỗi lời kèm tối đa 4 ảnh
+  addWishNote: (id, kind, content) => request(`/api/students/${id}/wish-notes/${kind}`, {
+    method: 'POST', body: JSON.stringify({ content }),
+  }),
+  updateWishNote: (id, noteId, content) => request(`/api/students/${id}/wish-notes/${noteId}`, {
+    method: 'PATCH', body: JSON.stringify({ content }),
+  }),
+  removeWishNote: (id, noteId) => request(`/api/students/${id}/wish-notes/${noteId}`, { method: 'DELETE' }),
+  addWishNoteImages: (id, noteId, files) => {
+    const form = new FormData()
+    files.forEach((file) => form.append('images', file))
+    return request(`/api/students/${id}/wish-notes/${noteId}/images`, { method: 'POST', body: form })
+  },
+  removeWishNoteImage: (id, noteId, imageId) => request(`/api/students/${id}/wish-notes/${noteId}/images/${imageId}`, { method: 'DELETE' }),
   // Xem thử lời chúc tự động đúng như trang quà sẽ gọi (máy viết mỗi lần một khác)
   // Đường riêng của admin: xem thử được cả khi trang quà đang khoá chờ 20/10
   previewGreeting: (name, audienceType) => request('/api/admin/greetings/preview', {
