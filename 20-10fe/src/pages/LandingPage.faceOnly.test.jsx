@@ -56,10 +56,19 @@ test('chỉ mở bằng Face ID mà máy không dùng được Face ID: nói rõ
   event.status = { ...OPEN, faceOnly: true }
   giftRepository.faceStatus.mockResolvedValue({ enabled: false })
   renderPage()
-  fireEvent.click(await screen.findByRole('button', { name: /Mình là khách ghé thăm/ }))
-  await waitFor(() => expect(giftRepository.faceStatus).toHaveBeenCalledWith('friend'))
+  fireEvent.click(await screen.findByRole('button', { name: /Mình là thành viên trong lớp/ }))
+  await waitFor(() => expect(giftRepository.faceStatus).toHaveBeenCalledWith('class'))
   expect(screen.getByText(/máy này chưa dùng được/)).toBeTruthy()
   expect(screen.queryByRole('textbox')).toBeNull()
+})
+
+test('chỉ mở bằng Face ID: khách ngoài lớp vẫn gõ tên được', async () => {
+  event.status = { ...OPEN, faceOnly: true }
+  giftRepository.faceStatus.mockResolvedValue({ enabled: true })
+  renderPage()
+  fireEvent.click(await screen.findByRole('button', { name: /Mình là khách ghé thăm/ }))
+  expect(await screen.findByRole('textbox')).toBeTruthy()
+  expect(screen.getByRole('heading', { name: 'Tên của bạn là gì?' })).toBeTruthy()
 })
 
 test('tắt công tắc thì gõ tên như thường', async () => {

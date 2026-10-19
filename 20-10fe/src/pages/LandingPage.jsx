@@ -174,8 +174,9 @@ function LandingPage() {
   // Trang quà đang khoá chờ 20/10: trang chủ chỉ còn đếm ngược và gửi lời
   // chúc — không chọn vai trò, không tra tên, không Face ID (máy chủ cũng chặn)
   const giftsLocked = Boolean(eventStatus?.locked)
-  // Admin bật "Chỉ mở bằng Face ID": ẩn ô gõ tên, chỉ còn thẻ Face ID
-  const faceOnly = Boolean(eventStatus?.faceOnly)
+  // Admin bật "Chỉ mở bằng Face ID": thành viên lớp chỉ còn thẻ Face ID, không
+  // gõ tên. Khách ngoài lớp (phần lớn không có Face ID) vẫn gõ tên như thường
+  const faceOnly = Boolean(eventStatus?.faceOnly) && visitorRole !== 'guest'
   // 00:00 — chính trang này thấy quà chuyển từ khoá sang mở: dấu "20.10" vỡ,
   // phong bì mở ra lá thư chúc mừng, mưa cánh hoa và số mờ thành "20.10" vài giây
   const [celebrating, setCelebrating] = useState(false)

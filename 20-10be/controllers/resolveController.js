@@ -9,8 +9,10 @@ async function resolve(req, res) {
     return sendError(res, 'Vui lòng nhập tên cần tìm', 400);
   }
 
-  // Admin bật "Chỉ mở bằng Face ID": không mở quà bằng gõ tên được nữa
-  if (await settingsService.isFaceOnly()) {
+  // Admin bật "Chỉ mở bằng Face ID": thành viên lớp không mở quà bằng gõ tên
+  // được nữa. Khách ngoài lớp (phần lớn không có Face ID) vẫn gõ tên — ô đó
+  // chỉ tra trong danh sách khách nên bạn trong lớp không lách qua được
+  if (req.body.scope !== 'friend' && await settingsService.isFaceOnly()) {
     return sendError(res, 'Hiện chỉ mở quà bằng Face ID — bấm thẻ ✨ Face ID để mở nhé.', 403);
   }
 
