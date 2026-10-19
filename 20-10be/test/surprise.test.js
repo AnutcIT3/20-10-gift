@@ -828,3 +828,22 @@ test('admin đã tự viết lời chúc ✨ thì bản lưu dùng đúng câu �
   assert.match(html, /Câu tụi tớ tự viết cho Vy/);
   assert.equal(html.includes('Câu máy viết trên trình duyệt'), false);
 });
+
+test('tab "Gửi admin": lọc đúng hồi âm gửi riêng admin, loại lạ thì 400', async (t) => {
+  withPool(t);
+  const calls = [];
+  pool.execute = async (sql, params) => {
+    calls.push({ sql, params });
+    if (sql.includes('COUNT(*) AS total')) return [[{ total: 7 }]];
+    return [[]];
+  };
+  const result = await replyService.listReplies({ status: 'approved', target: 'admin' });
+  assert.equal(result.pagination.total, 7);
+  assert.ok(calls.every((call) => /r\.target = \?/.test(call.sql)));
+  assert.ok(calls.every((call) => call.params.join() === 'approved,admin'));
+  await assert.rejects(() => replyService.listReplies({ status: 'approved', target: 'hack' }), { statusCode: 400 });
+  // Không lọc thì như cũ
+  calls.length = 0;
+  await replyService.listReplies({ status: 'approved' });
+  assert.ok(calls.every((call) => !/r\.target = \?/.test(call.sql)));
+});

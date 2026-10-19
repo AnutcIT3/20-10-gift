@@ -5,8 +5,11 @@ import { CLASS_NAME, formatStamp } from '../../lib/event'
 
 // Hồi âm không cần duyệt: gửi xong là hiện. Admin chỉ ẩn hồi âm lạ giọng
 // (hoặc hiện lại). 'pending' chỉ còn ở hồi âm cũ trước khi bỏ bước duyệt.
+// "Gửi admin": chỉ những hồi âm gửi riêng admin (nút "✉ Hồi âm admin" ở khung
+// 💌 trên trang quà) — thư kín, không lên Hộp thư hồi âm
 const STATUSES = [
   { value: 'approved', label: 'Đang hiện' },
+  { value: 'admin', label: '💌 Gửi admin', query: { status: 'approved', target: 'admin' }, count: 'to_admin' },
   { value: 'rejected', label: 'Đã ẩn' },
 ]
 const STATUS_LABELS = { pending: 'Chờ duyệt', approved: 'Đang hiện', rejected: 'Đã ẩn' }
@@ -45,7 +48,7 @@ function ReplyManager() {
     setLoading(true)
     try {
       const [result, stats] = await Promise.all([
-        adminApi.listReplies({ status, page }),
+        adminApi.listReplies({ ...(STATUSES.find((item) => item.value === status)?.query || { status }), page }),
         adminApi.getStats().catch(() => null),
       ])
       if (seq !== loadSeq.current) return
@@ -125,7 +128,10 @@ function ReplyManager() {
   ))
   const allSelected = data.items.length > 0 && data.items.every((reply) => selectedIds.includes(reply.id))
   const toggleAll = () => setSelectedIds(allSelected ? [] : data.items.map((reply) => reply.id))
-  const tabCount = (value) => (counts && counts[value] !== undefined ? ` · ${counts[value]}` : '')
+  const tabCount = (value) => {
+    const key = STATUSES.find((item) => item.value === value)?.count || value
+    return counts && counts[key] !== undefined ? ` · ${counts[key]}` : ''
+  }
 
   return (
     <section>
