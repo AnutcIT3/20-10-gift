@@ -2470,3 +2470,16 @@
 .wish-notes__add {
   justify-self: start;
 }
+
+/* Trả lời thư riêng gửi admin (trang Hồi âm) */
+.reply-row__answer {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.reply-row__answer p {
+  margin: 0;
+}

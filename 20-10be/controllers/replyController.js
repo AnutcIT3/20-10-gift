@@ -28,10 +28,15 @@ async function bulkUpdateStatus(req, res) {
   return sendSuccess(res, await replyService.bulkUpdateStatus(req.body?.ids, req.body?.status));
 }
 
+// PATCH /api/admin/replies/:id/answer — admin trả lời thư riêng gửi admin
+async function answer(req, res) {
+  return sendSuccess(res, await replyService.answerReply(req.params.id, req.body?.answer ?? null));
+}
+
 async function remove(req, res) {
   return sendSuccess(res, await replyService.deleteReply(req.params.id));
 }
 
 module.exports = {
-  create, board, list, updateStatus, bulkUpdateStatus, remove,
+  create, board, list, updateStatus, bulkUpdateStatus, answer, remove,
 };

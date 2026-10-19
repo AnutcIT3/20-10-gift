@@ -67,26 +67,38 @@ test('bấm "Thôi" thì focus trở lại nút mở ô viết, không rơi về
   expect(document.activeElement).toBe(screen.getByRole('button', { name: '✉ Viết cho chúng tớ' }))
 })
 
-test('thư riêng gửi admin: trang quà chỉ báo đã gửi / đã đọc, không hiện lại nội dung', () => {
+test('thư riêng gửi admin (lá cũ, is_private): trang quà chỉ báo đã gửi, không hiện lại nội dung; có câu admin trả lời', () => {
   render(
     <ReplyBox
       accessCode="12a1-vy"
       target="admin"
       recipient="admin"
-      replies={[{ id: 1, target: 'admin', content: 'Bí mật nhỏ', status: 'pending' }]}
+      replies={[{ id: 1, target: 'admin', content: 'Bí mật nhỏ', is_private: true, status: 'approved' }]}
     />,
   )
   expect(screen.getByText('✉ Cậu đã gửi admin một lá thư riêng')).toBeTruthy()
   expect(screen.queryByText('Bí mật nhỏ')).toBeNull()
   cleanup()
-  render(<ReplyBox accessCode="12a1-vy" target="admin" recipient="admin" replies={[{ id: 1, target: 'admin', content: null, status: 'approved' }]} />)
-  expect(screen.getByText('✉ Admin đã đọc thư riêng của cậu')).toBeTruthy()
+  render(<ReplyBox accessCode="12a1-vy" target="admin" recipient="admin" replies={[{ id: 1, target: 'admin', content: null, is_private: true, admin_answer: 'Cảm ơn cậu 🌷', status: 'approved' }]} />)
+  expect(screen.getByText(/Admin trả lời:/).closest('p')).toHaveTextContent('💌 Admin trả lời: Cảm ơn cậu 🌷')
 })
 
-test('hồi âm gửi admin là thư riêng: ô viết nói rõ chỉ admin đọc', () => {
+test('hồi âm gửi admin mới: công khai như hồi âm khác — hiện lại nội dung, kèm câu admin trả lời', () => {
+  render(
+    <ReplyBox
+      accessCode="12a1-vy"
+      target="admin"
+      recipient="admin"
+      replies={[{ id: 2, target: 'admin', content: 'Cảm ơn admin nhé', is_private: false, admin_answer: 'Không có gì 🌷', status: 'approved' }]}
+    />,
+  )
+  expect(screen.getByText('Cảm ơn admin nhé')).toBeTruthy()
+  expect(screen.getByText(/Admin trả lời:/).closest('p')).toHaveTextContent('Không có gì 🌷')
+  cleanup()
   render(<ReplyBox accessCode="12a1-vy" target="admin" recipient="admin" openLabel="✉ Hồi âm admin" />)
   fireEvent.click(screen.getByRole('button', { name: '✉ Hồi âm admin' }))
-  expect(screen.getByText(/chỉ/).textContent).toMatch(/Thư riêng: chỉ admin đọc được/)
+  expect(screen.getByText(/Gửi xong là hiện ngay ở/)).toBeTruthy()
+  expect(screen.queryByText(/Thư riêng/)).toBeNull()
 })
 
 test('hồi âm gửi các bạn nam không gửi kèm lá thư; ô trống thì nhắc chứ không gọi máy chủ', async () => {

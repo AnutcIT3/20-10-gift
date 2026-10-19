@@ -243,3 +243,13 @@
     font-size: 20px;
   }
 }
+
+/* Hồi âm gửi admin: câu admin trả lời */
+.reply-card__answer {
+  margin: 8px 0 0;
+  padding: 6px 10px;
+  border-left: 3px solid var(--clay);
+  background: rgba(196, 116, 86, .08);
+  border-radius: 4px;
+  font-size: .95em;
+}

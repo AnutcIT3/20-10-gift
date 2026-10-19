@@ -48,6 +48,8 @@ function ReplyCard({ reply, index }) {
         <p className="reply-card__hint">người đã gửi thư lúc {formatStamp(reply.to.letterSentAt)}</p>
       )}
       <p className="reply-card__body">{reply.content}</p>
+      {/* Hồi âm gửi admin: câu admin trả lời ngay dưới */}
+      {reply.answer && <p className="reply-card__answer"><b>💌 Admin trả lời:</b> {reply.answer}</p>}
       <time className="reply-card__time" dateTime={reply.created_at}>{formatStamp(reply.created_at)}</time>
     </article>
   )

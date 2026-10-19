@@ -1184,3 +1184,12 @@
 .hero__note + .hero__note {
   margin-top: 14px;
 }
+
+/* Câu admin trả lời thư riêng (dưới khung 💌) */
+.reply-note__answer {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--clay);
+  background: rgba(196, 116, 86, .08);
+  border-radius: 4px;
+}
