@@ -25,6 +25,8 @@ function normalizeMultipartLetterBody(req) {
   // Admin gửi nhiều người nhận: field lặp lại thành mảng, chỉ một người thì
   // multer để nguyên chuỗi
   if (body.student_ids !== undefined && !Array.isArray(body.student_ids)) body.student_ids = [body.student_ids];
+  // Gửi nhiều người (POST /api/wishes): danh sách người nhận đi dạng chuỗi JSON,
+  // multiWishService tự đọc
   return body;
 }
 

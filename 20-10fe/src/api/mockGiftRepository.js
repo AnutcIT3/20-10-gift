@@ -117,6 +117,13 @@ async function createFriendLetter(data) {
   return { status: 'pending', friend_created: true }
 }
 
+async function createWishes(recipients, data) {
+  await delay(400)
+  if (data._website) return { status: 'pending' }
+  if (!recipients?.length) throw Object.assign(new Error('Chọn ít nhất một người nhận'), { status: 400 })
+  return { status: 'pending', created: recipients.length, friends_created: 0 }
+}
+
 async function generateGreeting(name, audienceType = 'student') {
   await delay(300)
   if (audienceType === 'visitor') {
@@ -214,6 +221,7 @@ const mockGiftRepository = {
   getLetters,
   createLetter,
   createFriendLetter,
+  createWishes,
   generateGreeting,
   faceStatus,
   matchFace,

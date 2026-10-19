@@ -1,0 +1,118 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+process.env.DB_HOST ||= 'localhost';
+process.env.DB_PORT ||= '3306';
+process.env.DB_USER ||= 'test';
+process.env.DB_PASSWORD ||= 'test';
+process.env.DB_NAME ||= 'test';
+process.env.JWT_SECRET ||= 'test-secret-for-multi-wish';
+
+const pool = require('../config/db');
+const multiWishService = require('../services/multiWishService');
+const app = require('../server');
+
+// Một lời chúc gửi cho nhiều bạn cùng lúc (form gửi lời chúc ở trang chủ).
+
+const photo = (n) => ({ url: `https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/m${n}.jpg`, publicId: `gift_20_10/m${n}` });
+
+function fakeDatabase(t, { students = [{ id: 1, access_code: 'thuy' }, { id: 2, access_code: 'ngoc' }], friends = [] } = {}) {
+  const db = { letters: [], images: [], friends: [...friends], nextFriend: 100, committed: false, rolledBack: false };
+  const execute = async (sql, params = []) => {
+    if (sql.includes('FROM students WHERE is_active = TRUE AND access_code IN')) {
+      return [students.filter((s) => params.includes(s.access_code))];
+    }
+    if (sql.includes("member_type = 'friend' AND normalized_name = ?")) {
+      return [db.friends.filter((f) => f.normalized === params[0]).map((f) => ({ id: f.id, full_name: f.full_name }))];
+    }
+    if (sql.startsWith('INSERT INTO students')) {
+      const id = db.nextFriend++;
+      db.friends.push({ id, full_name: params[0], normalized: params[1] });
+      return [{ insertId: id }];
+    }
+    if (sql.startsWith('INSERT INTO letters')) {
+      db.letters.push({ id: 500 + db.letters.length, sql, params });
+      return [{ insertId: 500 + db.letters.length - 1 }];
+    }
+    if (sql.startsWith('INSERT INTO letter_images')) {
+      db.images.push(params);
+      return [{ affectedRows: params.length / 4 }];
+    }
+    if (sql.includes('FROM letters l JOIN students s')) return [[{ total: 7, last_at: null }]];
+    return [[]];
+  };
+  const originalGetConnection = pool.getConnection;
+  const originalExecute = pool.execute;
+  pool.getConnection = async () => ({
+    beginTransaction: async () => {},
+    execute,
+    commit: async () => { db.committed = true; },
+    rollback: async () => { db.rolledBack = true; },
+    release: () => {},
+  });
+  pool.execute = execute;
+  t.after(() => { pool.getConnection = originalGetConnection; pool.execute = originalExecute; });
+  return db;
+}
+
+test('một lời chúc gửi cho 2 bạn trong lớp + 1 bạn ngoài lớp: mỗi người một lá, ảnh dùng chung', async (t) => {
+  const db = fakeDatabase(t);
+  const result = await multiWishService.createWishes({
+    recipients: [{ code: 'thuy' }, { code: 'ngoc' }, { friend: 'Minh Thư' }],
+    sender_name: 'Tuấn', content: 'Chúc mừng 20/10!', is_anonymous: false,
+    status: 'approved', sender_kind: 'classmate',
+  }, [photo(1), photo(2)]);
+  assert.equal(result.status, 'pending');
+  assert.equal(result.created, 3);
+  assert.equal(result.friends_created, 1);
+  assert.equal(result.wish_number, 27);
+  assert.ok(db.committed);
+  // Trạng thái luôn chờ duyệt, nhóm người gửi luôn là khách, dù payload khai khác
+  assert.deepEqual(db.letters.map((l) => l.params[0]), [1, 2, 100]);
+  assert.ok(db.letters.every((l) => /'guest'/.test(l.sql) && l.params.includes('pending')));
+  // Mỗi lá kèm đủ 2 ảnh; cột cũ = ảnh đầu
+  assert.equal(db.images.length, 3);
+  assert.ok(db.letters.every((l) => l.params.slice(-2)[0] === photo(1).url));
+});
+
+test('trùng người nhận thì gộp; bạn ngoài lớp đã có hồ sơ thì dùng lại', async (t) => {
+  const db = fakeDatabase(t, { friends: [{ id: 40, full_name: 'Minh Thư', normalized: 'minh thu' }] });
+  const result = await multiWishService.createWishes({
+    recipients: JSON.stringify([{ code: 'thuy' }, { code: 'thuy' }, { friend: 'Minh Thư' }, { friend: 'minh thư' }]),
+    content: 'Chúc nhé', is_anonymous: true,
+  });
+  assert.equal(result.created, 2);
+  assert.equal(result.friends_created, 0);
+  assert.deepEqual(db.letters.map((l) => l.params[0]), [1, 40]);
+});
+
+test('không người nhận, sai dạng, quá 10 người, hay mã không tồn tại → báo lỗi, không ghi gì', async (t) => {
+  const db = fakeDatabase(t);
+  const base = { content: 'Chúc', is_anonymous: true };
+  await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: [] }), { statusCode: 400 });
+  await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: 'không phải json' }), { statusCode: 400 });
+  await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: [{ name: 'x' }] }), { statusCode: 400 });
+  await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: [{ friend: 'A' }] }), { statusCode: 400 });
+  const eleven = Array.from({ length: 11 }, (_, i) => ({ friend: `Bạn số ${i + 1}` }));
+  await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: eleven }), { statusCode: 400, message: /tối đa 10/ });
+  await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: [{ code: 'thuy' }, { code: 'khong-co' }] }), { statusCode: 404 });
+  assert.ok(db.rolledBack);
+  assert.equal(db.letters.length, 0);
+  await assert.rejects(() => multiWishService.createWishes({ recipients: [{ code: 'thuy' }], content: '   ', is_anonymous: true }), { statusCode: 400 });
+});
+
+test('POST /api/wishes: gửi được khi chưa đăng nhập, bẫy bot trả 201 giả', async (t) => {
+  const db = fakeDatabase(t);
+  const server = app.listen(0);
+  t.after(() => server.close());
+  await new Promise((resolve) => server.once('listening', resolve));
+  const post = (body) => fetch(`http://127.0.0.1:${server.address().port}/api/wishes`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  let res = await post({ recipients: [{ code: 'thuy' }, { code: 'ngoc' }], content: 'Chúc mừng 20/10!', is_anonymous: true });
+  assert.equal(res.status, 201);
+  assert.equal((await res.json()).data.created, 2);
+  res = await post({ recipients: [{ code: 'thuy' }], content: 'spam', is_anonymous: true, _website: 'bot' });
+  assert.equal(res.status, 201);
+  assert.equal(db.letters.length, 2);
+});
