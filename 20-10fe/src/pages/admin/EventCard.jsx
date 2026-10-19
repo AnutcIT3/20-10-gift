@@ -129,7 +129,8 @@ function EventCard({
                   <b>{opens.opened}/{opens.total}</b> bạn đã mở quà
                 </p>
                 <p className="admin-hint dash-event__hint">
-                  {opens.since ? `Tính từ ${formatStamp(opens.since)}.` : 'Tính cả các lượt mở thử.'}
+                  {opens.since ? `Tính từ ${formatStamp(opens.since)}` : 'Tính cả các lượt mở thử'}
+                  {opens.until ? ` đến ${formatStamp(opens.until)} (đã đóng băng — mở sau không tính).` : '.'}
                   {' '}Chỉ đếm lượt mở từ trang chủ (gõ tên / Face ID), không đếm link mở thẳng.
                 </p>
                 <button type="button" className="admin-btn admin-btn--sm" onClick={resetFlower} disabled={saving}>

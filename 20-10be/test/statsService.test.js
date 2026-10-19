@@ -59,6 +59,7 @@ test('dashboard stats normalizes aggregate values and reaction totals', async ()
     [[{ scans: '9', confirmed: '5', denied: null }]],
     [[{ pending: '2', approved: '3', rejected: null }]],
     [[{ setting_value: '2026-10-19T17:00:00.000Z' }]],
+    [[{ setting_value: '' }]],   // gift_opens_until: chưa đóng băng
     [[{ student_id: 4, first_at: new Date() }, { student_id: 9, first_at: new Date() }]],
     [[{ total: '23' }]],
   ];
@@ -82,9 +83,9 @@ test('dashboard stats normalizes aggregate values and reaction totals', async ()
     assert.match(seen[7], /FROM face_scans/);
     assert.deepEqual(result.replies, { pending: 2, approved: 3, rejected: 0, to_admin: 0 });
     // Bông hoa đếm từ mốc đặt lại, chỉ thành viên lớp đang hoạt động
-    assert.deepEqual(result.opens, { opened: 2, total: 23, since: '2026-10-19T17:00:00.000Z' });
-    assert.match(seen[10], /FROM gift_opens/);
-    assert.match(seen[10], /member_type = 'class'/);
+    assert.deepEqual(result.opens, { opened: 2, total: 23, since: '2026-10-19T17:00:00.000Z', until: null });
+    assert.match(seen[11], /FROM gift_opens/);
+    assert.match(seen[11], /member_type = 'class'/);
   } finally {
     pool.execute = original;
   }

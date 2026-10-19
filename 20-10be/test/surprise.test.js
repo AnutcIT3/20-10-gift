@@ -901,3 +901,28 @@ test('hồi âm gửi admin mới lên Hộp thư như hồi âm khác (kèm câ
     ['admin', 'Cảm ơn lần nữa', undefined],
   ]);
 });
+
+test('đóng băng bông hoa: chỉ đếm lượt mở trong khoảng [mốc đầu, mốc cuối]; mở sau không góp cánh; đặt lại thì thôi đóng băng', async (t) => {
+  withPool(t);
+  eventService.clearCache();
+  // Mốc đã qua (đóng băng có hiệu lực ngay)
+  const since = '2025-10-19T17:00:00.000Z';
+  const until = '2025-10-19T17:07:19.000Z';
+  const { settings } = mockSettings({ gift_opens_since: since, gift_opens_until: until }, async (sql, params) => {
+    if (sql.includes('FROM gift_opens')) {
+      assert.match(sql, /o\.opened_at >= \? AND o\.opened_at <= \?/);
+      assert.deepEqual(params, [new Date(since), new Date(until)]);
+      return [Array.from({ length: 12 }, (_, i) => ({ student_id: i + 1 }))];
+    }
+    if (sql.includes('FROM students')) return [[{ total: 18 }]];
+    if (sql.startsWith('INSERT INTO gift_opens')) return [{ insertId: 1 }];
+    return undefined;
+  });
+  const summary = await eventService.openSummary();
+  assert.deepEqual([summary.opened, summary.total, summary.until], [12, 18, until]);
+  // Mở sau mốc đóng băng: vẫn ghi lịch sử nhưng không tính
+  assert.deepEqual(await eventService.recordOpen({ id: 13, member_type: 'class' }, 'face'), { counted: false });
+  // "Đặt lại bông hoa" xoá mốc đóng băng
+  await settingsService.resetGiftOpens(new Date('2099-10-21T00:00:00.000Z'));
+  assert.equal(settings.gift_opens_until, '');
+});

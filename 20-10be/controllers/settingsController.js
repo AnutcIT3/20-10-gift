@@ -15,6 +15,9 @@ async function updateSettings(req, res) {
   if (Object.hasOwn(body, 'gift_unlock_at')) {
     return sendSuccess(res, await settingsService.setGiftUnlockAt(body.gift_unlock_at));
   }
+  if (Object.hasOwn(body, 'gift_opens_until')) {
+    return sendSuccess(res, await settingsService.setGiftOpensUntil(body.gift_opens_until));
+  }
   if (body.reset_gift_opens === true) {
     return sendSuccess(res, await settingsService.resetGiftOpens());
   }

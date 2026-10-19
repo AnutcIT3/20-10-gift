@@ -733,7 +733,7 @@ test('admin settings expose and toggle the Face ID switch separately from the lo
 
   const initial = await (await fetch(`${base}/api/admin/settings`, { headers })).json();
   assert.deepEqual(initial.data, {
-    gift_pages_locked: false, gift_unlock_at: null, gift_opens_since: null, face_enabled: false, face_only: false, face_liveness: false,
+    gift_pages_locked: false, gift_unlock_at: null, gift_opens_since: null, gift_opens_until: null, face_enabled: false, face_only: false, face_liveness: false,
   });
 
   const toggled = await fetch(`${base}/api/admin/settings`, {
