@@ -1,6 +1,11 @@
 const { sendSuccess, sendError } = require('../utils/response');
 const resolveService = require('../services/resolveService');
 const settingsService = require('../services/settingsService');
+const { signGiftTicket } = require('../utils/jwt');
+
+// Kèm vé mở quà cho mỗi trang quà tra ra (dùng khi admin bật lại "Chỉ mở
+// bằng Face ID": bạn đã mở bằng tên lúc còn cho phép vẫn xem lại được)
+const codeOf = (giftPath) => giftPath.split('/').pop();
 
 async function resolve(req, res) {
   const { name } = req.body;
@@ -25,7 +30,11 @@ async function resolve(req, res) {
     return sendError(res, result.error, result.status);
   }
 
-  return sendSuccess(res, result);
+  if (result.giftPath) return sendSuccess(res, { ...result, ticket: signGiftTicket(codeOf(result.giftPath)) });
+  return sendSuccess(res, {
+    ...result,
+    matches: result.matches.map((match) => ({ ...match, ticket: signGiftTicket(codeOf(match.giftPath)) })),
+  });
 }
 
 module.exports = { resolve };

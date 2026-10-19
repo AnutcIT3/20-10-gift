@@ -149,3 +149,14 @@ test('nhiều lời chúc riêng hiện lần lượt dưới tên; mỗi lời 
   expect(screen.getAllByRole('button', { name: /Hồi âm admin/ })).toHaveLength(1)
   expect(boxes[2].textContent).toContain('Hồi âm admin')
 })
+
+test('đang "Chỉ mở bằng Face ID" mà máy này chưa có vé: trang báo mở bằng Face ID, không hiện quà', async () => {
+  giftRepository.getGiftContent.mockRejectedValue(Object.assign(
+    new Error('Trang quà này chỉ mở bằng Face ID — về trang chủ, chọn "thành viên trong lớp" và quét Face ID nhé ✨'),
+    { status: 403, data: { code: 'face_only' } },
+  ))
+  renderGift(undefined)
+  expect(await screen.findByRole('heading', { name: 'Mở quà bằng Face ID nhé' })).toBeTruthy()
+  expect(screen.getByRole('alert')).toHaveTextContent('chỉ mở bằng Face ID')
+  expect(screen.getByRole('link', { name: 'Về trang chủ' })).toBeTruthy()
+})

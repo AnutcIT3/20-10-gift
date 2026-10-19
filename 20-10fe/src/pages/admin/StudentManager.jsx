@@ -232,7 +232,9 @@ function StudentManager() {
         <div role="cell">
           <RowMenu items={[
             { label: 'Sửa thông tin', onClick: () => edit(student) },
-            { label: 'Mở trang quà', onClick: () => window.open(student.giftPath, '_blank', 'noopener') },
+            // Không 'noopener': tab mới cần bản sao phiên admin để xem trước được
+            // trang quà cả khi đang bật "Chỉ mở bằng Face ID"
+            { label: 'Mở trang quà', onClick: () => window.open(student.giftPath, '_blank') },
             { label: 'Lời chúc', onClick: () => navigate(`/admin/letters?studentId=${student.id}&status=approved`) },
             { label: 'Ảnh', onClick: () => navigate(`/admin/gallery?studentId=${student.id}`) },
             student.is_active

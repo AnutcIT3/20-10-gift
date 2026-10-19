@@ -1,4 +1,5 @@
 import api from '../services/api'
+import { giftAuthHeaders } from '../lib/giftTickets'
 
 // scope: 'class' (thành viên lớp) | 'friend' (hồ sơ bạn bè ngoài lớp)
 async function resolveStudent(name, scope = 'class') {
@@ -166,7 +167,7 @@ async function downloadKeepsake(accessCode, greeting = '') {
   try {
     response = await fetch(`${api.defaults.baseURL}/api/gifts/${encodeURIComponent(accessCode)}/keepsake`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...giftAuthHeaders(accessCode) },
       body: JSON.stringify({ greeting: greeting || undefined, format: 'pdf' }),
       signal: timeout,
     })

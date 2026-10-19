@@ -19,6 +19,8 @@ import '../styles/gift.css'
 const ERROR_VIEWS = {
   notfound: { title: 'Không tìm thấy trang này', stamp: ['KHÔNG', 'TÌM', { big: 'THẤY' }] },
   network: { title: 'Không kết nối được', stamp: ['MẤT', 'KẾT', { big: 'NỐI' }] },
+  // Admin bật "Chỉ mở bằng Face ID" mà máy này chưa có vé mở quà
+  faceonly: { title: 'Mở quà bằng Face ID nhé', stamp: ['FACE', 'ID', { big: '✨' }] },
   error: { title: 'Có lỗi xảy ra', stamp: ['CÓ', 'LỖI', { big: 'RỒI' }] },
 }
 
@@ -254,6 +256,9 @@ function GiftPage() {
         if (!cancelled) {
           if (err.status === 423) {
             setLocked({ unlockAt: err.data?.unlockAt || null, serverNow: err.data?.serverNow || null })
+          }
+          else if (err.status === 403 && err.data?.code === 'face_only') {
+            setError({ kind: 'faceonly', message: err.message || 'Trang quà này chỉ mở bằng Face ID — về trang chủ quét Face ID nhé ✨' })
           }
           else if (err.status === 404) setError({ kind: 'notfound', message: 'Có thể đường link đã hết hiệu lực hoặc bạn gõ nhầm. Thử tìm lại tên ở trang chủ nhé.' })
           else if (!navigator.onLine || err.isNetworkError) setError({ kind: 'network', message: 'Không thể kết nối backend. Hãy kiểm tra mạng và chắc chắn server đang chạy.' })

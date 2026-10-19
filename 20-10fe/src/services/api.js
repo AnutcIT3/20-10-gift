@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { giftAuthHeaders } from '../lib/giftTickets'
 
 // ── Session ID (stable per browser, shared với reaction + view tracking) ──────
 function getOrCreateSessionId() {
@@ -29,6 +30,13 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   if (config.data instanceof FormData) {
     delete config.headers['Content-Type']
+  }
+  // Trang quà: gửi kèm vé mở quà của trang đó (và token admin khi đang đăng nhập)
+  const gift = /^\/api\/gifts\/([^/?]+)/.exec(config.url || '')
+  if (gift) {
+    for (const [name, value] of Object.entries(giftAuthHeaders(decodeURIComponent(gift[1])))) {
+      if (!config.headers[name]) config.headers[name] = value
+    }
   }
   return config
 })

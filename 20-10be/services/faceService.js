@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const pool = require('../config/db');
 const settingsService = require('./settingsService');
+const { signGiftTicket } = require('../utils/jwt');
 const { describeUserAgent } = require('../utils/userAgent');
 const {
   FACE_SERVICE_URL,
@@ -493,6 +494,7 @@ async function matchGroup({ gallery, bigFaces, frame, started }) {
       matchId,
       studentId: student.studentId,
       giftPath: `/gift/${student.accessCode}`,
+        ticket: signGiftTicket(student.accessCode),
       displayName: student.displayName,
       score,
       margin,
@@ -513,6 +515,7 @@ async function matchGroup({ gallery, bigFaces, frame, started }) {
       return {
         studentId: student.studentId,
         giftPath: `/gift/${student.accessCode}`,
+        ticket: signGiftTicket(student.accessCode),
         displayName: student.displayName,
         avatarUrl: student.avatarUrl,
         score: round4(verdict.score),
@@ -602,6 +605,7 @@ async function matchFrame(buffer, mimetype, context = {}) {
         matchId,
         studentId,
         giftPath: `/gift/${person.accessCode}`,
+        ticket: signGiftTicket(person.accessCode),
         displayName: person.displayName,
         score,
         margin,
@@ -642,6 +646,7 @@ async function matchFrame(buffer, mimetype, context = {}) {
     matchId,
     studentId: student.studentId,
     giftPath: `/gift/${student.accessCode}`,
+        ticket: signGiftTicket(student.accessCode),
     displayName: student.displayName,
     score,
     margin,
