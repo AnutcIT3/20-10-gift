@@ -97,19 +97,20 @@ async function createReply(student, data) {
     );
     if (!letter) throw httpError('Không tìm thấy lá thư để hồi âm', 404);
   }
-  // Chỉ ghi cột is_anonymous khi cần: hồi âm có tên vẫn gửi được trên máy
-  // chưa chạy migration 022
+  // Hồi âm không cần duyệt: lên Hộp thư ngay (admin vẫn ẩn được sau). Trạng
+  // thái không lấy từ người gửi. Chỉ ghi cột is_anonymous khi cần: hồi âm có
+  // tên vẫn gửi được trên máy chưa chạy migration 022
   let result;
   try {
     [result] = clean.isAnonymous
       ? await pool.execute(
         `INSERT INTO letter_replies (student_id, target, letter_id, content, is_anonymous, status)
-         VALUES (?, ?, ?, ?, TRUE, 'pending')`,
+         VALUES (?, ?, ?, ?, TRUE, 'approved')`,
         [student.id, clean.target, clean.letterId, clean.content],
       )
       : await pool.execute(
         `INSERT INTO letter_replies (student_id, target, letter_id, content, status)
-         VALUES (?, ?, ?, ?, 'pending')`,
+         VALUES (?, ?, ?, ?, 'approved')`,
         [student.id, clean.target, clean.letterId, clean.content],
       );
   } catch (error) {
@@ -124,7 +125,7 @@ async function createReply(student, data) {
     letter_id: clean.letterId,
     content: clean.content,
     is_anonymous: clean.isAnonymous,
-    status: 'pending',
+    status: 'approved',
     created_at: new Date().toISOString(),
   };
 }

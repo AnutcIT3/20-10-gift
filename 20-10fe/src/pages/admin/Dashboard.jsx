@@ -198,9 +198,9 @@ function Dashboard() {
         />
         <StatCard
           to="/admin/replies"
-          value={stats?.replies ? stats.replies.pending : undefined}
-          label="Hồi âm chờ duyệt"
-          tone={stats?.replies?.pending ? 'clay' : 'moss'}
+          value={stats?.replies ? stats.replies.approved : undefined}
+          label="Hồi âm đang hiện"
+          tone="moss"
         />
         <StatCard
           to="/admin/students?filter=noavatar"

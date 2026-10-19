@@ -4,10 +4,10 @@ import giftRepository from '../api/giftRepository'
 const MAX_LENGTH = 2000
 
 /**
- * Hồi âm của chủ trang quà: những dòng đã gửi (kèm "chờ duyệt") và một nút mở
- * ô viết. `target` là 'letter' (kèm letterId), 'class' hoặc 'admin'.
- * Hồi âm hiện ở Hộp thư hồi âm (ai mở trang cũng đọc được) sau khi admin
- * duyệt; riêng hồi âm gửi admin là thư riêng, chỉ admin đọc. Ô viết nói rõ.
+ * Hồi âm của chủ trang quà: những dòng đã gửi và một nút mở ô viết. `target`
+ * là 'letter' (kèm letterId), 'class' hoặc 'admin'. Hồi âm không cần duyệt:
+ * gửi xong là lên Hộp thư hồi âm (ai mở trang cũng đọc được); riêng hồi âm gửi
+ * admin là thư riêng, chỉ admin đọc. Ô viết nói rõ.
  */
 function ReplyBox({
   accessCode, target, letterId = null, recipient, replies = [], onSent,
@@ -65,7 +65,7 @@ function ReplyBox({
       setOpen(false)
       setAnnouncement(target === 'admin'
         ? 'Đã gửi hồi âm cho admin.'
-        : 'Đã gửi hồi âm — chờ admin duyệt rồi sẽ lên Hộp thư hồi âm.')
+        : 'Đã gửi hồi âm — giờ nó đã nằm ở Hộp thư hồi âm.')
     } catch (err) {
       setError(err.message || 'Chưa gửi được, thử lại nhé.')
     } finally {
@@ -116,7 +116,7 @@ function ReplyBox({
           <p className="reply-form__hint">
             {target === 'admin'
               ? <>Thư riêng: chỉ <b>admin</b> đọc được — không lên Hộp thư hồi âm, trang này cũng không hiện lại.</>
-              : <>Hồi âm hiện ở <b>Hộp thư hồi âm</b> sau khi admin duyệt — ai mở trang cũng đọc được, kể cả khách.</>}
+              : <>Gửi xong là hiện ngay ở <b>Hộp thư hồi âm</b> — ai mở trang cũng đọc được, kể cả khách.</>}
             {anonymous && <> Ẩn danh: tên cậu không hiện ở đâu cả — cả Hộp thư lẫn trang admin chỉ ghi <b>Ẩn danh</b>.</>}
           </p>
           {error && <p className="alert-note reply-form__alert" role="alert">{error}</p>}

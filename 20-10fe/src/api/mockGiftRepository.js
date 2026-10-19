@@ -186,7 +186,7 @@ async function createReply(accessCode, data) {
     letter_id: data.target === 'letter' ? data.letter_id : null,
     content,
     is_anonymous: data.is_anonymous === true,
-    status: 'pending',
+    status: 'approved',
     created_at: new Date().toISOString(),
   }
 }
