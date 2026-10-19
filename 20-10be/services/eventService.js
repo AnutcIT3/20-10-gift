@@ -73,6 +73,8 @@ async function getStatus(now = new Date()) {
     serverNow: now.toISOString(),
     // Đống thư và số lời chúc hiện cả lúc khoá — lúc đó chính là lúc rủ mọi người gửi
     wishes: await wishCountService.getSummary(now.getTime()),
+    // Admin bật "Chỉ mở bằng Face ID": trang chủ ẩn ô gõ tên
+    faceOnly: await settingsService.isFaceOnly(),
   };
   if (lock.locked) return status;
   return { ...status, ...(await cachedCounts(now)) };

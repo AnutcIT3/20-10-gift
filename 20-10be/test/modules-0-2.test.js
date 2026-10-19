@@ -244,8 +244,8 @@ test('module 2: resolve endpoint stays public despite sharing /api/students with
 test('khoá chờ 20/10: tra tên vẫn chạy cho form gửi lời chúc nhưng không lộ ảnh đại diện hay chỗ ngồi', async (t) => {
   const original = pool.execute;
   let locked = '1';
-  pool.execute = async (sql) => {
-    if (sql.includes('FROM app_settings')) return [[{ setting_value: locked }]];
+  pool.execute = async (sql, params) => {
+    if (sql.includes('FROM app_settings')) return [[{ setting_value: params?.[0] === 'face_only' ? '0' : locked }]];
     return [[
       { full_name: 'Diệu Linh', nickname: 'Linh Tần', avatar_url: 'https://res.cloudinary.com/demo/image/upload/v1/a.jpg', access_code: 'linh-a', seat_row: 2, seat_col: 3 },
       { full_name: 'Phương Linh', nickname: null, avatar_url: 'https://res.cloudinary.com/demo/image/upload/v1/b.jpg', access_code: 'linh-b', seat_row: 4, seat_col: 1 },

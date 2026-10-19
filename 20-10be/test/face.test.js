@@ -733,7 +733,7 @@ test('admin settings expose and toggle the Face ID switch separately from the lo
 
   const initial = await (await fetch(`${base}/api/admin/settings`, { headers })).json();
   assert.deepEqual(initial.data, {
-    gift_pages_locked: false, gift_unlock_at: null, gift_opens_since: null, face_enabled: false,
+    gift_pages_locked: false, gift_unlock_at: null, gift_opens_since: null, face_enabled: false, face_only: false,
   });
 
   const toggled = await fetch(`${base}/api/admin/settings`, {
@@ -751,4 +751,36 @@ test('admin settings expose and toggle the Face ID switch separately from the lo
     method: 'PATCH', headers, body: JSON.stringify({}),
   });
   assert.equal(empty.status, 400);
+});
+
+test('công tắc "Chỉ mở bằng Face ID": bật thì tra tên bị chặn (403), trang chủ biết qua /api/event', async (t) => {
+  const settings = { face_only: '0', gift_pages_locked: '0' };
+  const original = pool.execute;
+  pool.execute = async (sql, params = []) => {
+    if (sql.includes('FROM admins')) return [[{ id: 1 }]];
+    if (sql.includes('FROM app_settings')) return [[...(settings[params[0]] !== undefined ? [{ setting_value: settings[params[0]] }] : [])]];
+    if (sql.startsWith('INSERT INTO app_settings')) { settings[params[0]] = params[1]; return [{ affectedRows: 1 }]; }
+    if (sql.includes('normalized_name LIKE')) return [[{ full_name: 'Thủy', nickname: '', avatar_url: null, access_code: 'thuy' }]];
+    if (sql.includes('AS search_aliases')) return [[]];
+    if (sql.includes('FROM letters l JOIN students s')) return [[{ total: 0, last_at: null }]];
+    return [[]];
+  };
+  const server = app.listen(0);
+  t.after(() => { server.close(); pool.execute = original; });
+  await new Promise((resolve) => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const lookup = () => fetch(`${base}/api/students/resolve`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Thủy' }),
+  });
+  assert.equal((await lookup()).status, 200);
+
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${signToken({ sub: 1 })}` };
+  const toggled = await fetch(`${base}/api/admin/settings`, { method: 'PATCH', headers, body: JSON.stringify({ face_only: true }) });
+  assert.deepEqual((await toggled.json()).data, { face_only: true });
+  const blocked = await lookup();
+  assert.equal(blocked.status, 403);
+  assert.match((await blocked.json()).message, /chỉ mở quà bằng Face ID/);
+  assert.equal(settings.face_only, '1');
+  const bad = await fetch(`${base}/api/admin/settings`, { method: 'PATCH', headers, body: JSON.stringify({ face_only: 'yes' }) });
+  assert.equal(bad.status, 400);
 });

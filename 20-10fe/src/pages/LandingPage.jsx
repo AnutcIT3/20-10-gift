@@ -174,6 +174,8 @@ function LandingPage() {
   // Trang quà đang khoá chờ 20/10: trang chủ chỉ còn đếm ngược và gửi lời
   // chúc — không chọn vai trò, không tra tên, không Face ID (máy chủ cũng chặn)
   const giftsLocked = Boolean(eventStatus?.locked)
+  // Admin bật "Chỉ mở bằng Face ID": ẩn ô gõ tên, chỉ còn thẻ Face ID
+  const faceOnly = Boolean(eventStatus?.faceOnly)
   // 00:00 — chính trang này thấy quà chuyển từ khoá sang mở: dấu "20.10" vỡ,
   // phong bì mở ra lá thư chúc mừng, mưa cánh hoa và số mờ thành "20.10" vài giây
   const [celebrating, setCelebrating] = useState(false)
@@ -703,13 +705,17 @@ function LandingPage() {
               <button type="button" className="btn-dashed" onClick={() => chooseRole(null)}>
                 ← Chọn lại · {isGuest ? 'khách ghé thăm' : 'thành viên trong lớp'}
               </button>
-              <h1 className="landing__title landing__title--step">Tên của bạn là gì?</h1>
+              <h1 className="landing__title landing__title--step">{faceOnly ? 'Mở quà bằng Face ID' : 'Tên của bạn là gì?'}</h1>
               <p id="student-name-help" className="landing__intro">
-                {isGuest
-                  ? 'Nhập tên của bạn để nhận một lời chúc 20/10 dành riêng cho bạn.'
-                  : 'Nhập họ tên hoặc tên thường gọi của bạn trong lớp.'}
+                {faceOnly
+                  ? (faceAvailable && faceKind !== 'offline'
+                    ? 'Hiện chỉ mở quà bằng Face ID — bấm thẻ ✨ bên dưới, nhìn thẳng vào camera là được.'
+                    : 'Hiện chỉ mở quà bằng Face ID, nhưng máy này chưa dùng được (cần camera, hoặc Face ID đang nghỉ). Thử trên điện thoại khác hay nhờ các bạn nam giúp nhé.')
+                  : isGuest
+                    ? 'Nhập tên của bạn để nhận một lời chúc 20/10 dành riêng cho bạn.'
+                    : 'Nhập họ tên hoặc tên thường gọi của bạn trong lớp.'}
               </p>
-              <form className="landing__form" onSubmit={submit}>
+              {!faceOnly && <form className="landing__form" onSubmit={submit}>
                 <label className="field-hand" htmlFor="student-name">
                   Tên:
                   <input
@@ -725,7 +731,7 @@ function LandingPage() {
                 <button className="btn-primary" disabled={loading} aria-busy={loading}>
                   {loading ? 'Đang tìm…' : isGuest ? 'Nhận lời chúc' : 'Mở quà'}
                 </button>
-              </form>
+              </form>}
               {/* Lối vào phụ, không thay thế gõ tên: service báo nghỉ giữa chừng
                   thì thẻ tự ẩn luôn cho tới lần tải trang sau */}
               {faceAvailable && faceKind !== 'offline' && (
@@ -738,11 +744,11 @@ function LandingPage() {
                 </button>
               )}
               {error && <p className="alert-note landing__alert" role="alert">{error}</p>}
-              <p className="landing__note">
+              {!faceOnly && <p className="landing__note">
                 {isGuest
                   ? 'Là thành viên trong lớp? Chọn lại "thành viên trong lớp" để mở đúng trang quà của bạn.'
                   : 'Khách trùng tên với bạn trong lớp? Chọn lại "khách ghé thăm" để không mở nhầm trang.'}
-              </p>
+              </p>}
             </>
           )}
           {!giftsLocked && (
@@ -1067,10 +1073,14 @@ function LandingPage() {
                 <h2 id="face-modal-title">{faceTitle}</h2>
                 <p className="face-stopped__text" role="status">{faceMessage}</p>
                 <div className="face-actions">
-                  <button type="button" className="btn-primary" onClick={typeNameInstead}>Gõ tên để mở quà</button>
-                  <button type="button" className="landing__wish" onClick={retryFace}>
-                    <span className="link-dashed">Quét lại</span>
-                  </button>
+                  {faceOnly
+                    ? <button type="button" className="btn-primary" onClick={retryFace}>Quét lại</button>
+                    : <>
+                      <button type="button" className="btn-primary" onClick={typeNameInstead}>Gõ tên để mở quà</button>
+                      <button type="button" className="landing__wish" onClick={retryFace}>
+                        <span className="link-dashed">Quét lại</span>
+                      </button>
+                    </>}
                 </div>
               </div>
             ) : faceStatus === 'stopped' ? (
@@ -1079,9 +1089,11 @@ function LandingPage() {
                 <p className="alert-note" role="alert">{faceMessage}</p>
                 <div className="face-actions">
                   {faceCanRetry && <button type="button" className="btn-primary" onClick={retryFace}>Quét lại</button>}
-                  <button type="button" className="landing__wish" onClick={typeNameInstead}>
-                    <span className="link-dashed">Gõ tên thay nhé</span>
-                  </button>
+                  {faceOnly
+                    ? <button type="button" className="landing__wish" onClick={closeFace}><span className="link-dashed">Đóng</span></button>
+                    : <button type="button" className="landing__wish" onClick={typeNameInstead}>
+                      <span className="link-dashed">Gõ tên thay nhé</span>
+                    </button>}
                 </div>
               </div>
             ) : (

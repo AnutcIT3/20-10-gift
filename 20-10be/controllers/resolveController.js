@@ -9,6 +9,11 @@ async function resolve(req, res) {
     return sendError(res, 'Vui lòng nhập tên cần tìm', 400);
   }
 
+  // Admin bật "Chỉ mở bằng Face ID": không mở quà bằng gõ tên được nữa
+  if (await settingsService.isFaceOnly()) {
+    return sendError(res, 'Hiện chỉ mở quà bằng Face ID — bấm thẻ ✨ Face ID để mở nhé.', 403);
+  }
+
   // Khoá chờ 20/10 không chặn tra tên (form gửi lời chúc cần nó) nhưng giấu
   // ảnh đại diện và chỗ ngồi trong danh sách trùng tên
   const { locked } = await settingsService.getGiftLockState();

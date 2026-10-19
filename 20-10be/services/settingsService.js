@@ -3,6 +3,8 @@ const dataRevisionService = require('./dataRevisionService');
 
 const GIFT_LOCK_KEY = 'gift_pages_locked';
 const FACE_ENABLED_KEY = 'face_enabled';
+// Chỉ mở quà bằng Face ID: trang chủ ẩn ô gõ tên, máy chủ chặn tra tên
+const FACE_ONLY_KEY = 'face_only';
 // Giờ trang quà tự mở (ISO UTC); rỗng = không hẹn, admin tự gạt công tắc
 const GIFT_UNLOCK_AT_KEY = 'gift_unlock_at';
 // Mốc bắt đầu đếm lượt mở quà cho bông hoa 12A1 (ISO UTC); rỗng = đếm hết
@@ -155,6 +157,20 @@ async function setFaceEnabled(enabled) {
   return { face_enabled: enabled };
 }
 
+// Công tắc "Chỉ mở bằng Face ID" của admin. Gửi lời chúc không bị ảnh hưởng;
+// trang quà đã mở (link riêng) vẫn xem lại được
+async function isFaceOnly() {
+  return readFlag(FACE_ONLY_KEY);
+}
+
+async function setFaceOnly(enabled) {
+  if (typeof enabled !== 'boolean') {
+    throw httpError('face_only phải là boolean', 400);
+  }
+  await writeFlag(FACE_ONLY_KEY, enabled);
+  return { face_only: enabled };
+}
+
 async function getSettings() {
   const lock = await getGiftLockState();
   const opensSince = await getGiftOpensSince();
@@ -163,6 +179,7 @@ async function getSettings() {
     gift_unlock_at: lock.unlockAt ? lock.unlockAt.toISOString() : null,
     gift_opens_since: opensSince ? opensSince.toISOString() : null,
     face_enabled: await isFaceEnabled(),
+    face_only: await isFaceOnly(),
   };
 }
 
@@ -175,6 +192,8 @@ module.exports = {
   resetGiftOpens,
   isFaceEnabled,
   setFaceEnabled,
+  isFaceOnly,
+  setFaceOnly,
   getSettings,
   parseIso,
 };
