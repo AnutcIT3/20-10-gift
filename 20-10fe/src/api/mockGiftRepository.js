@@ -117,6 +117,15 @@ async function createFriendLetter(data) {
   return { status: 'pending', friend_created: true }
 }
 
+async function listWishRecipients() {
+  await delay(200)
+  return [
+    { id: 17, name: 'Cô Giáo', nickname: '' },
+    { id: 1, name: 'Nguyễn Thúy Vy', nickname: 'Vy' },
+    { id: 2, name: 'Trần Mai Anh', nickname: 'Anh' },
+  ]
+}
+
 async function createWishes(recipients, data) {
   await delay(400)
   if (data._website) return { status: 'pending' }
@@ -222,6 +231,7 @@ const mockGiftRepository = {
   createLetter,
   createFriendLetter,
   createWishes,
+  listWishRecipients,
   generateGreeting,
   faceStatus,
   matchFace,

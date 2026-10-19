@@ -1334,3 +1334,84 @@
   margin: 0 0 6px;
   color: var(--ink-2);
 }
+
+/* ── Danh sách tích chọn người nhận ── */
+.wish-to {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.wish-to > legend {
+  float: left;
+  margin-right: 10px;
+}
+
+.wish-to .wish-toggle {
+  justify-self: start;
+}
+
+.wish-checklist {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1.5px dashed var(--line);
+  border-radius: 10px;
+  background: rgba(255, 253, 248, .7);
+}
+
+.wish-checklist__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 2px 12px;
+  max-height: 210px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.wish-checklist .wish-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  font: 17px/1.3 var(--font-hand);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.wish-checklist .wish-check input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  accent-color: var(--clay);
+}
+
+.wish-checklist .wish-check i {
+  font-style: normal;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.wish-check--all {
+  padding-bottom: 4px;
+  border-bottom: 1px dashed var(--line);
+  font-weight: 600;
+}
+
+.wish-friend {
+  display: grid;
+  gap: 4px;
+}
+
+.wish-friend .wish-row__input {
+  flex: 1 1 180px;
+}
+
+.wish-to__summary {
+  margin: 0;
+}

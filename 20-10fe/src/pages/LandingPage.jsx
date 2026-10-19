@@ -43,15 +43,14 @@ function cameraSupported() {
 const EMPTY_WISH = {
   isAnonymous: false,
   senderName: '',
-  receiverName: '',
   receiverType: 'class',
   title: '',
   content: '',
   revealAt: '',
 }
 const MATCH_ROTATIONS = [-1, 0.8, -0.5]
-// Một lời chúc gửi được cho tối đa chừng này người (khớp giới hạn máy chủ)
-const MAX_RECIPIENTS = 10
+// Bạn ngoài lớp thêm tay được tối đa chừng này người mỗi lần gửi
+const MAX_FRIEND_RECIPIENTS = 10
 
 // Lượt mở chờ ghi (xem GiftPage): kèm lúc tạo để một tab thử cũ được khôi
 // phục vài ngày sau không lén góp cánh hoa
@@ -217,12 +216,13 @@ function LandingPage() {
   const [wishForm, setWishForm] = useState(EMPTY_WISH)
   // Ảnh kèm lời chúc: chọn một lúc nhiều ảnh, tối đa 4
   const wishImages = useImagePicks()
-  const [wishMatches, setWishMatches] = useState([])
-  // Người nhận đã thêm (gửi một lần cho nhiều bạn): { key, name, code? | friend? }
-  const [wishRecipients, setWishRecipients] = useState([])
-  // Danh sách trùng tên đang hiện là để "thêm" người nhận hay để gửi luôn
-  const [wishPickIntent, setWishPickIntent] = useState('send')
-  const [wishMessage, setWishMessage] = useState('')
+  // Người nhận: tích chọn các bạn trong lớp (và cô) từ danh sách; bạn ngoài lớp
+  // thì gõ tên rồi thêm. Danh sách tải khi mở khung gửi lời chúc.
+  const [recipientOptions, setRecipientOptions] = useState(null)
+  const [recipientLoadError, setRecipientLoadError] = useState('')
+  const [selectedIds, setSelectedIds] = useState([])
+  const [friendRecipients, setFriendRecipients] = useState([])
+  const [friendName, setFriendName] = useState('')
   const [wishError, setWishError] = useState('')
   const [wishSubmitting, setWishSubmitting] = useState(false)
   // Màn "Thư đã vào hộp!" thay nội dung modal sau khi gửi thành công
@@ -282,11 +282,10 @@ function LandingPage() {
 
   const resetWish = () => {
     setWishForm(EMPTY_WISH)
-    setWishRecipients([])
-    setWishPickIntent('send')
+    setSelectedIds([])
+    setFriendRecipients([])
+    setFriendName('')
     clearWishImage()
-    setWishMatches([])
-    setWishMessage('')
     setWishError('')
     setWishSent(null)
     setShowReveal(false)
@@ -391,119 +390,77 @@ function LandingPage() {
     reveal_at: wishForm.revealAt || null,
   })
 
-  // Đổi người nhận (tên hay trong/ngoài lớp) thì danh sách trùng tên của lần
-  // tra trước không còn đúng — bỏ đi, kẻo bấm vào là gửi nhầm người
-  const changeRecipient = (patch) => {
-    setWishForm((current) => ({ ...current, ...patch }))
-    setWishMatches([])
-    setWishMessage('')
-  }
-
   const finishWish = ({ friend = false, sent = null, count = 1 } = {}) => {
     const number = Number.isInteger(sent?.wish_number) ? sent.wish_number : null
     if (number) setOwnWishNumber((current) => Math.max(current || 0, number))
-    setWishMatches([])
-    setWishMessage('')
-    setWishRecipients([])
-    setWishPickIntent('send')
+    setSelectedIds([])
+    setFriendRecipients([])
+    setFriendName('')
     setWishSent({ revealAt: wishForm.revealAt || null, friend, number, count })
     setWishForm(EMPTY_WISH)
     clearWishImage()
     setShowReveal(false)
   }
 
-  const sendWishToGiftPath = async (giftPath) => {
-    const accessCode = accessCodeFromGiftPath(giftPath)
-    if (!accessCode) throw new Error('Không xác định được người nhận.')
-    const sent = await giftRepository.createLetter(accessCode, wishLetterData(), wishImages.files)
-    finishWish({ sent })
+  // Tải danh sách người nhận khi mở khung gửi lời chúc (một lần mỗi lượt mở)
+  useEffect(() => {
+    if (!wishOpen || recipientOptions) return undefined
+    let cancelled = false
+    giftRepository.listWishRecipients()
+      .then((list) => { if (!cancelled) { setRecipientOptions(list || []); setRecipientLoadError('') } })
+      .catch(() => { if (!cancelled) setRecipientLoadError('Không tải được danh sách các bạn — đóng khung rồi mở lại thử nhé.') })
+    return () => { cancelled = true }
+  }, [wishOpen, recipientOptions])
+
+  const allIds = (recipientOptions || []).map((option) => option.id)
+  const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.includes(id))
+  const toggleRecipient = (id) => {
+    setWishError('')
+    setSelectedIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
+  }
+  const toggleAll = () => {
+    setWishError('')
+    setSelectedIds(allSelected ? [] : allIds)
   }
 
-  // ── Gửi cho nhiều bạn ────────────────────────────────────────────────
-  const recipientKey = (recipient) => (recipient.code ? `code:${recipient.code}` : `friend:${recipient.friend.toLocaleLowerCase('vi')}`)
-
-  // Thêm một người nhận vào danh sách (bỏ trùng); trả danh sách mới
-  const pushRecipient = (recipient) => {
-    const key = recipientKey(recipient)
-    const next = wishRecipients.some((item) => item.key === key) ? wishRecipients : [...wishRecipients, { ...recipient, key }]
-    setWishRecipients(next)
-    changeRecipient({ receiverName: '' })
-    return next
-  }
-
-  const removeRecipient = (key) => setWishRecipients((current) => current.filter((item) => item.key !== key))
-
-  // Gửi một lần cho cả danh sách: mỗi người một lá, ảnh dùng chung
-  const sendToRecipients = async (list) => {
-    const sent = await giftRepository.createWishes(
-      list.map((item) => (item.code ? { code: item.code } : { friend: item.friend })),
-      wishLetterData(),
-      wishImages.files,
-    )
-    finishWish({ friend: list.some((item) => item.friend), sent, count: list.length })
-  }
-
-  // Tra tên đang gõ ra một người nhận. Trùng tên thì hiện danh sách để chọn
-  // (intent: 'add' = chỉ thêm vào danh sách, 'send' = thêm rồi gửi luôn)
-  const resolveTyped = async (intent) => {
-    const receiverName = wishForm.receiverName.trim()
-    if (wishForm.receiverType === 'friend') return { friend: receiverName, name: receiverName }
-    const result = await giftRepository.resolveStudent(receiverName)
-    if (result?.giftPath) return { code: accessCodeFromGiftPath(result.giftPath), name: receiverName }
-    if (result?.matches?.length) {
-      setWishPickIntent(intent)
-      setWishMatches(result.matches)
-      setWishMessage('Có nhiều bạn trùng tên. Hãy chọn đúng người nhận lời chúc.')
+  // Bạn ngoài lớp: gõ tên rồi thêm (bỏ trùng); hồ sơ khách tạo khi gửi
+  const addFriend = () => {
+    const name = friendName.trim()
+    setWishError('')
+    if (name.length < 2) {
+      setWishError('Gõ tên bạn ngoài lớp (ít nhất 2 ký tự) rồi bấm thêm.')
       return null
     }
-    throw Object.assign(new Error('not found'), { status: 404 })
+    if (friendRecipients.length >= MAX_FRIEND_RECIPIENTS) {
+      setWishError(`Mỗi lần thêm tối đa ${MAX_FRIEND_RECIPIENTS} bạn ngoài lớp.`)
+      return null
+    }
+    const key = name.toLocaleLowerCase('vi')
+    const next = friendRecipients.some((item) => item.key === key) ? friendRecipients : [...friendRecipients, { key, name }]
+    setFriendRecipients(next)
+    setFriendName('')
+    return next
   }
-
-  const notFoundMessage = 'Không tìm thấy người nhận trong danh sách. Nếu người nhận không thuộc lớp, hãy chọn "Ngoài lớp".'
-
-  // "＋ Thêm người nhận": đưa tên đang gõ vào danh sách để gửi một lần cho nhiều bạn
-  const addRecipient = async () => {
-    setWishError('')
-    setWishMessage('')
-    setWishMatches([])
-    if (wishForm.receiverName.trim().length < 2) {
-      setWishError('Gõ tên người nhận (ít nhất 2 ký tự) rồi bấm thêm.')
-      return
-    }
-    if (wishRecipients.length >= MAX_RECIPIENTS) {
-      setWishError(`Mỗi lần gửi tối đa ${MAX_RECIPIENTS} người nhận.`)
-      return
-    }
-    setWishSubmitting(true)
-    try {
-      const recipient = await resolveTyped('add')
-      if (recipient) pushRecipient(recipient)
-    } catch (err) {
-      setWishError(err.status === 404 ? notFoundMessage : err.message || 'Không tìm được người nhận.')
-    } finally {
-      setWishSubmitting(false)
-    }
-  }
+  const removeFriend = (key) => setFriendRecipients((current) => current.filter((item) => item.key !== key))
 
   const submitWish = async (event) => {
     event.preventDefault()
     setWishError('')
-    setWishMessage('')
-    setWishMatches([])
-    const receiverName = wishForm.receiverName.trim()
     const content = wishForm.content.trim()
     const senderName = wishForm.senderName.trim()
-    const many = wishRecipients.length > 0
     if (!wishForm.isAnonymous && !senderName) {
       setWishError('Vui lòng nhập tên người gửi hoặc chọn ẩn danh.')
       return
     }
-    if (!many && receiverName.length < 2) {
-      setWishError('Tên người nhận phải có ít nhất 2 ký tự.')
-      return
+    // Tên bạn ngoài lớp còn trong ô lúc bấm gửi cũng được tính
+    let friends = friendRecipients
+    if (friendName.trim()) {
+      const next = addFriend()
+      if (!next) return
+      friends = next
     }
-    if (many && receiverName.length === 1) {
-      setWishError('Tên người nhận phải có ít nhất 2 ký tự (hoặc xoá ô tên để gửi cho những bạn đã thêm).')
+    if (!selectedIds.length && !friends.length) {
+      setWishError('Chọn ít nhất một người nhận trong danh sách (hoặc thêm một bạn ngoài lớp).')
       return
     }
     if (!content) {
@@ -512,66 +469,19 @@ function LandingPage() {
     }
     setWishSubmitting(true)
     try {
-      // Đã thêm vài người nhận: gửi một lần cho cả danh sách (kể cả tên còn trong ô)
-      if (many) {
-        if (!receiverName) {
-          await sendToRecipients(wishRecipients)
-          return
-        }
-        if (wishRecipients.length >= MAX_RECIPIENTS) {
-          setWishError(`Mỗi lần gửi tối đa ${MAX_RECIPIENTS} người nhận.`)
-          return
-        }
-        const recipient = await resolveTyped('send')
-        if (recipient) await sendToRecipients(pushRecipient(recipient))
-        return
-      }
-
-      // Một người nhận NGOÀI lớp: không tra danh sách — backend tự tạo hồ sơ
-      // "bạn bè" và lưu lời chúc cho họ
-      if (wishForm.receiverType === 'friend') {
-        const sent = await giftRepository.createFriendLetter(
-          { ...wishLetterData(), receiver_name: receiverName },
-          wishImages.files,
-        )
-        finishWish({ friend: true, sent })
-        return
-      }
-
-      const result = await giftRepository.resolveStudent(receiverName)
-      if (result?.giftPath) await sendWishToGiftPath(result.giftPath)
-      else if (result?.matches?.length) {
-        setWishPickIntent('send')
-        setWishMatches(result.matches)
-        setWishMessage('Có nhiều bạn trùng tên. Hãy chọn đúng người nhận lời chúc.')
-      } else {
-        // Response không có giftPath lẫn matches (mock trả null, backend đổi shape)
-        setWishError(notFoundMessage)
-      }
+      const recipients = [...selectedIds.map((id) => ({ id })), ...friends.map((item) => ({ friend: item.name }))]
+      const sent = await giftRepository.createWishes(recipients, wishLetterData(), wishImages.files)
+      finishWish({ friend: friends.length > 0, sent, count: recipients.length })
     } catch (err) {
-      if (err.status === 404) setWishError(many ? (err.message === 'not found' ? notFoundMessage : err.message) : notFoundMessage)
-      else setWishError(err.message || 'Không gửi được lời chúc.')
+      if (err.status === 404) {
+        // Danh sách cũ (có bạn vừa bị tắt trang): tải lại danh sách
+        setRecipientOptions(null)
+        setSelectedIds([])
+      }
+      setWishError(err.message || 'Không gửi được lời chúc.')
     } finally {
       setWishSubmitting(false)
     }
-  }
-
-  const pickWishMatch = async (match) => {
-    setWishError('')
-    const recipient = { code: accessCodeFromGiftPath(match.giftPath), name: match.displayName }
-    // Đang thêm người nhận: chỉ đưa vào danh sách
-    if (wishPickIntent === 'add') {
-      setWishMatches([])
-      setWishMessage('')
-      pushRecipient(recipient)
-      return
-    }
-    setWishSubmitting(true)
-    try {
-      if (wishRecipients.length) await sendToRecipients(pushRecipient(recipient))
-      else await sendWishToGiftPath(match.giftPath)
-    } catch (err) { setWishError(err.message || 'Không gửi được lời chúc.') }
-    finally { setWishSubmitting(false) }
   }
 
   const chooseRole = (role) => {
@@ -881,49 +791,75 @@ function LandingPage() {
                       Ẩn danh
                     </label>
                   </div>
-                  <div className="wish-row">
-                    <span className="wish-row__label">Gửi tới</span>
-                    <input
-                      className="input-hand wish-row__input"
-                      value={wishForm.receiverName}
-                      maxLength={100}
-                      onChange={(event) => changeRecipient({ receiverName: event.target.value })}
-                      placeholder={wishForm.receiverType === 'friend' ? 'Ví dụ: Minh Thư (bạn khác lớp)' : 'Ví dụ: Phương Anh'}
-                      aria-label="Tên người nhận"
-                    />
+                  <fieldset className="wish-to">
+                    <legend className="wish-row__label">Gửi tới</legend>
                     <span className="wish-toggle" role="radiogroup" aria-label="Người nhận là">
-                      <button type="button" role="radio" aria-checked={wishForm.receiverType === 'class'} onClick={() => changeRecipient({ receiverType: 'class' })}>Trong lớp</button>
-                      <button type="button" role="radio" aria-checked={wishForm.receiverType === 'friend'} onClick={() => changeRecipient({ receiverType: 'friend' })}>Ngoài lớp</button>
+                      <button type="button" role="radio" aria-checked={wishForm.receiverType === 'class'} onClick={() => setWishForm({ ...wishForm, receiverType: 'class' })}>
+                        Trong lớp{selectedIds.length > 0 && ` · ${selectedIds.length}`}
+                      </button>
+                      <button type="button" role="radio" aria-checked={wishForm.receiverType === 'friend'} onClick={() => setWishForm({ ...wishForm, receiverType: 'friend' })}>
+                        Ngoài lớp{friendRecipients.length > 0 && ` · ${friendRecipients.length}`}
+                      </button>
                     </span>
-                  </div>
-                  {wishRecipients.length > 0 && (
-                    <ul className="wish-recipients" aria-label="Người nhận đã thêm">
-                      {wishRecipients.map((item) => (
-                        <li key={item.key}>
-                          <span>{item.name}{item.friend && <i> · ngoài lớp</i>}</span>
-                          <button type="button" onClick={() => removeRecipient(item.key)} aria-label={`Bỏ ${item.name}`}>×</button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <div className="wish-add-row">
-                    <button
-                      type="button"
-                      className="btn-dashed"
-                      onClick={addRecipient}
-                      disabled={wishSubmitting || wishRecipients.length >= MAX_RECIPIENTS}
-                    >
-                      ＋ Thêm người nhận{wishRecipients.length > 0 && <i> {wishRecipients.length}/{MAX_RECIPIENTS}</i>}
-                    </button>
-                    <span className="wish-hint">
-                      {wishRecipients.length > 0
-                        ? 'Gõ thêm tên rồi bấm thêm, hoặc gửi luôn cho những bạn trên.'
-                        : 'Muốn chúc nhiều bạn một lúc? Gõ tên rồi bấm thêm.'}
-                    </span>
-                  </div>
-                  {wishForm.receiverType === 'friend' && (
-                    <p className="wish-hint">Hệ thống sẽ tạo trang lời chúc riêng cho người này — họ tìm tên mình ở trang chủ (mục "khách ghé thăm") là thấy.</p>
-                  )}
+                    {wishForm.receiverType === 'class' ? (
+                      recipientOptions ? (
+                        <div className="wish-checklist">
+                          <label className="wish-check wish-check--all">
+                            <input
+                              type="checkbox"
+                              checked={allSelected}
+                              ref={(el) => { if (el) el.indeterminate = selectedIds.length > 0 && !allSelected }}
+                              onChange={toggleAll}
+                            />
+                            Tất cả ({recipientOptions.length})
+                          </label>
+                          <ul className="wish-checklist__list" aria-label="Các bạn trong lớp">
+                            {recipientOptions.map((option) => (
+                              <li key={option.id}>
+                                <label className="wish-check">
+                                  <input type="checkbox" checked={selectedIds.includes(option.id)} onChange={() => toggleRecipient(option.id)} />
+                                  <span>{option.name}{option.nickname && <i> “{option.nickname}”</i>}</span>
+                                </label>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <p className="wish-hint" role={recipientLoadError ? 'alert' : 'status'}>{recipientLoadError || 'Đang tải danh sách các bạn…'}</p>
+                      )
+                    ) : (
+                      <div className="wish-friend">
+                        <div className="wish-add-row">
+                          <input
+                            className="input-hand wish-row__input"
+                            value={friendName}
+                            maxLength={100}
+                            onChange={(event) => setFriendName(event.target.value)}
+                            onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addFriend() } }}
+                            placeholder="Ví dụ: Minh Thư (bạn khác lớp)"
+                            aria-label="Tên bạn ngoài lớp"
+                          />
+                          <button type="button" className="btn-dashed" onClick={addFriend}>＋ Thêm</button>
+                        </div>
+                        <p className="wish-hint">Hệ thống sẽ tạo trang lời chúc riêng cho người này — họ tìm tên mình ở trang chủ (mục "khách ghé thăm") là thấy.</p>
+                      </div>
+                    )}
+                    {friendRecipients.length > 0 && (
+                      <ul className="wish-recipients" aria-label="Bạn ngoài lớp đã thêm">
+                        {friendRecipients.map((item) => (
+                          <li key={item.key}>
+                            <span>{item.name}<i> · ngoài lớp</i></span>
+                            <button type="button" onClick={() => removeFriend(item.key)} aria-label={`Bỏ ${item.name}`}>×</button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className="wish-hint wish-to__summary" aria-live="polite">
+                      {selectedIds.length + friendRecipients.length > 0
+                        ? `Sẽ gửi tới ${selectedIds.length + friendRecipients.length} người — mỗi người một lá thư.`
+                        : 'Tích chọn một hay nhiều bạn, hoặc "Tất cả" để chúc cả lớp một lần.'}
+                    </p>
+                  </fieldset>
                   <div className="wish-row">
                     <span className="wish-row__label">Tiêu đề</span>
                     <input
@@ -991,12 +927,6 @@ function LandingPage() {
                   )}
                   <PickedImages picks={wishImages.picks} onRemove={wishImages.remove} />
                   {wishError && <p className="alert-note wish-alert" role="alert">{wishError}</p>}
-                  {wishMatches.length > 0 && (
-                    <div className="wish-matches">
-                      <p className="wish-matches__intro">{wishMessage}</p>
-                      <MatchList matches={wishMatches} onPick={pickWishMatch} disabled={wishSubmitting} />
-                    </div>
-                  )}
                   <div className="wish-submit-row">
                     <span className="wish-submit-note">Lời chúc sẽ hiện sau khi admin duyệt</span>
                     <button className="btn-stamp btn-stamp--fill wish-submit" disabled={wishSubmitting}>

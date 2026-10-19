@@ -52,7 +52,13 @@ async function createFriendLetter(data, imageFiles = []) {
   return response.data.data
 }
 
-// Một lời chúc gửi cho nhiều bạn cùng lúc. recipients: [{ code } | { friend }];
+// Các bạn trong lớp và cô giáo để tích chọn khi gửi lời chúc: [{ id, name, nickname }]
+async function listWishRecipients() {
+  const response = await api.get('/api/wishes/recipients')
+  return response.data.data
+}
+
+// Một lời chúc gửi cho nhiều bạn cùng lúc. recipients: [{ id } | { code } | { friend }];
 // ảnh tải lên một lần, dùng chung cho mọi người nhận
 async function createWishes(recipients, data, imageFiles = []) {
   const files = [imageFiles].flat().filter(Boolean)
@@ -172,7 +178,7 @@ async function downloadKeepsake(accessCode, greeting = '') {
 
 export default {
   resolveStudent, getGift, getGiftContent, getGallery, getLetters,
-  createLetter, createFriendLetter, createWishes, generateGreeting,
+  createLetter, createFriendLetter, createWishes, listWishRecipients, generateGreeting,
   faceStatus, matchFace, faceScanEnd, faceScanClaim,
   getEventStatus, recordOpen, createReply, listReplies, downloadKeepsake,
 }
