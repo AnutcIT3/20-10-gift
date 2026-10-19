@@ -149,8 +149,8 @@ export const adminApi = {
     method: 'DELETE', body: JSON.stringify({ ids }),
   }),
   // Thư hồi âm các bạn nữ viết lại — duyệt như lời chúc
-  listReplies: ({ status, page = 1, pageSize = 20 }) => {
-    const params = new URLSearchParams({ status, page, pageSize })
+  listReplies: ({ status, target, page = 1, pageSize = 20 }) => {
+    const params = new URLSearchParams({ status, page, pageSize, ...(target ? { target } : {}) })
     return request(`/api/admin/replies?${params}`)
   },
   updateReplyStatus: (id, status) => request(`/api/admin/replies/${id}/status`, {

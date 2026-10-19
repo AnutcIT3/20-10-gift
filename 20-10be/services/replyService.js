@@ -283,13 +283,16 @@ async function countByStatus() {
     const [[row]] = await pool.execute(
       `SELECT SUM(status = 'pending') AS pending,
               SUM(status = 'approved') AS approved,
-              SUM(status = 'rejected') AS rejected
+              SUM(status = 'rejected') AS rejected,
+              SUM(status = 'approved' AND target = 'admin') AS to_admin
        FROM letter_replies`,
     );
     return {
       pending: Number(row?.pending || 0),
       approved: Number(row?.approved || 0),
       rejected: Number(row?.rejected || 0),
+      // Tab "Gửi admin" ở trang Hồi âm: thư riêng gửi admin đang hiện
+      to_admin: Number(row?.to_admin || 0),
     };
   } catch (error) {
     if (isMissingTable(error)) return null;
@@ -306,16 +309,21 @@ function parseListQuery(query = {}) {
     || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
     throw httpError('Thông tin phân trang không hợp lệ', 400);
   }
-  return { status, page, pageSize };
+  // target: chỉ lấy một loại hồi âm (tab "Gửi admin" dùng 'admin')
+  const target = query.target === undefined || query.target === '' ? null : query.target;
+  if (target !== null && !TARGETS.includes(target)) throw httpError('Loại hồi âm không hợp lệ', 400);
+  return { status, target, page, pageSize };
 }
 
 // Danh sách cho admin duyệt, kèm lá thư gốc (trích 280 ký tự) để biết hồi âm
 // đang trả lời điều gì
 async function listReplies(query) {
-  const { status, page, pageSize } = parseListQuery(query);
+  const { status, target, page, pageSize } = parseListQuery(query);
+  const targetSql = target ? ' AND r.target = ?' : '';
+  const params = target ? [status, target] : [status];
   const [[countRow]] = await pool.execute(
-    'SELECT COUNT(*) AS total FROM letter_replies WHERE status = ?',
-    [status],
+    `SELECT COUNT(*) AS total FROM letter_replies r WHERE r.status = ?${targetSql}`,
+    params,
   );
   const total = Number(countRow?.total || 0);
   const offset = (page - 1) * pageSize;
@@ -330,10 +338,10 @@ async function listReplies(query) {
      FROM letter_replies r
      JOIN students s ON s.id = r.student_id
      LEFT JOIN letters l ON l.id = r.letter_id
-     WHERE r.status = ?
+     WHERE r.status = ?${targetSql}
      ORDER BY r.created_at DESC, r.id DESC
      LIMIT ${pageSize} OFFSET ${offset}`,
-    [status],
+    params,
   );
   // Admin cũng là một trong các bạn nam: hồi âm ẩn danh không kèm tên hay id
   // người gửi, như lời chúc ẩn danh. Loại tài khoản (thử / ngoài lớp) vẫn
