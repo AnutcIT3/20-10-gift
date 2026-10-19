@@ -86,15 +86,13 @@ test('trùng người nhận thì gộp; bạn ngoài lớp đã có hồ sơ th
   assert.deepEqual(db.letters.map((l) => l.params[0]), [1, 40]);
 });
 
-test('không người nhận, sai dạng, quá 30 người, hay mã không tồn tại → báo lỗi, không ghi gì', async (t) => {
+test('không người nhận, sai dạng, hay mã không tồn tại → báo lỗi, không ghi gì', async (t) => {
   const db = fakeDatabase(t);
   const base = { content: 'Chúc', is_anonymous: true };
   await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: [] }), { statusCode: 400 });
   await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: 'không phải json' }), { statusCode: 400 });
   await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: [{ name: 'x' }] }), { statusCode: 400 });
   await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: [{ friend: 'A' }] }), { statusCode: 400 });
-  const tooMany = Array.from({ length: 31 }, (_, i) => ({ friend: `Bạn số ${i + 1}` }));
-  await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: tooMany }), { statusCode: 400, message: /tối đa 30/ });
   await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: [{ code: 'thuy' }, { code: 'khong-co' }] }), { statusCode: 404 });
   assert.ok(db.rolledBack);
   assert.equal(db.letters.length, 0);
@@ -153,8 +151,6 @@ test('gửi theo id từ danh sách: chỉ bạn lớp đang hoạt động; id 
   assert.equal(result.created, 2);
   assert.deepEqual(db.letters.map((l) => l.params[0]), [1, 17]);
   await assert.rejects(() => multiWishService.createWishes({ recipients: [{ id: 1 }, { id: 999 }], content: 'Chúc', is_anonymous: true }), { statusCode: 404 });
-  const thirtyOne = Array.from({ length: 31 }, (_, i) => ({ id: i + 1 }));
-  await assert.rejects(() => multiWishService.createWishes({ recipients: thirtyOne, content: 'Chúc', is_anonymous: true }), { statusCode: 400, message: /tối đa 30/ });
 });
 
 test('GET /api/wishes/recipients mở công khai (cả lúc khoá)', async (t) => {
@@ -169,4 +165,24 @@ test('GET /api/wishes/recipients mở công khai (cả lúc khoá)', async (t) =
   const res = await fetch(`http://127.0.0.1:${server.address().port}/api/wishes/recipients`);
   assert.equal(res.status, 200);
   assert.deepEqual((await res.json()).data, [{ id: 17, name: 'Cô Giáo', nickname: '' }]);
+});
+
+test('không giới hạn số thư: một lần gửi cho 60 người, rồi gửi liên tiếp 200 lần vẫn không bị chặn', async (t) => {
+  const db = fakeDatabase(t);
+  const sixty = Array.from({ length: 60 }, (_, i) => ({ friend: `Bạn số ${i + 1}` }));
+  assert.equal((await multiWishService.createWishes({ recipients: sixty, content: 'Chúc cả trường', is_anonymous: true })).created, 60);
+
+  const server = app.listen(0);
+  t.after(() => server.close());
+  await new Promise((resolve) => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = (path, body) => fetch(`${base}${path}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  }).then((res) => res.status);
+  const statuses = [];
+  for (let i = 0; i < 200; i += 1) {
+    statuses.push(await post('/api/wishes', { recipients: [{ code: 'thuy' }], content: `Lời chúc thứ ${i + 1}`, is_anonymous: true }));
+  }
+  assert.ok(statuses.every((status) => status === 201), `có lần bị chặn: ${statuses.filter((s) => s !== 201)}`);
+  assert.equal(db.letters.length, 60 + 200);
 });

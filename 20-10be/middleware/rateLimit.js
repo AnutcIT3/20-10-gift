@@ -5,13 +5,6 @@ const ipKey = require('../utils/ipKey');
 // cho phép xoay địa chỉ trong dải được cấp để né hạn mức
 const ipKeyGenerator = (req) => ipKey(req.ip);
 
-// Mã trang quà trong khoá hạn mức: MySQL so khớp không phân biệt hoa thường,
-// nên "12A1-VY" và "12a1-vy" phải chung một bucket. Mã có dấu hay ký tự lạ đã
-// bị routes/gifts.js chặn trước khi tới limiter.
-function giftKey(req) {
-  return String(req.params.accessCode || '').trim().toLowerCase();
-}
-
 // HẠN MỨC TÍNH THEO IP, MÀ CẢ LỚP Ở TRƯỜNG ĐI CHUNG MỘT IP (NAT Wi-Fi) — qua
 // Cloudflare tunnel backend cũng chỉ thấy IP đó. Con số vì thế phải đủ cho
 // ~60 người dùng cùng lúc chứ không phải một người. Trần thật nằm ở gói free:
@@ -36,27 +29,6 @@ const greetingLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: ipKeyGenerator,
   message: { success: false, message: 'Too many requests, please try again later.' },
-});
-
-// Thư gửi bạn ngoài lớp tự tạo hồ sơ "bạn bè" — giữ chặt hơn lời chúc AI
-const friendLetterLimiter = rateLimit({
-  windowMs: WINDOW_15_MIN,
-  max: 300,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: ipKeyGenerator,
-  message: { success: false, message: 'Quá nhiều lượt gửi, vui lòng thử lại sau.' },
-});
-
-// Một lời chúc gửi cho nhiều bạn (tối đa 10 lá mỗi lần, có thể tự tạo hồ sơ
-// "bạn bè"): cả lớp chung một IP Wi-Fi vẫn dư, script thì bị chặn
-const multiWishLimiter = rateLimit({
-  windowMs: WINDOW_15_MIN,
-  max: 150,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: ipKeyGenerator,
-  message: { success: false, message: 'Quá nhiều lượt gửi, vui lòng thử lại sau.' },
 });
 
 // Đường đã có limiter riêng thì không tính vào hạn mức chung: data-revision
@@ -134,17 +106,6 @@ const eventLimiter = rateLimit({
   message: { success: false, message: 'Quá nhiều yêu cầu, thử lại sau nhé.' },
 });
 
-// Hồi âm: khoá theo (trang quà, IP) như gửi lời chúc — một bạn viết lại cho
-// từng người trong hộp thư vẫn thừa sức, script thì bị chặn
-const replyLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => `${giftKey(req)}:${ipKey(req.ip)}`,
-  message: { success: false, message: 'Cậu hồi âm nhiều quá rồi, nghỉ tay chút rồi thử lại nhé.' },
-});
-
 // Bản lưu quà: mỗi lần tải là máy chủ kéo cả chục ảnh từ Cloudinary — nặng
 // hơn mọi request khác nên hạn mức riêng, vẫn đủ cho cả lớp tải vài lần
 const keepsakeLimiter = rateLimit({
@@ -170,16 +131,12 @@ const revisionLimiter = rateLimit({
 module.exports = {
   authLimiter,
   greetingLimiter,
-  friendLetterLimiter,
-  multiWishLimiter,
   generalLimiter,
   reactionLimiter,
   resolveLimiter,
   faceMatchLimiter,
   faceEventLimiter,
   eventLimiter,
-  replyLimiter,
   keepsakeLimiter,
   revisionLimiter,
-  giftKey,
 };

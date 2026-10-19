@@ -273,13 +273,6 @@ test('mở quà từ trang chủ trả "bạn thứ mấy"; hồ sơ bạn ngoà
   assert.equal(inserts.length, 2);
 });
 
-test('hạn mức theo trang quà gộp các cách viết khác nhau của cùng một mã', () => {
-  const { giftKey } = require('../middleware/rateLimit');
-  const keys = ['12a1-linh-tan', '12A1-LINH-TAN', '12a1-linh-tan ', '12a1-Linh-Tan  ']
-    .map((accessCode) => giftKey({ params: { accessCode } }));
-  assert.equal(new Set(keys).size, 1);
-});
-
 test('lượt mở quà chỉ ghi được khi quà đã mở và không làm admin phải tải lại trang', async (t) => {
   withPool(t);
   const base = await startApp(t);
