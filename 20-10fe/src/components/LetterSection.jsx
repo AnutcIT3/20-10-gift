@@ -144,12 +144,14 @@ function LetterCard({ letter, accessCode, index, replies, onReplied }) {
 }
 
 // ── Letter Section ────────────────────────────────────────────────────────────
-// Hai nhóm người gửi: các bạn nam của lớp (admin nhập sẵn) và khách ghé thăm (gửi
-// qua form, chờ duyệt). Tiêu đề nhóm chỉ hiện khi có lời chúc của các bạn nam —
-// trang chỉ toàn thư của khách thì giữ nguyên một danh sách liền như trước.
+// Nhóm người gửi: thư admin gửi từ trang quản trị (đứng đầu), thư admin ghi là
+// của các bạn nam, và thư gửi qua form ở trang chủ ("Từ mọi người" — các bạn nam
+// lẫn khách, không phân biệt được). Trang chỉ có thư form thì giữ một danh sách
+// liền, không tiêu đề nhóm.
 const GROUPS = [
+  { kind: 'admin', title: 'Từ admin' },
   { kind: 'classmate', title: `Từ các bạn nam ${CLASS_NAME}` },
-  { kind: 'guest', title: 'Từ khách ghé thăm' },
+  { kind: 'guest', title: 'Từ mọi người' },
 ]
 
 // replies: hồi âm chủ trang đã viết; onReplied có thì mỗi thư có nút "Hồi âm".
@@ -159,7 +161,7 @@ function LetterSection({ letters = [], accessCode, replies = [], onReplied, isFr
     .map((group) => (isFriend && group.kind === 'classmate' ? { ...group, title: 'Từ các bạn nam' } : group))
     .map((group) => ({ ...group, items: letters.filter((letter) => (letter.sender_kind || 'guest') === group.kind) }))
     .filter((group) => group.items.length > 0)
-  const grouped = groups.length > 1 || groups[0]?.kind === 'classmate'
+  const grouped = groups.length > 1 || groups[0]?.kind !== 'guest'
 
   return (
     <section className="gift__section" aria-labelledby="letters-title">

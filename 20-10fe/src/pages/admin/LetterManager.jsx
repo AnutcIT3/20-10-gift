@@ -22,15 +22,18 @@ const PERSONAL = 'personal'
 const TABS = [...STATUSES, { value: 'scheduled', label: 'Hẹn giờ' }, { value: PERSONAL, label: 'Riêng từng bạn' }]
 
 // Nhóm người gửi quyết định lời chúc nằm ở khối nào trên trang quà
+// Nhóm thư trên trang quà: "Từ admin" (mặc định khi admin tự gửi), "Từ các bạn
+// nam", "Từ mọi người" (thư gửi qua form ở trang chủ)
 const SENDER_KINDS = [
-  { value: 'classmate', label: `Các bạn nam ${CLASS_NAME}` },
-  { value: 'guest', label: 'Khách ghé thăm' },
+  { value: 'admin', label: 'Từ admin' },
+  { value: 'classmate', label: `Từ các bạn nam ${CLASS_NAME}` },
+  { value: 'guest', label: 'Từ mọi người' },
 ]
 
 const EMPTY_COMPOSE_FORM = {
   studentIds: [],
   senderName: 'Admin',
-  senderKind: 'classmate',
+  senderKind: 'admin',
   isAnonymous: false,
   title: '',
   content: '',
@@ -551,6 +554,7 @@ function LetterManager() {
                     {letter.member_type === 'friend' && <span className="chip chip--moss">bạn ngoài lớp</span>}
                     {letter.member_type === 'test' && <span className="chip chip--moss">tài khoản thử</span>}
                     {letter.sender_kind === 'classmate' && <span className="chip chip--beige">bạn nam {CLASS_NAME}</span>}
+                    {letter.sender_kind === 'admin' && <span className="chip chip--peach">từ admin</span>}
                     <span className={`admin-badge ${letter.status}`}>
                       {STATUSES.find((item) => item.value === letter.status)?.label || letter.status}
                     </span>

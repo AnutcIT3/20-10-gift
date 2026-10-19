@@ -368,13 +368,15 @@ function renderLetters(letters, srcOf, isFriend = false) {
     return '<p class="empty">Hộp thư còn trống.</p>';
   }
   const groups = [
+    { kind: 'admin', title: 'Từ admin' },
     // Khách không cùng lớp: không ghi tên lớp
     { kind: 'classmate', title: isFriend ? 'Từ các bạn nam' : `Từ các bạn nam ${CLASS_NAME}` },
-    { kind: 'guest', title: 'Từ khách ghé thăm' },
+    // Thư gửi qua form ở trang chủ: các bạn nam lẫn khách, không phân biệt được
+    { kind: 'guest', title: 'Từ mọi người' },
   ]
     .map((group) => ({ ...group, items: letters.filter((letter) => (letter.sender_kind || 'guest') === group.kind) }))
     .filter((group) => group.items.length);
-  const titled = groups.length > 1 || groups[0]?.kind === 'classmate';
+  const titled = groups.length > 1 || groups[0]?.kind !== 'guest';
   return groups.map((group) => (titled ? `<h3 class="group">${escapeHtml(group.title)}</h3>` : '')
     + `<div class="letters">${group.items.map((letter) => renderLetter(letter, pictureUrls(letter.images, letter.image_url).map((url) => srcOf(url, 'letter')))).join('')}</div>`)
     .join('');

@@ -5,7 +5,7 @@ const letterImageService = require('./letterImageService');
 const STATUSES = ['pending', 'approved', 'rejected'];
 // Nhóm người gửi trên trang quà: 'classmate' là các bạn nam 12A1 admin nhập
 // sẵn, 'guest' là khách gửi qua form công khai (mặc định).
-const SENDER_KINDS = ['classmate', 'guest'];
+const SENDER_KINDS = ['admin', 'classmate', 'guest'];
 // 'scheduled' là trạng thái ảo chỉ dùng để LỌC: đã duyệt nhưng reveal_at chưa tới
 const LIST_STATUSES = [...STATUSES, 'scheduled'];
 const MAX_BULK_ITEMS = 100;
