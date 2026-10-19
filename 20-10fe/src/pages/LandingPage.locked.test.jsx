@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import giftRepository from '../api/giftRepository'
@@ -108,4 +108,51 @@ test('máy chủ cũ chưa có số lời chúc thì không có đống thư hay
   const { container } = renderPage()
   expect(container.querySelector('.wish-heap')).toBeNull()
   expect(screen.queryByText(/lời chúc đã được gửi/)).toBeNull()
+})
+
+test('đổi người nhận (trong/ngoài lớp, hay sửa tên) thì bỏ danh sách trùng tên cũ, giữ lời chúc đang viết', async () => {
+  event.status = { ...LOCKED, locked: false, unlockAt: null }
+  giftRepository.resolveStudent.mockResolvedValue({
+    matches: [
+      { displayName: 'Diệu Linh', nickname: 'Linh Tần', avatarUrl: '', giftPath: '/gift/a', seatRow: null, seatCol: null },
+      { displayName: 'Phương Linh', nickname: '', avatarUrl: '', giftPath: '/gift/b', seatRow: null, seatCol: null },
+    ],
+  })
+  renderPage()
+  fireEvent.click(screen.getByRole('button', { name: /Mình muốn gửi lời chúc/ }))
+  const dialog = within(screen.getByRole('dialog'))
+  fireEvent.click(dialog.getByLabelText(/Ẩn danh/))
+  fireEvent.change(dialog.getByLabelText('Tên người nhận'), { target: { value: 'linh' } })
+  fireEvent.change(dialog.getByLabelText('Lời chúc'), { target: { value: 'Chúc mừng 20/10!' } })
+  const form = dialog.getByLabelText('Lời chúc').closest('form')
+  fireEvent.submit(form)
+  expect(await dialog.findByRole('button', { name: /Diệu Linh/ })).toBeTruthy()
+
+  fireEvent.click(dialog.getByRole('radio', { name: 'Ngoài lớp' }))
+  expect(dialog.queryByRole('button', { name: /Diệu Linh/ })).toBeNull()
+
+  fireEvent.click(dialog.getByRole('radio', { name: 'Trong lớp' }))
+  fireEvent.submit(form)
+  expect(await dialog.findByRole('button', { name: /Diệu Linh/ })).toBeTruthy()
+  fireEvent.change(dialog.getByLabelText('Tên người nhận'), { target: { value: 'Ngọc' } })
+  expect(dialog.queryByRole('button', { name: /Diệu Linh/ })).toBeNull()
+  expect(dialog.getByLabelText('Lời chúc')).toHaveValue('Chúc mừng 20/10!')
+})
+
+test('trang bị khoá giữa chừng rồi mở lại: quay về bước chọn vai trò', async () => {
+  event.status = { ...LOCKED, locked: false, unlockAt: null }
+  const view = renderPage()
+  fireEvent.click(screen.getByRole('button', { name: /Mình là thành viên trong lớp/ }))
+  expect(screen.getByLabelText(/Tên:/)).toBeTruthy()
+
+  event.status = LOCKED
+  view.rerender(<MemoryRouter><LandingPage /></MemoryRouter>)
+  await vi.waitFor(() => expect(screen.queryByLabelText(/Tên:/)).toBeNull())
+  // Thực tế khoá kéo dài cả 15 giây hỏi lại — cho bước dọn kịp chạy
+  await act(() => new Promise((resolve) => { setTimeout(resolve, 20) }))
+
+  event.status = { ...LOCKED, locked: false, unlockAt: null }
+  view.rerender(<MemoryRouter><LandingPage /></MemoryRouter>)
+  expect(await screen.findByRole('button', { name: /Mình là thành viên trong lớp/ })).toBeTruthy()
+  expect(screen.queryByLabelText(/Tên:/)).toBeNull()
 })

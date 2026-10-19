@@ -1,17 +1,12 @@
 const { sendSuccess } = require('../utils/response');
-const { cloudinary } = require('../config/cloudinary');
+const { extractLetterImages, cleanupLetterImages } = require('../utils/letterUpload');
 
 async function honeypot(req, res, next) {
   if (req.body && req.body._website) {
-    // Bot sập bẫy nhưng multer (đứng trước) có thể đã lỡ upload ảnh —
-    // dọn ngay để không để lại ảnh mồ côi trên Cloudinary
-    if (req.file?.filename) {
-      try {
-        await cloudinary.uploader.destroy(req.file.filename);
-      } catch (error) {
-        console.error(`Honeypot cleanup failed for ${req.file.filename}:`, error.message);
-      }
-    }
+    // Bot sập bẫy nhưng multer (đứng trước) có thể đã lỡ upload ảnh — cả trường
+    // "image" cũ lẫn "images" (tối đa 4) — dọn ngay để không để lại ảnh mồ côi
+    const images = extractLetterImages(req);
+    if (images.length) await cleanupLetterImages(images);
     return sendSuccess(res, { status: 'pending' }, 201);
   }
   return next();
