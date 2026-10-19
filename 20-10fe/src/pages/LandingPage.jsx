@@ -21,6 +21,7 @@ import { CLASS_NAME, EVENT_YEAR, formatStamp } from '../lib/event'
 import { CLD_TINY, cld } from '../lib/cloudinary'
 import { greetingFor, greetNames, showCountdown } from '../lib/faceVote'
 import { playMusic, primeMusic, releaseMusic } from '../lib/music'
+import { keepGiftTicket } from '../lib/giftTickets'
 import { seatLabel } from '../lib/seat'
 import { sentAgo } from '../lib/wishHeap'
 import '../styles/landing.css'
@@ -310,7 +311,9 @@ function LandingPage() {
 
   const accessCodeFromGiftPath = (giftPath) => giftPath.split('/').filter(Boolean).pop()
 
-  const openGiftWithReveal = async (giftPath, displayName = '', via = '') => {
+  // ticket: vé mở quà máy chủ vừa cấp — giữ lại trước khi tải trang quà
+  const openGiftWithReveal = async (giftPath, displayName = '', via = '', ticket = null) => {
+    if (ticket) keepGiftTicket(giftPath, ticket)
     const accessCode = accessCodeFromGiftPath(giftPath)
     // Vừa quét Face ID chưa thành rồi mở được quà: báo cho lịch sử của admin
     // biết các lượt đó là của ai (không có lượt nào thì không gửi gì)
@@ -380,7 +383,7 @@ function LandingPage() {
     const candidate = acceptFace()
     if (!candidate) return
     playMusic()
-    await openGiftWithReveal(candidate.giftPath, candidate.displayName, 'face')
+    await openGiftWithReveal(candidate.giftPath, candidate.displayName, 'face', candidate.ticket)
   }
 
   // Cả nhóm cùng quét: chọn một thiệp là mở quà của bạn đó (tính cánh hoa cho
@@ -389,7 +392,7 @@ function LandingPage() {
     const picked = acceptFace(person)
     if (!picked) return
     playMusic()
-    await openGiftWithReveal(picked.giftPath, picked.displayName, 'face')
+    await openGiftWithReveal(picked.giftPath, picked.displayName, 'face', picked.ticket)
   }
 
   // Dừng quét → đóng modal và đưa con trỏ về ô gõ tên. Chờ một nhịp vì
@@ -556,7 +559,7 @@ function LandingPage() {
         const result = await giftRepository.resolveStudent(value, 'friend')
         if (result?.giftPath) {
           playMusic()
-          await openGiftWithReveal(result.giftPath, value)
+          await openGiftWithReveal(result.giftPath, value, '', result.ticket)
           return
         }
         // Trùng tên: chưa mở gì — nhạc chờ bạn chọn thiệp (cú bấm đó bật nhạc)
@@ -587,7 +590,7 @@ function LandingPage() {
       const result = await giftRepository.resolveStudent(value)
       if (result?.giftPath) {
         playMusic()
-        await openGiftWithReveal(result.giftPath, value)
+        await openGiftWithReveal(result.giftPath, value, '', result.ticket)
       } else {
         releaseMusic()
         if (result?.matches?.length) { setMatches(result.matches); setMatchGuess(Boolean(result.unsure)); setMessage(result.message || '') }
@@ -697,7 +700,7 @@ function LandingPage() {
                 {matchGuess ? 'Có phải cậu là…' : <>Có mấy bạn tên <span className="landing__name">{name.trim()}</span></>}
               </h1>
               <p className="landing__intro">{message || 'Bạn là ai trong số này? Chọn đúng người để mở quà.'}</p>
-              <MatchList matches={matches} onPick={(match) => { playMusic(); openGiftWithReveal(match.giftPath, match.displayName) }} />
+              <MatchList matches={matches} onPick={(match) => { playMusic(); openGiftWithReveal(match.giftPath, match.displayName, '', match.ticket) }} />
               <p className="landing__note">
                 Không thấy tên mình? <button type="button" className="landing__link" onClick={() => setMatches([])}>Nhập lại tên đầy đủ</button>
               </p>

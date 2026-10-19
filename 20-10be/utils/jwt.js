@@ -18,4 +18,23 @@ function verifyToken(token) {
   return jwt.verify(token, getSecret());
 }
 
-module.exports = { signToken, verifyToken };
+// Vé mở quà: máy chủ cấp khi Face ID (hay ô gõ tên, lúc còn cho phép) mở đúng
+// trang quà. Khoá riêng (không phải khoá token admin): vé không bao giờ dùng
+// làm token admin được, và ngược lại
+const GIFT_TICKET_TTL = '30d';
+const giftSecret = () => `${getSecret()}:gift-ticket`;
+
+function signGiftTicket(accessCode) {
+  return jwt.sign({ typ: 'gift', gift: String(accessCode).toLowerCase() }, giftSecret(), { expiresIn: GIFT_TICKET_TTL });
+}
+
+function verifyGiftTicket(ticket, accessCode) {
+  try {
+    const payload = jwt.verify(String(ticket), giftSecret());
+    return payload?.typ === 'gift' && payload.gift === String(accessCode).toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+module.exports = { signToken, verifyToken, signGiftTicket, verifyGiftTicket };

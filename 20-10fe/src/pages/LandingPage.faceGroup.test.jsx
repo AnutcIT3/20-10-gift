@@ -53,15 +53,18 @@ vi.mock('../api/giftRepository', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // jsdom của bộ test không có Web Storage: bộ nhớ giả để giữ vé mở quà
+  const data = new Map()
+  vi.stubGlobal('localStorage', { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => data.set(k, String(v)), removeItem: (k) => data.delete(k) })
   face.people = [
     { studentId: 10, giftPath: '/gift/thuy', displayName: 'Thủy Phin', avatarUrl: 'https://res.cloudinary.com/demo/image/upload/v1/gift_20_10/thuy.png', score: 0.7 },
-    { studentId: 11, giftPath: '/gift/my', displayName: 'My Tường', avatarUrl: null, score: 0.66 },
+    { studentId: 11, giftPath: '/gift/my', displayName: 'My Tường', avatarUrl: null, score: 0.66, ticket: 've-my' },
   ]
   giftRepository.faceStatus.mockResolvedValue({ enabled: false })
   giftRepository.recordOpen.mockResolvedValue({ counted: true })
   giftRepository.getGift.mockResolvedValue({ full_name: 'Thủy', nickname: 'Thủy Phin' })
 })
-afterEach(cleanup)
+afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 const renderPage = () => render(<MemoryRouter><LandingPage /></MemoryRouter>)
 
@@ -84,6 +87,8 @@ test('chọn một thiệp thì mở quà của đúng bạn đó', async () => 
   expect(face.accept).toHaveBeenCalledWith(face.people[1])
   // Nhận ra bạn rồi đưa vào trang quà: nhạc tự bật — một lần, ngay trong cú bấm
   expect(playMusic).toHaveBeenCalledTimes(1)
+  // Vé mở quà máy chủ cấp được giữ lại trên máy (mở lại trang không cần quét lại)
+  expect(JSON.parse(localStorage.getItem('gift_tickets') || '{}').my).toBe('ve-my')
   await waitFor(() => expect(giftRepository.getGift).toHaveBeenCalledWith('my'))
 })
 
