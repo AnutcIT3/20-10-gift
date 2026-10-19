@@ -1008,7 +1008,7 @@
   transition: width .5s;
 }
 
-.wish-note {
+.heap-note {
   position: absolute;
   left: 50%;
   bottom: 0;
@@ -1023,7 +1023,7 @@
 }
 
 /* Mặt sau: nắp chữ V */
-.wish-note--back::before {
+.heap-note--back::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -1033,7 +1033,7 @@
 }
 
 /* Mặt trước: tem nhỏ và vài dòng địa chỉ */
-.wish-note--front::before {
+.heap-note--front::before {
   content: '';
   position: absolute;
   right: 4px;
@@ -1045,7 +1045,7 @@
   outline-offset: -2px;
 }
 
-.wish-note--front::after {
+.heap-note--front::after {
   content: '';
   position: absolute;
   left: 7px;
@@ -1055,7 +1055,7 @@
   background: repeating-linear-gradient(to bottom, rgba(92, 74, 64, .32) 0 1px, transparent 1px 4px);
 }
 
-.wish-note--heart::after {
+.heap-note--heart::after {
   content: '♡';
   position: absolute;
   left: 50%;

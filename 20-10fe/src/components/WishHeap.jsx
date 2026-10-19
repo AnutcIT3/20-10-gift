@@ -29,7 +29,7 @@ function FlyingNote({ index, delay, onLanded }) {
     // Chỉ bay một lần lúc xuất hiện
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  return <span ref={ref} className={`wish-note wish-note--${spot.face} is-flying`} style={{ ...noteStyle(spot), zIndex: 500 }} />
+  return <span ref={ref} className={`heap-note heap-note--${spot.face} is-flying`} style={{ ...noteStyle(spot), zIndex: 500 }} />
 }
 
 /**
@@ -44,7 +44,7 @@ function WishHeap({ count, flights = [], onLanded }) {
       <span className="wish-heap__shadow" style={{ width: `${heapShadowWidth(shown)}px` }} />
       {Array.from({ length: shown }, (_, i) => {
         const spot = heapSpot(i)
-        return <span key={i} className={`wish-note wish-note--${spot.face}`} style={{ ...noteStyle(spot), zIndex: i }} />
+        return <span key={i} className={`heap-note heap-note--${spot.face}`} style={{ ...noteStyle(spot), zIndex: i }} />
       })}
       {flights.map((flight, order) => (
         <FlyingNote
