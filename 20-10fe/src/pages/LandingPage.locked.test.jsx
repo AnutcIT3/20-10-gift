@@ -24,7 +24,7 @@ vi.mock('../hooks/useEventStatus', () => ({
 vi.mock('../api/giftRepository', () => ({
   default: {
     faceStatus: vi.fn(), resolveStudent: vi.fn(), getGift: vi.fn(), recordOpen: vi.fn(), createLetter: vi.fn(),
-    createWishes: vi.fn(), createFriendLetter: vi.fn(),
+    createWishes: vi.fn(), createFriendLetter: vi.fn(), listWishRecipients: vi.fn(),
   },
 }))
 
@@ -35,10 +35,27 @@ beforeEach(() => {
   Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true })
   Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: vi.fn() }, configurable: true })
   giftRepository.faceStatus.mockResolvedValue({ enabled: true })
+  giftRepository.listWishRecipients.mockResolvedValue(RECIPIENTS)
 })
 afterEach(cleanup)
 
 const renderPage = () => render(<MemoryRouter><LandingPage /></MemoryRouter>)
+const RECIPIENTS = [
+  { id: 17, name: 'Cô Giáo', nickname: '' },
+  { id: 8, name: 'Diệu Linh', nickname: 'Linh Tần' },
+  { id: 10, name: 'Thủy', nickname: 'Thủy Phin' },
+  { id: 12, name: 'Ngọc', nickname: '' },
+]
+
+async function openWishDialog(buttonName) {
+  fireEvent.click(screen.getByRole('button', { name: buttonName }))
+  const dialog = within(screen.getByRole('dialog'))
+  fireEvent.click(dialog.getByLabelText(/Ẩn danh/))
+  fireEvent.change(dialog.getByLabelText('Lời chúc'), { target: { value: 'Chúc mừng 20/10!' } })
+  await dialog.findByRole('checkbox', { name: /Tất cả/ })
+  return dialog
+}
+const submit = (dialog) => fireEvent.submit(dialog.getByLabelText('Lời chúc').closest('form'))
 const LOCKED = { locked: true, unlockAt: new Date(Date.now() + 3 * 86_400_000).toISOString(), total: 18, opened: 0, replies: 0 }
 
 test('đang khoá: chỉ có đếm ngược và nút gửi lời chúc, không có lối vào trang cá nhân hay Face ID', () => {
@@ -58,35 +75,6 @@ test('khoá mà chưa hẹn giờ thì hẹn ngày 20/10 thay cho đồng hồ',
   renderPage()
   expect(screen.queryByRole('region', { name: 'Đếm ngược tới lúc mở quà' })).toBeNull()
   expect(screen.getByText('Hẹn bạn ngày 20/10 nhé!')).toBeTruthy()
-})
-
-test('đang khoá vẫn gửi được lời chúc; trùng tên thì chọn theo họ tên kèm biệt danh, không có ảnh', async () => {
-  event.status = LOCKED
-  // Máy chủ đang khoá trả danh sách không ảnh, không chỗ ngồi
-  giftRepository.resolveStudent.mockResolvedValue({
-    matches: [
-      { displayName: 'Diệu Linh', nickname: 'Linh Tần', avatarUrl: '', giftPath: '/gift/a', seatRow: null, seatCol: null },
-      { displayName: 'Phương Linh', nickname: '', avatarUrl: '', giftPath: '/gift/b', seatRow: null, seatCol: null },
-    ],
-  })
-  giftRepository.createLetter.mockResolvedValue({ status: 'pending', wish_number: 25 })
-  renderPage()
-  fireEvent.click(screen.getByRole('button', { name: /Gửi lời chúc cho một bạn/ }))
-  const dialog = within(screen.getByRole('dialog'))
-  fireEvent.click(dialog.getByLabelText(/Ẩn danh/))
-  fireEvent.change(dialog.getByLabelText('Tên người nhận'), { target: { value: 'linh' } })
-  fireEvent.change(dialog.getByLabelText('Lời chúc'), { target: { value: 'Chúc mừng 20/10!' } })
-  fireEvent.submit(dialog.getByLabelText('Lời chúc').closest('form'))
-
-  const first = await dialog.findByRole('button', { name: /Diệu Linh/ })
-  expect(first).toHaveTextContent('"Linh Tần"')
-  expect(dialog.getByRole('button', { name: /Phương Linh/ })).toBeTruthy()
-  expect(dialog.queryAllByRole('img')).toHaveLength(0)
-  fireEvent.click(first)
-  await vi.waitFor(() => expect(giftRepository.createLetter).toHaveBeenCalledWith('a', expect.objectContaining({ content: 'Chúc mừng 20/10!' }), []))
-
-  // Màn "Thư đã vào hộp": người gửi biết mình là người thứ mấy
-  expect(await dialog.findByText(/Bạn là người gửi lời chúc thứ/)).toHaveTextContent('Bạn là người gửi lời chúc thứ 25!')
 })
 
 test('quà đã mở: trang chủ trở lại như cũ', () => {
@@ -111,35 +99,6 @@ test('máy chủ cũ chưa có số lời chúc thì không có đống thư hay
   const { container } = renderPage()
   expect(container.querySelector('.wish-heap')).toBeNull()
   expect(screen.queryByText(/lời chúc đã được gửi/)).toBeNull()
-})
-
-test('đổi người nhận (trong/ngoài lớp, hay sửa tên) thì bỏ danh sách trùng tên cũ, giữ lời chúc đang viết', async () => {
-  event.status = { ...LOCKED, locked: false, unlockAt: null }
-  giftRepository.resolveStudent.mockResolvedValue({
-    matches: [
-      { displayName: 'Diệu Linh', nickname: 'Linh Tần', avatarUrl: '', giftPath: '/gift/a', seatRow: null, seatCol: null },
-      { displayName: 'Phương Linh', nickname: '', avatarUrl: '', giftPath: '/gift/b', seatRow: null, seatCol: null },
-    ],
-  })
-  renderPage()
-  fireEvent.click(screen.getByRole('button', { name: /Mình muốn gửi lời chúc/ }))
-  const dialog = within(screen.getByRole('dialog'))
-  fireEvent.click(dialog.getByLabelText(/Ẩn danh/))
-  fireEvent.change(dialog.getByLabelText('Tên người nhận'), { target: { value: 'linh' } })
-  fireEvent.change(dialog.getByLabelText('Lời chúc'), { target: { value: 'Chúc mừng 20/10!' } })
-  const form = dialog.getByLabelText('Lời chúc').closest('form')
-  fireEvent.submit(form)
-  expect(await dialog.findByRole('button', { name: /Diệu Linh/ })).toBeTruthy()
-
-  fireEvent.click(dialog.getByRole('radio', { name: 'Ngoài lớp' }))
-  expect(dialog.queryByRole('button', { name: /Diệu Linh/ })).toBeNull()
-
-  fireEvent.click(dialog.getByRole('radio', { name: 'Trong lớp' }))
-  fireEvent.submit(form)
-  expect(await dialog.findByRole('button', { name: /Diệu Linh/ })).toBeTruthy()
-  fireEvent.change(dialog.getByLabelText('Tên người nhận'), { target: { value: 'Ngọc' } })
-  expect(dialog.queryByRole('button', { name: /Diệu Linh/ })).toBeNull()
-  expect(dialog.getByLabelText('Lời chúc')).toHaveValue('Chúc mừng 20/10!')
 })
 
 test('trang bị khoá giữa chừng rồi mở lại: quay về bước chọn vai trò', async () => {
@@ -185,80 +144,61 @@ test('máy đặt "giảm chuyển động" thì không có mưa cánh hoa', asy
   expect(view.container.querySelector('.petal-rain')).toBeNull()
 })
 
-test('một lời chúc gửi cho nhiều bạn: thêm từng người (trùng tên thì chọn), bỏ bớt, rồi gửi một lần', async () => {
+
+test('khung gửi lời chúc có danh sách các bạn và cô kèm biệt danh để tích; gửi cho những bạn đã tích', async () => {
   event.status = LOCKED
-  giftRepository.resolveStudent.mockImplementation(async (name) => {
-    if (name === 'Thủy') return { giftPath: '/gift/thuy' }
-    if (name === 'linh') {
-      return {
-        matches: [
-          { displayName: 'Diệu Linh', nickname: 'Linh Tần', avatarUrl: '', giftPath: '/gift/a', seatRow: null, seatCol: null },
-          { displayName: 'Phương Linh', nickname: '', avatarUrl: '', giftPath: '/gift/b', seatRow: null, seatCol: null },
-        ],
-      }
-    }
-    if (name === 'Ngọc') return { giftPath: '/gift/ngoc' }
-    throw Object.assign(new Error('not found'), { status: 404 })
-  })
-  giftRepository.createWishes.mockResolvedValue({ status: 'pending', created: 4, wish_number: 52 })
+  giftRepository.createWishes.mockResolvedValue({ status: 'pending', created: 2, wish_number: 52 })
   renderPage()
-  fireEvent.click(screen.getByRole('button', { name: /Gửi lời chúc cho một bạn/ }))
-  const dialog = within(screen.getByRole('dialog'))
-  fireEvent.click(dialog.getByLabelText(/Ẩn danh/))
-  fireEvent.change(dialog.getByLabelText('Lời chúc'), { target: { value: 'Chúc cả nhà 20/10!' } })
-  const name = dialog.getByLabelText('Tên người nhận')
-  const add = () => fireEvent.click(dialog.getByRole('button', { name: /Thêm người nhận/ }))
+  const dialog = await openWishDialog(/Gửi lời chúc cho một bạn/)
+  // Tên + biệt danh, không có ảnh
+  expect(dialog.getByRole('checkbox', { name: /Diệu Linh.*Linh Tần/ })).toBeTruthy()
+  expect(dialog.getByRole('checkbox', { name: /Cô Giáo/ })).toBeTruthy()
+  expect(dialog.queryAllByRole('img')).toHaveLength(0)
 
-  fireEvent.change(name, { target: { value: 'Thủy' } })
-  add()
-  expect(await dialog.findByRole('button', { name: 'Bỏ Thủy' })).toBeTruthy()
-  expect(name).toHaveValue('')
-
-  // Trùng tên: chọn trong danh sách là thêm, chưa gửi
-  fireEvent.change(name, { target: { value: 'linh' } })
-  add()
-  fireEvent.click(await dialog.findByRole('button', { name: /Diệu Linh/ }))
-  expect(await dialog.findByRole('button', { name: 'Bỏ Diệu Linh' })).toBeTruthy()
-  expect(giftRepository.createWishes).not.toHaveBeenCalled()
-
-  // Bạn ngoài lớp
-  fireEvent.click(dialog.getByRole('radio', { name: 'Ngoài lớp' }))
-  fireEvent.change(name, { target: { value: 'Minh Thư' } })
-  add()
-  expect(await dialog.findByRole('button', { name: 'Bỏ Minh Thư' })).toBeTruthy()
-
-  // Thêm rồi bỏ một người; thêm trùng thì không nhân đôi
-  fireEvent.click(dialog.getByRole('radio', { name: 'Trong lớp' }))
-  fireEvent.change(name, { target: { value: 'Thủy' } })
-  add()
-  await vi.waitFor(() => expect(name).toHaveValue(''))
-  expect(dialog.getAllByRole('button', { name: 'Bỏ Thủy' })).toHaveLength(1)
-  fireEvent.click(dialog.getByRole('button', { name: 'Bỏ Diệu Linh' }))
-
-  // Tên còn trong ô lúc bấm gửi cũng được tính
-  fireEvent.change(name, { target: { value: 'Ngọc' } })
-  fireEvent.submit(dialog.getByLabelText('Lời chúc').closest('form'))
+  fireEvent.click(dialog.getByRole('checkbox', { name: /Thủy/ }))
+  fireEvent.click(dialog.getByRole('checkbox', { name: /Cô Giáo/ }))
+  expect(dialog.getByText(/Sẽ gửi tới 2 người/)).toBeTruthy()
+  submit(dialog)
   await vi.waitFor(() => expect(giftRepository.createWishes).toHaveBeenCalledTimes(1))
   const [recipients, data, files] = giftRepository.createWishes.mock.calls[0]
-  expect(recipients).toEqual([{ code: 'thuy' }, { friend: 'Minh Thư' }, { code: 'ngoc' }])
-  expect(data).toEqual(expect.objectContaining({ content: 'Chúc cả nhà 20/10!', is_anonymous: true }))
+  expect(recipients).toEqual([{ id: 10 }, { id: 17 }])
+  expect(data).toEqual(expect.objectContaining({ content: 'Chúc mừng 20/10!', is_anonymous: true }))
   expect(files).toEqual([])
-  expect(await dialog.findByText('Đã gửi tới 3 người nhận.')).toBeTruthy()
+  expect(await dialog.findByText('Đã gửi tới 2 người nhận.')).toBeTruthy()
   expect(dialog.getByText(/Bạn là người gửi lời chúc thứ/)).toHaveTextContent('52')
-  expect(giftRepository.createLetter).not.toHaveBeenCalled()
 })
 
-test('chỉ một người nhận thì vẫn gửi như cũ, không qua đường gửi nhiều người', async () => {
-  event.status = LOCKED
-  giftRepository.resolveStudent.mockResolvedValue({ giftPath: '/gift/thuy' })
-  giftRepository.createLetter.mockResolvedValue({ status: 'pending', wish_number: 48 })
+test('"Tất cả" chọn cả lớp một lần, bấm lại là bỏ hết; thêm được bạn ngoài lớp', async () => {
+  event.status = { ...LOCKED, locked: false, unlockAt: null }
+  giftRepository.createWishes.mockResolvedValue({ status: 'pending', created: 5 })
   renderPage()
-  fireEvent.click(screen.getByRole('button', { name: /Gửi lời chúc cho một bạn/ }))
-  const dialog = within(screen.getByRole('dialog'))
-  fireEvent.click(dialog.getByLabelText(/Ẩn danh/))
-  fireEvent.change(dialog.getByLabelText('Tên người nhận'), { target: { value: 'Thủy' } })
-  fireEvent.change(dialog.getByLabelText('Lời chúc'), { target: { value: 'Chúc mừng!' } })
-  fireEvent.submit(dialog.getByLabelText('Lời chúc').closest('form'))
-  await vi.waitFor(() => expect(giftRepository.createLetter).toHaveBeenCalledTimes(1))
+  const dialog = await openWishDialog(/Mình muốn gửi lời chúc/)
+  const all = dialog.getByRole('checkbox', { name: /Tất cả \(4\)/ })
+  const people = () => within(dialog.getByRole('list', { name: 'Các bạn trong lớp' })).getAllByRole('checkbox')
+  fireEvent.click(all)
+  expect(people().every((box) => box.checked)).toBe(true)
+  fireEvent.click(all)
+  expect(people().some((box) => box.checked)).toBe(false)
+  fireEvent.click(all)
+
+  fireEvent.click(dialog.getByRole('radio', { name: /Ngoài lớp/ }))
+  fireEvent.change(dialog.getByLabelText('Tên bạn ngoài lớp'), { target: { value: 'Minh Thư' } })
+  fireEvent.click(dialog.getByRole('button', { name: '＋ Thêm' }))
+  expect(dialog.getByRole('button', { name: 'Bỏ Minh Thư' })).toBeTruthy()
+  // Tên còn trong ô lúc gửi cũng được tính
+  fireEvent.change(dialog.getByLabelText('Tên bạn ngoài lớp'), { target: { value: 'Bảo Anh' } })
+  submit(dialog)
+  await vi.waitFor(() => expect(giftRepository.createWishes).toHaveBeenCalledTimes(1))
+  expect(giftRepository.createWishes.mock.calls[0][0]).toEqual([
+    { id: 17 }, { id: 8 }, { id: 10 }, { id: 12 }, { friend: 'Minh Thư' }, { friend: 'Bảo Anh' },
+  ])
+})
+
+test('chưa chọn ai thì báo, không gửi', async () => {
+  event.status = LOCKED
+  renderPage()
+  const dialog = await openWishDialog(/Gửi lời chúc cho một bạn/)
+  submit(dialog)
+  expect(await dialog.findByRole('alert')).toHaveTextContent('Chọn ít nhất một người nhận')
   expect(giftRepository.createWishes).not.toHaveBeenCalled()
 })

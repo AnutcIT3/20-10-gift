@@ -12,5 +12,7 @@ const router = Router();
 // limiter TRƯỚC multer (request 429 không được upload ảnh), honeypot sau multer
 // và tự dọn ảnh; KHÔNG gắn giftLockGuard — khoá chờ 20/10 chỉ chặn XEM.
 router.post('/', multiWishLimiter, letterImageUpload, uploadErrorHandler, honeypot, asyncHandler(wishController.create));
+// Danh sách tích chọn người nhận (tên + biệt danh, không mã quà)
+router.get('/recipients', asyncHandler(wishController.recipients));
 
 module.exports = router;

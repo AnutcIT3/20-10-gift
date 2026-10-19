@@ -17,4 +17,9 @@ async function create(req, res) {
   }
 }
 
-module.exports = { create };
+// GET /api/wishes/recipients — các bạn trong lớp và cô giáo để tích chọn
+async function recipients(req, res) {
+  return sendSuccess(res, await multiWishService.listRecipients());
+}
+
+module.exports = { create, recipients };

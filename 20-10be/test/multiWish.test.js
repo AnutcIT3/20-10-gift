@@ -86,15 +86,15 @@ test('trùng người nhận thì gộp; bạn ngoài lớp đã có hồ sơ th
   assert.deepEqual(db.letters.map((l) => l.params[0]), [1, 40]);
 });
 
-test('không người nhận, sai dạng, quá 10 người, hay mã không tồn tại → báo lỗi, không ghi gì', async (t) => {
+test('không người nhận, sai dạng, quá 30 người, hay mã không tồn tại → báo lỗi, không ghi gì', async (t) => {
   const db = fakeDatabase(t);
   const base = { content: 'Chúc', is_anonymous: true };
   await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: [] }), { statusCode: 400 });
   await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: 'không phải json' }), { statusCode: 400 });
   await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: [{ name: 'x' }] }), { statusCode: 400 });
   await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: [{ friend: 'A' }] }), { statusCode: 400 });
-  const eleven = Array.from({ length: 11 }, (_, i) => ({ friend: `Bạn số ${i + 1}` }));
-  await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: eleven }), { statusCode: 400, message: /tối đa 10/ });
+  const tooMany = Array.from({ length: 31 }, (_, i) => ({ friend: `Bạn số ${i + 1}` }));
+  await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: tooMany }), { statusCode: 400, message: /tối đa 30/ });
   await assert.rejects(() => multiWishService.createWishes({ ...base, recipients: [{ code: 'thuy' }, { code: 'khong-co' }] }), { statusCode: 404 });
   assert.ok(db.rolledBack);
   assert.equal(db.letters.length, 0);
@@ -115,4 +115,58 @@ test('POST /api/wishes: gửi được khi chưa đăng nhập, bẫy bot trả 
   res = await post({ recipients: [{ code: 'thuy' }], content: 'spam', is_anonymous: true, _website: 'bot' });
   assert.equal(res.status, 201);
   assert.equal(db.letters.length, 2);
+});
+
+test('danh sách tích chọn: các bạn lớp và cô (cô đứng đầu), kèm biệt danh, không có mã quà', async (t) => {
+  const original = pool.execute;
+  pool.execute = async (sql) => {
+    assert.match(sql, /member_type = 'class' AND is_active = TRUE/);
+    return [[
+      { id: 3, full_name: 'Thủy', nickname: 'Thủy Phin', access_code: 'bi-mat' },
+      { id: 17, full_name: 'Cô Giáo', nickname: null },
+      { id: 5, full_name: 'Diệu Linh', nickname: 'Diệu Linh' },
+    ]];
+  };
+  t.after(() => { pool.execute = original; });
+  const list = await multiWishService.listRecipients();
+  assert.deepEqual(list, [
+    { id: 17, name: 'Cô Giáo', nickname: '' },
+    { id: 5, name: 'Diệu Linh', nickname: '' },
+    { id: 3, name: 'Thủy', nickname: 'Thủy Phin' },
+  ]);
+  assert.equal(JSON.stringify(list).includes('bi-mat'), false);
+});
+
+test('gửi theo id từ danh sách: chỉ bạn lớp đang hoạt động; id lạ → 404', async (t) => {
+  const db = fakeDatabase(t);
+  const original = pool.getConnection;
+  const inner = await pool.getConnection();
+  pool.getConnection = async () => ({
+    ...inner,
+    execute: async (sql, params) => {
+      if (sql.includes("member_type IN ('class', 'test')")) return [[1, 2, 17].filter((id) => params.includes(id)).map((id) => ({ id }))];
+      return inner.execute(sql, params);
+    },
+  });
+  t.after(() => { pool.getConnection = original; });
+  const result = await multiWishService.createWishes({ recipients: [{ id: 1 }, { id: 17 }, { id: '17' }], content: 'Chúc cả lớp', is_anonymous: true });
+  assert.equal(result.created, 2);
+  assert.deepEqual(db.letters.map((l) => l.params[0]), [1, 17]);
+  await assert.rejects(() => multiWishService.createWishes({ recipients: [{ id: 1 }, { id: 999 }], content: 'Chúc', is_anonymous: true }), { statusCode: 404 });
+  const thirtyOne = Array.from({ length: 31 }, (_, i) => ({ id: i + 1 }));
+  await assert.rejects(() => multiWishService.createWishes({ recipients: thirtyOne, content: 'Chúc', is_anonymous: true }), { statusCode: 400, message: /tối đa 30/ });
+});
+
+test('GET /api/wishes/recipients mở công khai (cả lúc khoá)', async (t) => {
+  const original = pool.execute;
+  pool.execute = async (sql) => {
+    if (sql.includes('FROM app_settings')) return [[{ setting_value: '1' }]];
+    return [[{ id: 17, full_name: 'Cô Giáo', nickname: null }]];
+  };
+  const server = app.listen(0);
+  t.after(() => { server.close(); pool.execute = original; });
+  await new Promise((resolve) => server.once('listening', resolve));
+  const res = await fetch(`http://127.0.0.1:${server.address().port}/api/wishes/recipients`);
+  assert.equal(res.status, 200);
+  assert.deepEqual((await res.json()).data, [{ id: 17, name: 'Cô Giáo', nickname: '' }]);
 });
