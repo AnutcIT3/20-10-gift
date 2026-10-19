@@ -153,6 +153,10 @@ export const adminApi = {
     const params = new URLSearchParams({ status, page, pageSize, ...(target ? { target } : {}) })
     return request(`/api/admin/replies?${params}`)
   },
+  // Trả lời thư riêng gửi admin; '' = bỏ câu trả lời
+  answerReply: (id, answer) => request(`/api/admin/replies/${id}/answer`, {
+    method: 'PATCH', body: JSON.stringify({ answer }),
+  }),
   updateReplyStatus: (id, status) => request(`/api/admin/replies/${id}/status`, {
     method: 'PATCH', body: JSON.stringify({ status }),
   }),

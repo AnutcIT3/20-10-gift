@@ -14,6 +14,8 @@ adminRepliesRouter.use(authMiddleware);
 adminRepliesRouter.get('/', asyncHandler(replyController.list));
 adminRepliesRouter.patch('/bulk/status', asyncHandler(replyController.bulkUpdateStatus));
 adminRepliesRouter.patch('/:id/status', asyncHandler(replyController.updateStatus));
+// Admin trả lời thư riêng các bạn gửi admin
+adminRepliesRouter.patch('/:id/answer', asyncHandler(replyController.answer));
 adminRepliesRouter.delete('/:id', asyncHandler(replyController.remove));
 
 module.exports = { repliesRouter, adminRepliesRouter };

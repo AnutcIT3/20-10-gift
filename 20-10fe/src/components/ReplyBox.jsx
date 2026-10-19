@@ -6,8 +6,8 @@ const MAX_LENGTH = 2000
 /**
  * Hồi âm của chủ trang quà: những dòng đã gửi và một nút mở ô viết. `target`
  * là 'letter' (kèm letterId), 'class' hoặc 'admin'. Hồi âm không cần duyệt:
- * gửi xong là lên Hộp thư hồi âm (ai mở trang cũng đọc được); riêng hồi âm gửi
- * admin là thư riêng, chỉ admin đọc. Ô viết nói rõ.
+ * gửi xong là lên Hộp thư hồi âm (ai mở trang cũng đọc được), kể cả hồi âm
+ * gửi admin — trừ những lá viết lúc còn là thư riêng (is_private).
  */
 function ReplyBox({
   accessCode, target, letterId = null, recipient, replies = [], onSent,
@@ -63,9 +63,7 @@ function ReplyBox({
       setAnonymous(false)
       restoreFocusRef.current = true
       setOpen(false)
-      setAnnouncement(target === 'admin'
-        ? 'Đã gửi hồi âm cho admin.'
-        : 'Đã gửi hồi âm — giờ nó đã nằm ở Hộp thư hồi âm.')
+      setAnnouncement('Đã gửi hồi âm — giờ nó đã nằm ở Hộp thư hồi âm.')
     } catch (err) {
       setError(err.message || 'Chưa gửi được, thử lại nhé.')
     } finally {
@@ -77,21 +75,28 @@ function ReplyBox({
     <div className={`reply-box ${className}`}>
       {replies.map((reply) => (
         <div key={reply.id} className="reply-note">
-          {/* Thư riêng gửi admin: ai gõ được tên cậu cũng mở được trang này,
-              nên chỉ báo đã gửi, không hiện lại nội dung */}
-          {reply.target === 'admin' ? (
-            <span className="reply-note__label">
-              {reply.status === 'approved'
-                ? '✉ Admin đã đọc thư riêng của cậu'
-                : '✉ Cậu đã gửi admin một lá thư riêng'}
-              {reply.is_anonymous ? ' · ẩn danh' : ''}
-            </span>
+          {/* Thư riêng gửi admin (viết lúc hồi âm gửi admin còn là thư kín): ai gõ
+              được tên cậu cũng mở được trang này, nên chỉ báo đã gửi, không hiện
+              lại nội dung — kèm câu admin trả lời. Hồi âm gửi admin mới thì công
+              khai như mọi hồi âm khác */}
+          {reply.target === 'admin' && reply.is_private ? (
+            <>
+              <span className="reply-note__label">
+                ✉ Cậu đã gửi admin một lá thư riêng{reply.is_anonymous ? ' · ẩn danh' : ''}
+              </span>
+              {reply.admin_answer && (
+                <p className="reply-note__text reply-note__answer"><b>💌 Admin trả lời:</b> {reply.admin_answer}</p>
+              )}
+            </>
           ) : (
             <>
               <span className="reply-note__label">
                 ✉ Cậu đã hồi âm{reply.is_anonymous ? ' ẩn danh' : ''}{reply.status === 'approved' ? '' : ' · chờ duyệt'}
               </span>
               <p className="reply-note__text">{reply.content}</p>
+              {reply.admin_answer && (
+                <p className="reply-note__text reply-note__answer"><b>💌 Admin trả lời:</b> {reply.admin_answer}</p>
+              )}
             </>
           )}
         </div>
@@ -114,9 +119,7 @@ function ReplyBox({
             Gửi ẩn danh
           </label>
           <p className="reply-form__hint">
-            {target === 'admin'
-              ? <>Thư riêng: chỉ <b>admin</b> đọc được — không lên Hộp thư hồi âm, trang này cũng không hiện lại.</>
-              : <>Gửi xong là hiện ngay ở <b>Hộp thư hồi âm</b> — ai mở trang cũng đọc được, kể cả khách.</>}
+            Gửi xong là hiện ngay ở <b>Hộp thư hồi âm</b> — ai mở trang cũng đọc được, kể cả khách.
             {anonymous && <> Ẩn danh: tên cậu không hiện ở đâu cả — cả Hộp thư lẫn trang admin chỉ ghi <b>Ẩn danh</b>.</>}
           </p>
           {error && <p className="alert-note reply-form__alert" role="alert">{error}</p>}

@@ -3,15 +3,16 @@ const normalizeName = require('../utils/normalizeName');
 const { accentKey } = require('../utils/nameKey');
 
 // 'letter' trả lời người viết một lá thư, 'class' gửi cả lớp, 'admin' gửi
-// người làm món quà (người viết lời chúc riêng trên trang). Hồi âm gửi admin là
-// thư riêng: chỉ hiện ở trang admin, không bao giờ lên Hộp thư hồi âm công khai.
+// người làm món quà (người viết lời chúc riêng trên trang). Hồi âm gửi admin từ
+// nay công khai như hồi âm khác; riêng những lá viết lúc còn là "thư riêng"
+// (is_private, migration 029) thì chỉ admin đọc, không lên Hộp thư.
 const TARGETS = ['letter', 'class', 'admin'];
 // Điều kiện một hồi âm đã duyệt được lên Hộp thư công khai: không phải thư
 // riêng gửi admin, và lá thư được trả lời vẫn còn đó VÀ vẫn đang được duyệt —
 // admin gỡ lá thư (từ chối sau khi đã duyệt) thì tên người viết cũng phải rời
 // Hộp thư; restore snapshot cũ tắt kiểm tra khoá ngoại nên có thể để lại hồi âm
 // trỏ vào thư đã mất
-const PUBLIC_REPLY_SQL = `r.status = 'approved' AND s.is_active = TRUE AND r.target <> 'admin'
+const PUBLIC_REPLY_SQL = `r.status = 'approved' AND s.is_active = TRUE AND (r.target <> 'admin' OR r.is_private = 0)
        AND (r.target <> 'letter' OR (l.id IS NOT NULL AND l.status = 'approved'))`;
 const STATUSES = ['pending', 'approved', 'rejected'];
 const MAX_REPLY_LENGTH = 2000;
@@ -138,14 +139,19 @@ async function listStudentReplies(studentId) {
   try {
     const [rows] = await executeReplyQuery(
       `SELECT id, target, letter_id,
-              CASE WHEN target = 'admin' THEN NULL ELSE content END AS content,
+              CASE WHEN target = 'admin' AND is_private = 1 THEN NULL ELSE content END AS content,
+              CASE WHEN target = 'admin' THEN admin_answer ELSE NULL END AS admin_answer,
+              CASE WHEN target = 'admin' THEN admin_answer_at ELSE NULL END AS admin_answer_at,
+              CASE WHEN target = 'admin' AND is_private = 1 THEN 1 ELSE 0 END AS is_private,
               ${ANONYMOUS_COLUMN} AS is_anonymous, status, created_at
        FROM letter_replies r
        WHERE student_id = ? AND status <> 'rejected'
        ORDER BY created_at ASC, id ASC`,
       [studentId],
     );
-    return rows.map((row) => ({ ...row, is_anonymous: Boolean(Number(row.is_anonymous)) }));
+    return rows.map((row) => ({
+      ...row, is_anonymous: Boolean(Number(row.is_anonymous)), is_private: Boolean(Number(row.is_private)),
+    }));
   } catch (error) {
     if (isMissingTable(error)) return [];
     throw error;
@@ -227,7 +233,7 @@ async function listBoard({ to, exact = false } = {}) {
   let rows;
   try {
     [rows] = await executeReplyQuery(
-      `SELECT r.id, r.target, r.content, r.created_at, ${ANONYMOUS_COLUMN} AS is_anonymous,
+      `SELECT r.id, r.target, r.content, r.admin_answer, r.created_at, ${ANONYMOUS_COLUMN} AS is_anonymous,
               s.full_name AS from_full_name, s.nickname AS from_nickname, s.member_type AS from_member_type,
               l.id AS letter_exists, l.sender_name AS letter_sender_name, l.is_anonymous AS letter_is_anonymous,
               l.created_at AS letter_created_at
@@ -245,6 +251,8 @@ async function listBoard({ to, exact = false } = {}) {
     .map((row) => ({
       id: row.id,
       content: row.content,
+      // Hồi âm gửi admin: câu admin trả lời (nếu có) hiện ngay dưới
+      ...(row.target === 'admin' && row.admin_answer ? { answer: row.admin_answer } : {}),
       created_at: row.created_at,
       // Hồi âm ẩn danh: tên người gửi không ra khỏi máy chủ, kể cả cờ "bạn
       // ngoài lớp" (cũng là một manh mối)
@@ -330,7 +338,8 @@ async function listReplies(query) {
   // LIMIT/OFFSET nội suy là số nguyên đã kiểm tra ở parseListQuery, không phải input thô
   const [items] = await executeReplyQuery(
     `SELECT r.id, r.student_id, s.full_name AS student_name, s.member_type,
-            r.target, r.letter_id, r.content, ${ANONYMOUS_COLUMN} AS is_anonymous, r.status, r.created_at,
+            r.target, r.letter_id, r.content, r.admin_answer, r.admin_answer_at, r.is_private,
+            ${ANONYMOUS_COLUMN} AS is_anonymous, r.status, r.created_at,
             l.id AS letter_exists, l.status AS letter_status,
             l.sender_name AS letter_sender_name, l.is_anonymous AS letter_is_anonymous,
             l.title AS letter_title, SUBSTRING(l.content, 1, 280) AS letter_excerpt,
@@ -381,6 +390,22 @@ async function bulkUpdateStatus(ids, status) {
   return { updated: result.affectedRows };
 }
 
+// Admin trả lời một lá thư riêng gửi admin. Chuỗi rỗng / null = bỏ câu trả lời.
+// Chỉ thư gửi admin mới trả lời ở đây được (hồi âm khác đã công khai rồi)
+async function answerReply(id, answer) {
+  if (answer !== null && typeof answer !== 'string') throw httpError('Câu trả lời không hợp lệ', 400);
+  const text = (answer || '').trim();
+  if (text.length > MAX_REPLY_LENGTH) throw httpError(`Câu trả lời tối đa ${MAX_REPLY_LENGTH} ký tự`, 400);
+  const value = text || null;
+  const [result] = await pool.execute(
+    `UPDATE letter_replies SET admin_answer = ?, admin_answer_at = ${value ? 'UTC_TIMESTAMP()' : 'NULL'}
+     WHERE id = ? AND target = 'admin'`,
+    [value, parsePositiveId(id)],
+  );
+  if (!result.affectedRows) throw httpError('Không tìm thấy thư riêng gửi admin', 404);
+  return { admin_answer: value };
+}
+
 async function deleteReply(id) {
   const [result] = await pool.execute(
     'DELETE FROM letter_replies WHERE id = ?',
@@ -392,6 +417,7 @@ async function deleteReply(id) {
 
 module.exports = {
   MAX_REPLY_LENGTH,
+  answerReply,
   createReply,
   listStudentReplies,
   listBoard,

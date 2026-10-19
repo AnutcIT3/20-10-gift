@@ -724,7 +724,7 @@ test('khớp trọn chữ tôn trọng dấu và mọi ranh giới chữ, nhưng
   assert.deepEqual((await replyService.listBoard({ to: 'hung' })).items.map((item) => item.id), [1]);
 });
 
-test('thư riêng gửi admin không trả nội dung ra trang quà và không vào bản lưu', async (t) => {
+test('thư riêng gửi admin (lá cũ) không trả nội dung ra trang quà và không vào bản lưu', async (t) => {
   withPool(t);
   let sql;
   pool.execute = async (query) => {
@@ -732,7 +732,8 @@ test('thư riêng gửi admin không trả nội dung ra trang quà và không v
     return [[{ id: 1, target: 'admin', content: null, status: 'pending' }]];
   };
   await replyService.listStudentReplies(3);
-  assert.match(sql, /CASE WHEN target = 'admin' THEN NULL ELSE content END AS content/);
+  // Chỉ lá cũ còn là thư riêng (is_private) mới giấu nội dung
+  assert.match(sql, /CASE WHEN target = 'admin' AND is_private = 1 THEN NULL ELSE content END AS content/);
 
   keepsakeService.clearCache();
   const base = await startApp(t);
@@ -846,4 +847,57 @@ test('tab "Gửi admin": lọc đúng hồi âm gửi riêng admin, loại lạ 
   calls.length = 0;
   await replyService.listReplies({ status: 'approved' });
   assert.ok(calls.every((call) => !/r\.target = \?/.test(call.sql)));
+});
+
+test('admin trả lời thư riêng gửi admin: lưu / sửa / xoá; hồi âm loại khác không trả lời ở đây', async (t) => {
+  withPool(t);
+  const updates = [];
+  pool.execute = async (sql, params) => {
+    if (sql.startsWith('UPDATE letter_replies SET admin_answer')) {
+      updates.push({ sql, params });
+      return [{ affectedRows: params[1] === 9 ? 1 : 0 }];   // 9 là thư gửi admin; 5 là hồi âm thư thường
+    }
+    return [[]];
+  };
+  assert.deepEqual(await replyService.answerReply(9, '  Cảm ơn cậu nhiều nha 🌷  '), { admin_answer: 'Cảm ơn cậu nhiều nha 🌷' });
+  assert.match(updates[0].sql, /target = 'admin'/);
+  assert.match(updates[0].sql, /admin_answer_at = UTC_TIMESTAMP\(\)/);
+  // Xoá trắng = bỏ câu trả lời
+  assert.deepEqual(await replyService.answerReply(9, '   '), { admin_answer: null });
+  assert.match(updates[1].sql, /admin_answer_at = NULL/);
+  await assert.rejects(() => replyService.answerReply(5, 'Chào'), { statusCode: 404 });
+  await assert.rejects(() => replyService.answerReply(9, 'x'.repeat(2001)), { statusCode: 400 });
+  await assert.rejects(() => replyService.answerReply(9, 42), { statusCode: 400 });
+});
+
+test('trang quà: thư riêng gửi admin không lộ nội dung nhưng có câu admin trả lời', async (t) => {
+  withPool(t);
+  let captured = '';
+  pool.execute = async (sql) => {
+    captured = sql;
+    return [[{ id: 9, target: 'admin', letter_id: null, content: null, admin_answer: 'Cảm ơn cậu', admin_answer_at: null, is_anonymous: 0, status: 'approved' }]];
+  };
+  const [row] = await replyService.listStudentReplies(3);
+  assert.match(captured, /CASE WHEN target = 'admin' AND is_private = 1 THEN NULL ELSE content END/);
+  assert.match(captured, /CASE WHEN target = 'admin' THEN admin_answer ELSE NULL END/);
+  assert.equal(row.content, null);
+  assert.equal(row.admin_answer, 'Cảm ơn cậu');
+});
+
+test('hồi âm gửi admin mới lên Hộp thư như hồi âm khác (kèm câu admin trả lời); lá cũ còn riêng thì không', async (t) => {
+  withPool(t);
+  let sql = '';
+  pool.execute = async (query) => {
+    sql = query;
+    return [[
+      { id: 7, target: 'admin', content: 'Cảm ơn admin', admin_answer: 'Không có gì 🌷', is_anonymous: 0, from_full_name: 'Thúy', from_member_type: 'class', created_at: '2026-10-20T01:00:00.000Z' },
+      { id: 8, target: 'admin', content: 'Cảm ơn lần nữa', admin_answer: null, is_anonymous: 0, from_full_name: 'Ngọc', from_member_type: 'class', created_at: '2026-10-20T01:01:00.000Z' },
+    ]];
+  };
+  const board = await replyService.listBoard();
+  assert.match(sql, /\(r\.target <> 'admin' OR r\.is_private = 0\)/);
+  assert.deepEqual(board.items.map((item) => [item.to.kind, item.content, item.answer]), [
+    ['admin', 'Cảm ơn admin', 'Không có gì 🌷'],
+    ['admin', 'Cảm ơn lần nữa', undefined],
+  ]);
 });

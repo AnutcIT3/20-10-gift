@@ -15,6 +15,65 @@ const STATUSES = [
 const STATUS_LABELS = { pending: 'Chờ duyệt', approved: 'Đang hiện', rejected: 'Đã ẩn' }
 const TARGET_LABELS = { letter: 'trả lời thư', class: 'gửi các bạn nam', admin: 'gửi admin' }
 
+// Ô trả lời thư riêng gửi admin: câu trả lời hiện dưới khung 💌 trên trang quà
+// của bạn đó (không lên Hộp thư hồi âm)
+function AdminAnswer({ reply, onSaved }) {
+  const [editing, setEditing] = useState(!reply.admin_answer)
+  const [text, setText] = useState(reply.admin_answer || '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const save = async (value) => {
+    setSaving(true)
+    setError('')
+    try {
+      const result = await adminApi.answerReply(reply.id, value)
+      onSaved(reply.id, result?.admin_answer ?? null)
+      setText(result?.admin_answer || '')
+      setEditing(!result?.admin_answer)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!editing && reply.admin_answer) {
+    return (
+      <div className="reply-row__answer">
+        <p><b>💌 Đã trả lời:</b> {reply.admin_answer}</p>
+        <div className="letter-row__pair">
+          <button type="button" className="admin-btn admin-btn--sm" onClick={() => setEditing(true)} disabled={saving}>Sửa</button>
+          <button type="button" className="admin-btn admin-btn--sm admin-btn--ghost" onClick={() => save('')} disabled={saving}>Bỏ trả lời</button>
+        </div>
+        {error && <p className="admin-alert error" role="alert">{error}</p>}
+      </div>
+    )
+  }
+  return (
+    <form className="reply-row__answer" onSubmit={(event) => { event.preventDefault(); save(text) }}>
+      <label className="admin-field">
+        Trả lời {reply.is_anonymous ? 'người bạn ẩn danh' : reply.student_name}
+        <textarea className="input-hand" rows={2} maxLength={2000} value={text} onChange={(event) => setText(event.target.value)} placeholder="Viết vài dòng trả lời…" />
+      </label>
+      <div className="letter-row__pair">
+        <button type="submit" className="admin-btn admin-btn--sm admin-btn--primary" disabled={saving || !text.trim()}>
+          {saving ? 'Đang gửi…' : '💌 Gửi trả lời'}
+        </button>
+        {reply.admin_answer && (
+          <button type="button" className="admin-btn admin-btn--sm" onClick={() => { setText(reply.admin_answer); setEditing(false) }} disabled={saving}>Huỷ</button>
+        )}
+      </div>
+      <p className="admin-hint">
+        {Number(reply.is_private)
+          ? 'Câu trả lời hiện dưới khung 💌 trên trang quà của bạn ấy — thư riêng nên không lên Hộp thư hồi âm.'
+          : 'Câu trả lời hiện ngay dưới hồi âm này, trên trang quà của bạn ấy và ở Hộp thư hồi âm.'}
+      </p>
+      {error && <p className="admin-alert error" role="alert">{error}</p>}
+    </form>
+  )
+}
+
 function recipientOf(reply) {
   if (reply.target === 'class') return `Các bạn nam ${CLASS_NAME}`
   if (reply.target === 'admin') return 'Admin'
@@ -118,6 +177,12 @@ function ReplyManager() {
     }, `Đã cập nhật ${count} hồi âm.`)
   }
 
+  // Admin vừa trả lời / bỏ trả lời: sửa ngay trong danh sách, không tải lại
+  const setAnswer = (id, answer) => setData((current) => ({
+    ...current,
+    items: current.items.map((item) => (item.id === id ? { ...item, admin_answer: answer } : item)),
+  }))
+
   const remove = (id) => {
     if (!window.confirm('Xoá vĩnh viễn hồi âm này?')) return undefined
     return run(() => adminApi.deleteReply(id), 'Đã xoá hồi âm.')
@@ -154,8 +219,8 @@ function ReplyManager() {
       <p className="admin-hint reply-manager__hint">
         Các bạn nữ đọc thư xong viết lại cho người gửi, cho các bạn nam hoặc cho admin. Hồi âm không
         cần duyệt — gửi xong là hiện ngay ở{' '}
-        <a href="/hoi-am" target="_blank" rel="noreferrer">Hộp thư hồi âm</a>, ai có link trang đều đọc được;
-        riêng hồi âm <b>gửi admin</b> là thư riêng, chỉ hiện ở đây. Ai gõ được tên một bạn cũng mở được trang
+        <a href="/hoi-am" target="_blank" rel="noreferrer">Hộp thư hồi âm</a>, ai có link trang đều đọc được,
+        kể cả hồi âm <b>gửi admin</b> (trừ vài lá cũ gắn nhãn <b>riêng</b> — viết lúc còn là thư kín, chỉ hiện ở đây). Ai gõ được tên một bạn cũng mở được trang
         quà của bạn ấy, nên thấy hồi âm lạ giọng thì bấm <b>Ẩn</b>.
       </p>
 
@@ -202,6 +267,7 @@ function ReplyManager() {
                     <span className="chip chip--beige">{TARGET_LABELS[reply.target] || reply.target}</span>
                     {reply.member_type === 'friend' && <span className="chip chip--moss">bạn ngoài lớp</span>}
                     {reply.member_type === 'test' && <span className="chip chip--moss">tài khoản thử</span>}
+                    {Boolean(Number(reply.is_private)) && <span className="chip chip--peach">riêng · chỉ admin đọc</span>}
                     <span className={`admin-badge ${reply.status}`}>
                       {STATUS_LABELS[reply.status] || reply.status}
                     </span>
@@ -216,6 +282,7 @@ function ReplyManager() {
                   <div className="letter-row__foot">
                     <time className="letter-row__time" dateTime={reply.created_at}>Gửi {formatStamp(reply.created_at)}</time>
                   </div>
+                  {reply.target === 'admin' && <AdminAnswer key={reply.id} reply={reply} onSaved={setAnswer} />}
                 </div>
                 <div className="letter-row__side">
                   {reply.status !== 'approved' && (
