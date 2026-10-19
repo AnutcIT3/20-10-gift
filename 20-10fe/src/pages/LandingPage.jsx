@@ -20,6 +20,7 @@ import useWishFlights from '../hooks/useWishFlights'
 import { CLASS_NAME, EVENT_YEAR, formatStamp } from '../lib/event'
 import { CLD_TINY, cld } from '../lib/cloudinary'
 import { greetingFor, greetNames, showCountdown } from '../lib/faceVote'
+import { playMusic } from '../lib/music'
 import { seatLabel } from '../lib/seat'
 import { sentAgo } from '../lib/wishHeap'
 import '../styles/landing.css'
@@ -360,16 +361,22 @@ function LandingPage() {
 
   // "Đúng là mình": hook đã đóng modal và nhả camera; chạy hiệu ứng mở quà như
   // khi gõ tên (sơ đồ lớp, thư bay từ bàn), khóa 20/10 vẫn được tôn trọng
+  // Face ID nhận ra bạn → nhạc nền tự bật. Gọi ngay trong cú bấm (trước mọi
+  // await) để trình duyệt cho phát; đang phát sẵn thì không phát lại từ đầu
   const confirmFace = async () => {
     const candidate = acceptFace()
-    if (candidate) await openGiftWithReveal(candidate.giftPath, candidate.displayName, 'face')
+    if (!candidate) return
+    playMusic()
+    await openGiftWithReveal(candidate.giftPath, candidate.displayName, 'face')
   }
 
   // Cả nhóm cùng quét: chọn một thiệp là mở quà của bạn đó (tính cánh hoa cho
   // đúng bạn đó); những bạn còn lại quét hay gõ tên sau
   const chooseFace = async (person) => {
     const picked = acceptFace(person)
-    if (picked) await openGiftWithReveal(picked.giftPath, picked.displayName, 'face')
+    if (!picked) return
+    playMusic()
+    await openGiftWithReveal(picked.giftPath, picked.displayName, 'face')
   }
 
   // Dừng quét → đóng modal và đưa con trỏ về ô gõ tên. Chờ một nhịp vì
