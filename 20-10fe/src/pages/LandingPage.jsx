@@ -223,6 +223,11 @@ function LandingPage() {
   const [selectedIds, setSelectedIds] = useState([])
   const [friendRecipients, setFriendRecipients] = useState([])
   const [friendName, setFriendName] = useState('')
+  // Ô "Ngoài lớp": tên gõ ra nhiều khách (hay chỉ gần giống) → hỏi "có phải…"
+  const [guestChoices, setGuestChoices] = useState([])
+  const [guestLooking, setGuestLooking] = useState(false)
+  // Tên vừa tra cũng là tên một bạn trong lớp (vd. Vân Anh): nhắc tab "Trong lớp"
+  const [guestClassNote, setGuestClassNote] = useState('')
   const [wishError, setWishError] = useState('')
   const [wishSubmitting, setWishSubmitting] = useState(false)
   // Màn "Thư đã vào hộp!" thay nội dung modal sau khi gửi thành công
@@ -285,6 +290,8 @@ function LandingPage() {
     setSelectedIds([])
     setFriendRecipients([])
     setFriendName('')
+    setGuestChoices([])
+    setGuestClassNote('')
     clearWishImage()
     setWishError('')
     setWishSent(null)
@@ -402,6 +409,8 @@ function LandingPage() {
     setSelectedIds([])
     setFriendRecipients([])
     setFriendName('')
+    setGuestChoices([])
+    setGuestClassNote('')
     setWishSent({ revealAt: wishForm.revealAt || null, friend, number, count })
     setWishForm(EMPTY_WISH)
     clearWishImage()
@@ -429,21 +438,41 @@ function LandingPage() {
     setSelectedIds(allSelected ? [] : allIds)
   }
 
-  // Bạn ngoài lớp: gõ tên rồi thêm (bỏ trùng); hồ sơ khách tạo khi gửi
-  const addFriend = () => {
-    const name = friendName.trim()
-    setWishError('')
-    if (name.length < 2) {
-      setWishError('Gõ tên bạn ngoài lớp (ít nhất 2 ký tự) rồi bấm thêm.')
-      return null
-    }
-    const key = name.toLocaleLowerCase('vi')
-    const next = friendRecipients.some((item) => item.key === key) ? friendRecipients : [...friendRecipients, { key, name }]
+  // Khách ngoài lớp: chỉ gửi được cho khách admin đã thêm. Gõ tên → tra trong
+  // danh sách khách: đúng một người thì thêm; nhiều người (hay chỉ gần giống)
+  // thì hỏi "có phải…"; không có ai thì báo nhập lại tên. Không tạo ai mới.
+  const pickGuest = (guest) => {
+    const next = friendRecipients.some((item) => item.id === guest.id) ? friendRecipients : [...friendRecipients, guest]
     setFriendRecipients(next)
     setFriendName('')
+    setGuestChoices([])
+    setWishError('')
     return next
   }
-  const removeFriend = (key) => setFriendRecipients((current) => current.filter((item) => item.key !== key))
+  const addFriend = async () => {
+    const name = friendName.trim()
+    setWishError('')
+    setGuestChoices([])
+    setGuestClassNote('')
+    if (name.length < 2) {
+      setWishError('Gõ tên khách (ít nhất 2 ký tự) rồi bấm thêm.')
+      return null
+    }
+    setGuestLooking(true)
+    try {
+      const found = await giftRepository.findWishGuest(name)
+      if (found.alsoInClass) setGuestClassNote(`Trong lớp cũng có "${found.alsoInClass}" — muốn gửi bạn ấy thì tích ở tab "Trong lớp".`)
+      if (found.matches.length === 1 && !found.unsure) return pickGuest(found.matches[0])
+      setGuestChoices(found.matches)
+      return null
+    } catch (err) {
+      setWishError(err.message || 'Chưa tra được tên, thử lại nhé.')
+      return null
+    } finally {
+      setGuestLooking(false)
+    }
+  }
+  const removeFriend = (id) => setFriendRecipients((current) => current.filter((item) => item.id !== id))
 
   const submitWish = async (event) => {
     event.preventDefault()
@@ -454,15 +483,15 @@ function LandingPage() {
       setWishError('Vui lòng nhập tên người gửi hoặc chọn ẩn danh.')
       return
     }
-    // Tên bạn ngoài lớp còn trong ô lúc bấm gửi cũng được tính
+    // Tên khách còn trong ô lúc bấm gửi: tra luôn — sai tên thì dừng, nhập lại
     let friends = friendRecipients
     if (friendName.trim()) {
-      const next = addFriend()
+      const next = await addFriend()
       if (!next) return
       friends = next
     }
     if (!selectedIds.length && !friends.length) {
-      setWishError('Chọn ít nhất một người nhận trong danh sách (hoặc thêm một bạn ngoài lớp).')
+      setWishError('Chọn ít nhất một người nhận trong danh sách (hoặc thêm một khách ngoài lớp).')
       return
     }
     if (!content) {
@@ -471,7 +500,7 @@ function LandingPage() {
     }
     setWishSubmitting(true)
     try {
-      const recipients = [...selectedIds.map((id) => ({ id })), ...friends.map((item) => ({ friend: item.name }))]
+      const recipients = [...selectedIds.map((id) => ({ id })), ...friends.map((item) => ({ id: item.id }))]
       const sent = await giftRepository.createWishes(recipients, wishLetterData(), wishImages.files)
       finishWish({ friend: friends.length > 0, sent, count: recipients.length })
     } catch (err) {
@@ -863,20 +892,33 @@ function LandingPage() {
                             maxLength={100}
                             onChange={(event) => setFriendName(event.target.value)}
                             onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addFriend() } }}
-                            placeholder="Ví dụ: Minh Thư (bạn khác lớp)"
-                            aria-label="Tên bạn ngoài lớp"
+                            placeholder="Gõ đúng tên khách, ví dụ: Bùi Phương Anh"
+                            aria-label="Tên khách ngoài lớp"
                           />
-                          <button type="button" className="btn-dashed" onClick={addFriend}>＋ Thêm</button>
+                          <button type="button" className="btn-dashed" onClick={addFriend} disabled={guestLooking}>
+                            {guestLooking ? 'Đang tìm…' : '＋ Thêm'}
+                          </button>
                         </div>
-                        <p className="wish-hint">Hệ thống sẽ tạo trang lời chúc riêng cho người này — họ tìm tên mình ở trang chủ (mục "khách ghé thăm") là thấy.</p>
+                        {guestChoices.length > 0 && (
+                          <div className="wish-guest-choices" role="group" aria-label="Chọn đúng khách">
+                            <p className="wish-hint">Có phải cậu muốn gửi cho…</p>
+                            {guestChoices.map((guest) => (
+                              <button key={guest.id} type="button" className="btn-dashed" onClick={() => pickGuest(guest)}>
+                                {guest.name}{guest.nickname && <i> “{guest.nickname}”</i>}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {guestClassNote && <p className="wish-hint" role="status">{guestClassNote}</p>}
+                        <p className="wish-hint">Chỉ gửi được cho khách đã có trong danh sách của lớp — gõ đúng tên (hoặc biệt danh) của người đó.</p>
                       </div>
                     )}
                     {friendRecipients.length > 0 && (
                       <ul className="wish-recipients" aria-label="Bạn ngoài lớp đã thêm">
                         {friendRecipients.map((item) => (
-                          <li key={item.key}>
+                          <li key={item.id}>
                             <span>{item.name}<i> · ngoài lớp</i></span>
-                            <button type="button" onClick={() => removeFriend(item.key)} aria-label={`Bỏ ${item.name}`}>×</button>
+                            <button type="button" onClick={() => removeFriend(item.id)} aria-label={`Bỏ ${item.name}`}>×</button>
                           </li>
                         ))}
                       </ul>

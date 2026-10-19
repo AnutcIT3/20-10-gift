@@ -1415,3 +1415,17 @@
 .wish-to__summary {
   margin: 0;
 }
+
+/* Ô "Ngoài lớp": gõ tên ra nhiều khách thì hỏi lại "có phải…" */
+.wish-guest-choices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 8px;
+}
+
+.wish-guest-choices .wish-hint {
+  flex-basis: 100%;
+  margin: 0;
+}

@@ -158,4 +158,4 @@ async function resolve(name, scope = 'class', { locked = false } = {}) {
   };
 }
 
-module.exports = { resolve };
+module.exports = { resolve, namesOf, isWholeName, startsWord };

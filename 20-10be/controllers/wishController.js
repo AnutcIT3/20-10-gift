@@ -22,4 +22,9 @@ async function recipients(req, res) {
   return sendSuccess(res, await multiWishService.listRecipients());
 }
 
-module.exports = { create, recipients };
+// POST /api/wishes/guest — ô "Ngoài lớp": tra một khách đã có theo tên
+async function findGuest(req, res) {
+  return sendSuccess(res, await multiWishService.findGuests(req.body?.name));
+}
+
+module.exports = { create, recipients, findGuest };
