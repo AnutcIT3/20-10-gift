@@ -1,51 +1,27 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
+import { pauseMusic, toggleMusic, useMusic } from '../lib/music'
 
+// Nút bật/tắt nhạc nền. Nhạc là MỘT thẻ audio dùng chung (lib/music) — Face ID
+// tự bật nhạc khi đưa bạn vào trang quà thì nút này cũng hiện "Tạm dừng" ngay.
 function MusicPlayer() {
-  const audioRef = useRef(null)
   const { pathname } = useLocation()
-  const [playing, setPlaying] = useState(false)
-  const [musicSrc, setMusicSrc] = useState('')
-  const [loading, setLoading] = useState(false)
+  const { playing, loading } = useMusic()
+  const onAdmin = pathname.startsWith('/admin')
 
   useEffect(() => {
-    if (pathname.startsWith('/admin') && audioRef.current) {
-      audioRef.current.pause()
-    }
-  }, [pathname])
+    if (onAdmin) pauseMusic()
+  }, [onAdmin])
 
-  if (pathname.startsWith('/admin')) return null
-  const toggle = async () => {
-    if (!musicSrc) {
-      setLoading(true)
-      try {
-        const module = await import('../music/Đường Tôi Chở Em Về ⧸ buitruonglinh _ Lyrics Video _ (mp3cut.net).mp3?url')
-        setMusicSrc(module.default)
-        requestAnimationFrame(() => audioRef.current?.play().then(() => setPlaying(true)).catch(() => setPlaying(false)))
-      } catch {
-        // Import mp3 lỗi (mất mạng, CDN encode sai tên file) — không để
-        // unhandled rejection, nút trở về trạng thái bấm lại được
-        setPlaying(false)
-      } finally {
-        setLoading(false)
-      }
-      return
-    }
-    if (!audioRef.current) return
-    if (audioRef.current.paused) {
-      try { await audioRef.current.play(); setPlaying(true) } catch { setPlaying(false) }
-    } else { audioRef.current.pause(); setPlaying(false) }
-  }
+  if (onAdmin) return null
   const label = loading ? 'Đang tải…' : playing ? 'Tạm dừng' : 'Bật nhạc'
   return (
     <div className="music-player">
-      {musicSrc && <audio ref={audioRef} src={musicSrc} loop preload="none" onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />}
       <button
         type="button"
         className={`music-btn${playing ? ' is-playing' : ''}`}
-        onClick={toggle}
-        disabled={loading}
-        aria-label={playing ? 'Tạm dừng nhạc' : 'Phát nhạc'}
+        onClick={toggleMusic}
+        aria-label={playing || loading ? 'Tạm dừng nhạc' : 'Phát nhạc'}
       >
         {/* Đĩa chỉ quay khi đang phát; lúc dừng/tải chỉ có nốt nhạc */}
         {playing

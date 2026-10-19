@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import giftRepository from '../api/giftRepository'
+import { playMusic } from '../lib/music'
 import LandingPage from './LandingPage'
 
 // Màn "cả nhóm cùng quét": camera không chạy được trong jsdom, nên giả lập
@@ -33,6 +34,9 @@ vi.mock('../hooks/useFaceScan', () => ({
     claim: vi.fn(),
   }),
 }))
+
+// Nhạc nền: chỉ cần biết Face ID có gọi bật nhạc (lib/music lo việc không phát chồng)
+vi.mock('../lib/music', () => ({ playMusic: vi.fn() }))
 
 vi.mock('../hooks/useEventStatus', () => ({
   default: () => ({ status: null, refresh: vi.fn() }),
@@ -78,7 +82,16 @@ test('chọn một thiệp thì mở quà của đúng bạn đó', async () => 
   renderPage()
   fireEvent.click(screen.getByRole('button', { name: /My Tường/ }))
   expect(face.accept).toHaveBeenCalledWith(face.people[1])
+  // Nhận ra bạn rồi đưa vào trang quà: nhạc tự bật — một lần, ngay trong cú bấm
+  expect(playMusic).toHaveBeenCalledTimes(1)
   await waitFor(() => expect(giftRepository.getGift).toHaveBeenCalledWith('my'))
+})
+
+test('bấm thiệp mà máy quét không nhận (đã đóng) thì không bật nhạc', () => {
+  face.accept.mockReturnValue(null)
+  renderPage()
+  fireEvent.click(screen.getByRole('button', { name: /My Tường/ }))
+  expect(playMusic).not.toHaveBeenCalled()
 })
 
 test('"Quét lại" chạy lại máy quét', () => {
