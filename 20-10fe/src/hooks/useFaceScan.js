@@ -10,6 +10,7 @@ import {
   STOP_MESSAGES,
   STOP_TITLES,
   TICK_MS,
+  TURN_TICK_MS,
   addNetworkFailure,
   frameErrorKind,
   isTooDark,
@@ -140,6 +141,7 @@ function useFaceScan({ scope = 'class' } = {}) {
     let trouble = NO_NETWORK_TROUBLE   // chuỗi khung liên tiếp không có phản hồi
     let pendingSince = null            // lúc gửi khung đang chờ phản hồi
     let challenge = null               // mã lệnh quay đầu máy chủ đã ra (chống giơ ảnh)
+    let lastSentAt = 0                 // lúc gửi khung gần nhất
     votesRef.current = INITIAL_VOTES
     const scan = newScan()
     scanRef.current = scan
@@ -231,6 +233,8 @@ function useFaceScan({ scope = 'class' } = {}) {
       setState((current) => (current.secondsLeft === left ? current : { ...current, secondsLeft: left }))
       // Không bao giờ chồng request: còn khung đang bay thì bỏ qua nhịp này
       if (inFlightRef.current) return
+      // Nhịp thường 0,8 giây/khung; đang chờ quay đầu thì 0,4 giây
+      if (now - lastSentAt < (challenge ? TURN_TICK_MS : TICK_MS) - 20) return
       const video = videoRef.current
       if (!video || video.readyState < HAVE_CURRENT_DATA || !video.videoWidth) return
 
@@ -242,6 +246,7 @@ function useFaceScan({ scope = 'class' } = {}) {
       }
 
       inFlightRef.current = true
+      lastSentAt = now
       frameCanvasRef.current ||= makeCanvas(MAX_FRAME_WIDTH, MAX_FRAME_WIDTH)
       captureFrame(video, frameCanvasRef.current).then((blob) => {
         if (done || !blob) { inFlightRef.current = false; return undefined }
@@ -269,7 +274,8 @@ function useFaceScan({ scope = 'class' } = {}) {
       startedAt = Date.now()
       scan.startedAt = startedAt
       setState((current) => ({ ...current, status: 'scanning', hint: HINTS.scanning, secondsLeft: SCAN_TIMEOUT_MS / 1000 }))
-      intervalRef.current = setInterval(tick, TICK_MS)
+      // Đồng hồ chạy theo nhịp nhanh; tick tự giãn về 0,8 giây khi không chờ quay đầu
+      intervalRef.current = setInterval(tick, TURN_TICK_MS)
     }
 
     // Rời tab thì tắt camera ngay — không quét ngầm khi người dùng không nhìn
