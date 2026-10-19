@@ -98,3 +98,19 @@ test('bản lưu kỷ niệm có đủ mọi ảnh của một lời chúc', () 
   // Nhiều ảnh xếp lưới; một ảnh giữ khổ lớn như cũ
   assert.equal((html.match(/<div class="pics">/g) || []).length, 2);
 });
+
+test('bẫy bot dọn hết ảnh vừa upload, cả trường "image" lẫn "images"', async (t) => {
+  const honeypot = require('../middleware/honeypot');
+  const destroyed = [];
+  const original = cloudinary.uploader.destroy;
+  cloudinary.uploader.destroy = async (publicId) => { destroyed.push(publicId); };
+  t.after(() => { cloudinary.uploader.destroy = original; });
+  const file = (n) => ({ path: photo(n).url, filename: photo(n).publicId });
+  let status;
+  let body;
+  const res = { status(code) { status = code; return this; }, json(payload) { body = payload; return this; } };
+  await honeypot({ body: { _website: 'bot' }, files: { image: [file(1)], images: [file(2), file(3)] } }, res, () => assert.fail('next must not run'));
+  assert.equal(status, 201);
+  assert.equal(body.data.status, 'pending');
+  assert.deepEqual(destroyed.sort(), ['gift_20_10/1', 'gift_20_10/2', 'gift_20_10/3']);
+});

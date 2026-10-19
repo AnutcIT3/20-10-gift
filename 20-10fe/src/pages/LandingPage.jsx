@@ -366,6 +366,14 @@ function LandingPage() {
     reveal_at: wishForm.revealAt || null,
   })
 
+  // Đổi người nhận (tên hay trong/ngoài lớp) thì danh sách trùng tên của lần
+  // tra trước không còn đúng — bỏ đi, kẻo bấm vào là gửi nhầm người
+  const changeRecipient = (patch) => {
+    setWishForm((current) => ({ ...current, ...patch }))
+    setWishMatches([])
+    setWishMessage('')
+  }
+
   const finishWish = ({ friend = false, sent = null } = {}) => {
     const number = Number.isInteger(sent?.wish_number) ? sent.wish_number : null
     if (number) setOwnWishNumber((current) => Math.max(current || 0, number))
@@ -450,6 +458,17 @@ function LandingPage() {
     setMatches([])
     setMessage('')
   }
+
+  // Trang quà bị khoá giữa chừng: bỏ bước đang dở (vai trò, danh sách trùng
+  // tên, camera) — mở lại thì ai cũng bắt đầu từ bước chọn vai trò, kèm lời
+  // "Quà đã mở rồi!"
+  useEffect(() => {
+    if (!giftsLocked) return undefined
+    const timer = setTimeout(() => chooseRole(null), 0)
+    return () => clearTimeout(timer)
+    // Chỉ chạy khi trạng thái khoá đổi
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [giftsLocked])
 
   const submit = async (event) => {
     event.preventDefault()
@@ -728,13 +747,13 @@ function LandingPage() {
                       className="input-hand wish-row__input"
                       value={wishForm.receiverName}
                       maxLength={100}
-                      onChange={(event) => setWishForm({ ...wishForm, receiverName: event.target.value })}
+                      onChange={(event) => changeRecipient({ receiverName: event.target.value })}
                       placeholder={wishForm.receiverType === 'friend' ? 'Ví dụ: Minh Thư (bạn khác lớp)' : 'Ví dụ: Phương Anh'}
                       aria-label="Tên người nhận"
                     />
                     <span className="wish-toggle" role="radiogroup" aria-label="Người nhận là">
-                      <button type="button" role="radio" aria-checked={wishForm.receiverType === 'class'} onClick={() => setWishForm({ ...wishForm, receiverType: 'class' })}>Trong lớp</button>
-                      <button type="button" role="radio" aria-checked={wishForm.receiverType === 'friend'} onClick={() => setWishForm({ ...wishForm, receiverType: 'friend' })}>Ngoài lớp</button>
+                      <button type="button" role="radio" aria-checked={wishForm.receiverType === 'class'} onClick={() => changeRecipient({ receiverType: 'class' })}>Trong lớp</button>
+                      <button type="button" role="radio" aria-checked={wishForm.receiverType === 'friend'} onClick={() => changeRecipient({ receiverType: 'friend' })}>Ngoài lớp</button>
                     </span>
                   </div>
                   {wishForm.receiverType === 'friend' && (
