@@ -221,14 +221,13 @@ function AdminLayout() {
               onClick={toggleLock}
             />
           </div>
-          <p>
+          {/* Mô tả một dòng cho gọn thanh bên; giải thích đủ khi rê chuột (title) */}
+          <p title="Khoá: giữ bất ngờ tới ngày 20/10 — gửi lời chúc vẫn hoạt động. Hẹn giờ tự mở ở trang Tổng quan.">
             {locked === null
-              ? 'Đang kiểm tra trạng thái…'
+              ? 'Đang kiểm tra…'
               : locked
-                ? (sidebar.unlockAt
-                  ? <>Đang <b>KHÓA</b>, tự mở lúc <b>{formatClock(sidebar.unlockAt)}</b>. Gửi lời chúc vẫn hoạt động.</>
-                  : <>Đang <b>KHÓA</b> chờ 20/10. Gửi lời chúc vẫn hoạt động. Hẹn giờ tự mở ở trang Tổng quan.</>)
-                : <>Đang <b>MỞ</b> — mọi người xem được trang quà. Bật khóa để giữ bất ngờ.</>}
+                ? (sidebar.unlockAt ? <><b>KHÓA</b> · tự mở {formatClock(sidebar.unlockAt)}</> : <><b>KHÓA</b> chờ 20/10</>)
+                : <><b>MỞ</b> · ai có link đều xem</>}
           </p>
           {/* BẬT dùng is-on (giữ nền rêu), không mượn is-locked màu đất của khóa */}
           <div className="admin-lock__row">
@@ -243,15 +242,11 @@ function AdminLayout() {
               onClick={toggleFace}
             />
           </div>
-          <p>
-            {faceEnabled === null
-              ? 'Đang kiểm tra trạng thái…'
-              : faceEnabled
-                ? <>Face ID đang <b>BẬT</b> — thẻ ✨ hiện cạnh ô gõ tên.</>
-                : <>Face ID đang <b>TẮT</b> — thẻ tự ẩn trên trang chủ.</>}
+          <p title="Bật: thẻ ✨ Face ID hiện ở trang chủ. Tắt: thẻ tự ẩn.">
+            {faceEnabled === null ? 'Đang kiểm tra…' : faceEnabled ? <><b>BẬT</b> · thẻ ✨ ở trang chủ</> : <><b>TẮT</b> · thẻ ẩn</>}
           </p>
           <div className="admin-lock__row">
-            <span>🔒 Chỉ mở bằng Face ID</span>
+            <span title="Chỉ mở quà bằng Face ID">🔒 Chỉ Face ID</span>
             <button
               type="button"
               role="switch"
@@ -262,12 +257,12 @@ function AdminLayout() {
               onClick={toggleFaceOnly}
             />
           </div>
-          <p>
+          <p title="Bật: thành viên lớp chỉ mở quà bằng Face ID (ẩn ô gõ tên, mở thẳng link cũng bị chặn); khách ngoài lớp vẫn gõ tên.">
             {faceOnly === null
-              ? 'Đang kiểm tra trạng thái…'
+              ? 'Đang kiểm tra…'
               : faceOnly
-                ? <>Đang <b>CHỈ MỞ BẰNG FACE ID</b> với thành viên lớp — ẩn ô gõ tên; khách ngoài lớp vẫn gõ tên.{!faceEnabled && <> <b>Face ID đang tắt</b> nên các bạn trong lớp chưa mở quà được!</>}</>
-                : <>Gõ tên hay Face ID đều mở được quà.</>}
+                ? (faceEnabled ? <><b>BẬT</b> · lớp chỉ dùng Face ID</> : <><b>BẬT mà Face ID tắt</b> — lớp chưa mở quà được!</>)
+                : <><b>TẮT</b> · gõ tên hay Face ID</>}
           </p>
           <div className="admin-lock__row">
             <span>🛡️ Chống giơ ảnh</span>
@@ -281,12 +276,8 @@ function AdminLayout() {
               onClick={toggleLiveness}
             />
           </div>
-          <p>
-            {faceLiveness === null
-              ? 'Đang kiểm tra trạng thái…'
-              : faceLiveness
-                ? <>Đang <b>BẬT</b> — nhận ra mặt rồi phải quay đầu sang trái/phải theo lệnh mới mở quà; giơ ảnh không mở được.</>
-                : <>Đang <b>TẮT</b> — nhận ra mặt là mở, như trước.</>}
+          <p title="Bật: nhận ra mặt rồi phải quay đầu sang trái/phải theo lệnh mới mở quà — giơ ảnh không mở được. Tắt: nhận ra mặt là mở.">
+            {faceLiveness === null ? 'Đang kiểm tra…' : faceLiveness ? <><b>BẬT</b> · phải quay đầu</> : <><b>TẮT</b> · nhận ra là mở</>}
           </p>
         </div>
         <button type="button" className="admin-logout" onClick={logout}>Đăng xuất</button>
