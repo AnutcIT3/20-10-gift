@@ -266,7 +266,7 @@ function AdminLayout() {
             {faceOnly === null
               ? 'Đang kiểm tra trạng thái…'
               : faceOnly
-                ? <>Đang <b>CHỈ MỞ BẰNG FACE ID</b> — trang chủ ẩn ô gõ tên.{!faceEnabled && <> <b>Face ID đang tắt</b> nên chưa ai mở quà được!</>}</>
+                ? <>Đang <b>CHỈ MỞ BẰNG FACE ID</b> với thành viên lớp — ẩn ô gõ tên; khách ngoài lớp vẫn gõ tên.{!faceEnabled && <> <b>Face ID đang tắt</b> nên các bạn trong lớp chưa mở quà được!</>}</>
                 : <>Gõ tên hay Face ID đều mở được quà.</>}
           </p>
           <div className="admin-lock__row">

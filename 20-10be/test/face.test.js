@@ -780,6 +780,11 @@ test('công tắc "Chỉ mở bằng Face ID": bật thì tra tên bị chặn (
   const blocked = await lookup();
   assert.equal(blocked.status, 403);
   assert.match((await blocked.json()).message, /chỉ mở quà bằng Face ID/);
+  // Khách vẫn gõ tên được (chỉ tra trong danh sách khách)
+  const guest = await fetch(`${base}/api/students/resolve`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Thủy', scope: 'friend' }),
+  });
+  assert.equal(guest.status, 200);
   assert.equal(settings.face_only, '1');
   const bad = await fetch(`${base}/api/admin/settings`, { method: 'PATCH', headers, body: JSON.stringify({ face_only: 'yes' }) });
   assert.equal(bad.status, 400);
