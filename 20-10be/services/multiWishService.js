@@ -7,9 +7,6 @@ const { findOrCreateFriend, cleanReceiverName } = require('./friendService');
 // Một người gửi một lời chúc cho nhiều bạn cùng lúc (form gửi lời chúc ở trang
 // chủ). Mỗi người nhận có một lá thư riêng — như gửi từng lá — nhưng ảnh chỉ
 // tải lên một lần và dùng chung (đếm tham chiếu khi xoá đã lo phần dọn ảnh).
-// Đủ cho cả lớp (18 bạn + cô) cộng vài bạn ngoài lớp trong một lần gửi
-const MAX_RECIPIENTS = 30;
-
 function httpError(message, statusCode) {
   return Object.assign(new Error(message), { statusCode });
 }
@@ -53,9 +50,6 @@ function parseRecipients(value) {
     } else {
       throw httpError('Danh sách người nhận không hợp lệ', 400);
     }
-  }
-  if (ids.size + codes.size + friends.size > MAX_RECIPIENTS) {
-    throw httpError(`Mỗi lần gửi tối đa ${MAX_RECIPIENTS} người nhận`, 400);
   }
   return { ids: [...ids], codes: [...codes], friends: [...friends.values()] };
 }
@@ -131,4 +125,4 @@ async function createWishes(data, images = []) {
   };
 }
 
-module.exports = { createWishes, listRecipients, parseRecipients, MAX_RECIPIENTS };
+module.exports = { createWishes, listRecipients, parseRecipients };

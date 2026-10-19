@@ -49,9 +49,6 @@ const EMPTY_WISH = {
   revealAt: '',
 }
 const MATCH_ROTATIONS = [-1, 0.8, -0.5]
-// Bạn ngoài lớp thêm tay được tối đa chừng này người mỗi lần gửi
-const MAX_FRIEND_RECIPIENTS = 10
-
 // Lượt mở chờ ghi (xem GiftPage): kèm lúc tạo để một tab thử cũ được khôi
 // phục vài ngày sau không lén góp cánh hoa
 function pendingOpenFor(via) {
@@ -429,10 +426,6 @@ function LandingPage() {
     setWishError('')
     if (name.length < 2) {
       setWishError('Gõ tên bạn ngoài lớp (ít nhất 2 ký tự) rồi bấm thêm.')
-      return null
-    }
-    if (friendRecipients.length >= MAX_FRIEND_RECIPIENTS) {
-      setWishError(`Mỗi lần thêm tối đa ${MAX_FRIEND_RECIPIENTS} bạn ngoài lớp.`)
       return null
     }
     const key = name.toLocaleLowerCase('vi')
