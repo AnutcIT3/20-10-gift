@@ -2,6 +2,8 @@
 // độ tự tin, đo sáng. Toàn hàm thuần để vitest phủ được mà không cần webcam.
 
 export const TICK_MS = 800                 // nhịp lấy khung hình (~1.25 fps)
+// Đang chờ quay đầu (chống giơ ảnh): gửi dày gấp đôi để bắt cú quay sớm hơn
+export const TURN_TICK_MS = 400
 // Hai đường dừng khi không nhận ra, tách theo nguyên nhân:
 // - Nhìn rõ mặt mà không khớp ai (người ngoài, hoặc hôm nay khác ảnh hồ sơ):
 //   sau REJECTS_TO_GIVE_UP khung rõ mặt (~5 giây) là đủ biết, dừng sớm.
