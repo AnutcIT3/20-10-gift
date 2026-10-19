@@ -2,13 +2,15 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import MusicPlayer from '../components/MusicPlayer'
-import { pauseMusic, playMusic, resetMusicForTests, toggleMusic } from './music'
+import { pauseMusic, playMusic, primeMusic, releaseMusic, resetMusicForTests, toggleMusic } from './music'
 
 // Thẻ audio giả: đếm số thẻ được tạo và số lần play() — jsdom không phát nhạc
 const audios = []
 class FakeAudio {
   constructor() {
     this.paused = true
+    this.muted = false
+    this.currentTime = 0
     this.plays = 0
     this.listeners = {}
     this.resolvePlay = null
@@ -124,4 +126,57 @@ test('vào trang admin thì nhạc dừng và nút ẩn', async () => {
   expect(audios[0].paused).toBe(true)
   expect(screen.queryByRole('button')).toBeNull()
   pauseMusic()
+})
+
+test('gõ tên: nhạc chạy tắt tiếng lúc bấm, tra ra trang quà thì bật tiếng từ đầu bài — vẫn một thẻ, một lần play()', async () => {
+  renderPlayer()
+  primeMusic()
+  expect(audios[0].muted).toBe(true)
+  await flush()
+  // Đang chờ tra tên: nút vẫn là "Bật nhạc", không ai nghe thấy gì
+  expect(screen.getByRole('button', { name: 'Phát nhạc' })).toHaveTextContent('Bật nhạc')
+  audios[0].currentTime = 2.4
+  await act(() => playMusic())
+  expect(audios[0].muted).toBe(false)
+  expect(audios[0].currentTime).toBe(0)
+  expect(audios).toHaveLength(1)
+  expect(audios[0].plays).toBe(1)
+  expect(screen.getByRole('button', { name: 'Tạm dừng nhạc' })).toBeTruthy()
+})
+
+test('gõ tên mà không ra trang quà: nhạc tắt tiếng dừng hẳn, lần sau bật lại bình thường', async () => {
+  renderPlayer()
+  primeMusic()
+  await flush()
+  act(() => releaseMusic())
+  expect(audios[0].paused).toBe(true)
+  expect(audios[0].muted).toBe(false)
+  expect(screen.getByRole('button', { name: 'Phát nhạc' })).toHaveTextContent('Bật nhạc')
+  fireEvent.click(screen.getByRole('button', { name: 'Phát nhạc' }))
+  await flush()
+  expect(audios[0].muted).toBe(false)
+  expect(screen.getByRole('button', { name: 'Tạm dừng nhạc' })).toBeTruthy()
+})
+
+test('nhạc đang phát sẵn thì gõ tên không tắt tiếng, không phát lại từ đầu', async () => {
+  await act(() => playMusic())
+  audios[0].currentTime = 40
+  primeMusic()
+  expect(audios[0].muted).toBe(false)
+  await act(() => playMusic())
+  releaseMusic()
+  expect(audios[0].currentTime).toBe(40)
+  expect(audios[0].paused).toBe(false)
+  expect(audios[0].plays).toBe(1)
+})
+
+test('tra ra trang quà trong lúc nhạc còn đang tải: không bị phát hai lần', async () => {
+  FakeAudio.manual = true
+  primeMusic()
+  playMusic()
+  playMusic()
+  expect(audios[0].plays).toBe(1)
+  await act(async () => { audios[0].resolvePlay(); await Promise.resolve(); await Promise.resolve() })
+  expect(audios[0].paused).toBe(false)
+  expect(audios[0].muted).toBe(false)
 })
