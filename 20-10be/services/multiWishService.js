@@ -2,7 +2,9 @@ const pool = require('../config/db');
 const { sanitizeLetterPayload } = require('./letterService');
 const letterImageService = require('./letterImageService');
 const wishCountService = require('./wishCountService');
-const { findOrCreateFriend, cleanReceiverName } = require('./friendService');
+const { findFriend, guestNotFound, cleanReceiverName } = require('./friendService');
+const resolveService = require('./resolveService');
+const normalizeName = require('../utils/normalizeName');
 
 // Một người gửi một lời chúc cho nhiều bạn cùng lúc (form gửi lời chúc ở trang
 // chủ). Mỗi người nhận có một lá thư riêng — như gửi từng lá — nhưng ảnh chỉ
@@ -24,7 +26,68 @@ async function listRecipients() {
     .sort((a, b) => Number(isTeacher(b)) - Number(isTeacher(a)) || a.name.localeCompare(b.name, 'vi'));
 }
 
-// recipients: [{ id } (từ danh sách) | { code: '<access code>' } | { friend: '<tên người ngoài lớp>' }]
+// Người có CẢ tên (họ tên, biệt danh, tên gọi khác) đúng như chữ đã gõ
+async function wholeNameRows(typed, memberTypes) {
+  const [rows] = await pool.execute(
+    `SELECT id, full_name, nickname, search_aliases FROM students WHERE is_active = TRUE
+     AND member_type IN (${memberTypes.map(() => '?').join(',')})`,
+    memberTypes,
+  ).catch(async (error) => {
+    if (error?.code !== 'ER_BAD_FIELD_ERROR') throw error;
+    return pool.execute(
+      `SELECT id, full_name, nickname, NULL AS search_aliases FROM students WHERE is_active = TRUE
+       AND member_type IN (${memberTypes.map(() => '?').join(',')})`,
+      memberTypes,
+    );
+  });
+  const normalized = normalizeName(typed);
+  return rows.filter((row) => resolveService.namesOf(row).some((n) => resolveService.isWholeName(n, typed, normalized)));
+}
+
+// Ô "Ngoài lớp" của form gửi lời chúc: gõ tên một khách đã có trong danh sách
+// (admin thêm). CHỈ thêm thẳng khi gõ đúng cả tên (hay biệt danh) của đúng một
+// khách; gần giống ("Phương" ↔ Bùi Phương Anh) thì chỉ gợi ý, hỏi "có phải…".
+// Gõ tên một bạn TRONG lớp thì nói rõ để chọn ở tab "Trong lớp" — không bao
+// giờ đổ nhầm sang một khách trùng một chữ ("Diệu Linh" ↛ khách "Linh").
+// { matches: [{ id, name, nickname }], unsure, alsoInClass }
+async function findGuests(name) {
+  const typed = String(name || '').trim().replace(/\s+/g, ' ');
+  const result = await resolveService.resolve(typed, 'friend', { locked: true });
+  if (result.error && result.status !== 404) throw httpError(result.error, result.status || 400);
+  const [inClass] = await wholeNameRows(typed, ['class']);
+  const strong = await wholeNameRows(typed, ['friend']);
+
+  let rows = [];
+  if (!result.error) {
+    const paths = result.giftPath ? [result.giftPath] : result.matches.map((match) => match.giftPath);
+    const codes = paths.map((giftPath) => giftPath.split('/').pop());
+    [rows] = await pool.execute(
+      `SELECT id, full_name, nickname, access_code FROM students WHERE member_type = 'friend' AND is_active = TRUE
+       AND access_code IN (${codes.map(() => '?').join(',')})`,
+      codes,
+    );
+    rows = codes.map((code) => rows.find((row) => row.access_code === code)).filter(Boolean);
+  }
+  // Gõ đúng tên bạn trong lớp, không khách nào tên đúng như vậy: chỉ sang tab
+  // lớp. Khách có tên CHỨA đủ chữ đó ("Phương Anh" ↔ Bùi Phương Anh) thì vẫn
+  // gợi ý kèm lời nhắc; khách chỉ trùng một chữ ("Diệu Linh" ↔ Linh) thì không
+  if (inClass && !strong.length) {
+    const normalized = normalizeName(typed);
+    rows = rows.filter((row) => resolveService.namesOf(row).some((n) => resolveService.startsWord(n, normalized)));
+    if (!rows.length) throw httpError(`"${inClass.full_name}" là bạn trong lớp — chọn ở tab "Trong lớp" nhé.`, 404);
+  }
+  if (!rows.length) throw guestNotFound(typed);
+  const present = (row) => ({ id: row.id, name: row.full_name, nickname: row.nickname && row.nickname !== row.full_name ? row.nickname : '' });
+  const sure = Boolean(result.giftPath) && strong.length === 1 && strong[0].id === rows[0].id;
+  return {
+    matches: rows.map(present),
+    unsure: !sure,
+    // Trong lớp cũng có người tên đúng như vậy (vd. Vân Anh): form nhắc thêm
+    ...(inClass ? { alsoInClass: inClass.full_name } : {}),
+  };
+}
+
+// recipients: [{ id } (danh sách lớp, hay khách đã tra ở ô "Ngoài lớp") | { code: '<access code>' } | { friend: '<tên khách đã có>' }]
 // (multipart thì là chuỗi JSON). Bỏ trùng; sai dạng thì 400.
 function parseRecipients(value) {
   let list = value;
@@ -70,15 +133,14 @@ async function createWishes(data, images = []) {
 
   const [first] = images;
   let created = 0;
-  let friendsCreated = 0;
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
     const studentIds = new Set();
-    // Chọn từ danh sách: chỉ các bạn trong lớp (và tài khoản thử), đang hoạt động
+    // Chọn từ danh sách lớp hay khách đã tra tên: chỉ người đang hoạt động
     if (ids.length) {
       const [rows] = await connection.execute(
-        `SELECT id FROM students WHERE is_active = TRUE AND member_type IN ('class', 'test')
+        `SELECT id FROM students WHERE is_active = TRUE AND member_type IN ('class', 'test', 'friend')
          AND id IN (${ids.map(() => '?').join(',')})`,
         ids,
       );
@@ -93,9 +155,10 @@ async function createWishes(data, images = []) {
       if (rows.length !== codes.length) throw httpError('Không tìm thấy một số người nhận — tải lại trang rồi chọn lại nhé', 404);
       rows.forEach((row) => studentIds.add(row.id));
     }
+    // Gửi theo tên: chỉ khách đã có — không tự tạo hồ sơ mới
     for (const name of friends) {
-      const friend = await findOrCreateFriend(connection, name);
-      if (friend.created) friendsCreated += 1;
+      const friend = await findFriend(connection, name);
+      if (!friend) throw guestNotFound(name);
       studentIds.add(friend.studentId);
     }
     for (const studentId of studentIds) {
@@ -119,10 +182,10 @@ async function createWishes(data, images = []) {
   return {
     status: 'pending',
     created,
-    friends_created: friendsCreated,
+    friends_created: 0,
     // "Bạn là người gửi lời chúc thứ N" — cùng số với trang chủ
     wish_number: await wishCountService.numberAfterSend(),
   };
 }
 
-module.exports = { createWishes, listRecipients, parseRecipients };
+module.exports = { createWishes, findGuests, listRecipients, parseRecipients };

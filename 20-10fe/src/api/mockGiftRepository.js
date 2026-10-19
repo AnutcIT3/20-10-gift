@@ -117,6 +117,17 @@ async function createFriendLetter(data) {
   return { status: 'pending', friend_created: true }
 }
 
+async function findWishGuest(name) {
+  await delay(200)
+  const guests = [{ id: 90, name: 'Minh Thư', nickname: '' }]
+  const typed = String(name || '').trim()
+  const matches = guests.filter((guest) => guest.name.toLocaleLowerCase('vi') === typed.toLocaleLowerCase('vi'))
+  if (!matches.length) {
+    throw Object.assign(new Error('Không có khách tên "' + typed + '" trong danh sách — kiểm tra lại tên rồi nhập lại nhé.'), { status: 404 })
+  }
+  return { matches, unsure: false }
+}
+
 async function listWishRecipients() {
   await delay(200)
   return [
@@ -231,6 +242,7 @@ const mockGiftRepository = {
   createLetter,
   createFriendLetter,
   createWishes,
+  findWishGuest,
   listWishRecipients,
   generateGreeting,
   faceStatus,

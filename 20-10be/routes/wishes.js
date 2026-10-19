@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const { asyncHandler } = require('../utils/response');
+const { resolveLimiter } = require('../middleware/rateLimit');
 const { uploadErrorHandler } = require('../config/cloudinary');
 const { letterImageUpload } = require('../utils/letterUpload');
 const honeypot = require('../middleware/honeypot');
@@ -13,5 +14,7 @@ const router = Router();
 router.post('/', letterImageUpload, uploadErrorHandler, honeypot, asyncHandler(wishController.create));
 // Danh sách tích chọn người nhận (tên + biệt danh, không mã quà)
 router.get('/recipients', asyncHandler(wishController.recipients));
+// Ô "Ngoài lớp": chỉ gửi được cho khách admin đã thêm — tra tên trước khi thêm
+router.post('/guest', resolveLimiter, asyncHandler(wishController.findGuest));
 
 module.exports = router;

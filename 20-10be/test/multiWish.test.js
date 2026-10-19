@@ -22,7 +22,7 @@ function fakeDatabase(t, { students = [{ id: 1, access_code: 'thuy' }, { id: 2, 
     if (sql.includes('FROM students WHERE is_active = TRUE AND access_code IN')) {
       return [students.filter((s) => params.includes(s.access_code))];
     }
-    if (sql.includes("member_type = 'friend' AND normalized_name = ?")) {
+    if (sql.includes("member_type = 'friend'") && sql.includes('normalized_name = ?')) {
       return [db.friends.filter((f) => f.normalized === params[0]).map((f) => ({ id: f.id, full_name: f.full_name }))];
     }
     if (sql.startsWith('INSERT INTO students')) {
@@ -55,8 +55,8 @@ function fakeDatabase(t, { students = [{ id: 1, access_code: 'thuy' }, { id: 2, 
   return db;
 }
 
-test('một lời chúc gửi cho 2 bạn trong lớp + 1 bạn ngoài lớp: mỗi người một lá, ảnh dùng chung', async (t) => {
-  const db = fakeDatabase(t);
+test('một lời chúc gửi cho 2 bạn trong lớp + 1 khách đã có: mỗi người một lá, ảnh dùng chung', async (t) => {
+  const db = fakeDatabase(t, { friends: [{ id: 100, full_name: 'Minh Thư', normalized: 'minh thu' }] });
   const result = await multiWishService.createWishes({
     recipients: [{ code: 'thuy' }, { code: 'ngoc' }, { friend: 'Minh Thư' }],
     sender_name: 'Tuấn', content: 'Chúc mừng 20/10!', is_anonymous: false,
@@ -64,7 +64,7 @@ test('một lời chúc gửi cho 2 bạn trong lớp + 1 bạn ngoài lớp: m�
   }, [photo(1), photo(2)]);
   assert.equal(result.status, 'pending');
   assert.equal(result.created, 3);
-  assert.equal(result.friends_created, 1);
+  assert.equal(result.friends_created, 0);
   assert.equal(result.wish_number, 27);
   assert.ok(db.committed);
   // Trạng thái luôn chờ duyệt, nhóm người gửi luôn là khách, dù payload khai khác
@@ -142,7 +142,7 @@ test('gửi theo id từ danh sách: chỉ bạn lớp đang hoạt động; id 
   pool.getConnection = async () => ({
     ...inner,
     execute: async (sql, params) => {
-      if (sql.includes("member_type IN ('class', 'test')")) return [[1, 2, 17].filter((id) => params.includes(id)).map((id) => ({ id }))];
+      if (sql.includes("member_type IN ('class', 'test', 'friend')")) return [[1, 2, 17].filter((id) => params.includes(id)).map((id) => ({ id }))];
       return inner.execute(sql, params);
     },
   });
@@ -168,8 +168,9 @@ test('GET /api/wishes/recipients mở công khai (cả lúc khoá)', async (t) =
 });
 
 test('không giới hạn số thư: một lần gửi cho 60 người, rồi gửi liên tiếp 200 lần vẫn không bị chặn', async (t) => {
-  const db = fakeDatabase(t);
-  const sixty = Array.from({ length: 60 }, (_, i) => ({ friend: `Bạn số ${i + 1}` }));
+  const guests = Array.from({ length: 60 }, (_, i) => ({ id: 1000 + i, full_name: `Bạn số ${i + 1}`, normalized: `ban so ${i + 1}` }));
+  const db = fakeDatabase(t, { friends: guests });
+  const sixty = guests.map((g) => ({ friend: g.full_name }));
   assert.equal((await multiWishService.createWishes({ recipients: sixty, content: 'Chúc cả trường', is_anonymous: true })).created, 60);
 
   const server = app.listen(0);
@@ -185,4 +186,67 @@ test('không giới hạn số thư: một lần gửi cho 60 người, rồi g�
   }
   assert.ok(statuses.every((status) => status === 201), `có lần bị chặn: ${statuses.filter((s) => s !== 201)}`);
   assert.equal(db.letters.length, 60 + 200);
+});
+
+test('khách chưa có trong danh sách: báo nhập lại tên, KHÔNG tự tạo hồ sơ, không gửi lá nào', async (t) => {
+  const db = fakeDatabase(t);
+  await assert.rejects(
+    () => multiWishService.createWishes({ recipients: [{ code: 'thuy' }, { friend: 'phương anh' }], content: 'Chúc', is_anonymous: true }),
+    { statusCode: 404, message: /Không có khách tên "phương anh".*nhập lại/ },
+  );
+  assert.equal(db.friends.length, 0);
+  assert.equal(db.letters.length, 0);
+  assert.ok(db.rolledBack);
+});
+
+test('ô "Ngoài lớp": chỉ thêm thẳng khi gõ đúng cả tên khách; gần giống thì hỏi; tên bạn trong lớp thì chỉ sang tab lớp', async (t) => {
+  const normalizeName = require('../utils/normalizeName');
+  const guests = [
+    { id: 32, full_name: 'Bùi Phương Anh', nickname: 'Bó tần', access_code: 'bpa' },
+    { id: 39, full_name: 'Hải Anh', nickname: null, access_code: 'ha' },
+    { id: 34, full_name: 'Ánh', nickname: null, access_code: 'anh' },
+    { id: 33, full_name: 'Linh', nickname: null, access_code: 'linh' },
+    { id: 31, full_name: 'Vân Anh', nickname: null, access_code: 'va' },
+  ];
+  const classmates = [
+    { id: 3, full_name: 'Phương Anh', nickname: 'Phanh' }, { id: 8, full_name: 'Diệu Linh', nickname: 'Linh Tần' },
+    { id: 16, full_name: 'Vân Anh', nickname: 'Vanh' },
+  ];
+  const original = pool.execute;
+  pool.execute = async (sql, params) => {
+    if (sql.includes('access_code IN')) return [guests.filter((g) => params.includes(g.access_code))];
+    const list = params.includes('friend') ? guests : classmates;
+    // Câu lấy cả nhóm kèm biệt danh (tra tên) hay để so cả tên
+    if (sql.includes('search_aliases')) return [list.map((row) => ({ ...row, search_aliases: null }))];
+    const prefix = params[0].slice(0, -1);
+    return [list.filter((g) => ` ${normalizeName(g.full_name)}`.includes(` ${prefix}`))];
+  };
+  t.after(() => { pool.execute = original; });
+  const ids = (r) => r.matches.map((m) => m.id);
+
+  // Đúng cả tên / biệt danh của một khách → thêm thẳng
+  assert.deepEqual(await multiWishService.findGuests('Bùi Phương Anh'), { matches: [{ id: 32, name: 'Bùi Phương Anh', nickname: 'Bó tần' }], unsure: false });
+  assert.deepEqual(ids(await multiWishService.findGuests('bó tần')), [32]);
+  assert.equal((await multiWishService.findGuests('hai anh')).unsure, false);
+  // Gõ thiếu ("Bùi Phương") → chỉ gợi ý
+  const partial = await multiWishService.findGuests('Bùi Phương');
+  assert.deepEqual([ids(partial), partial.unsure], [[32], true]);
+  // Nhiều khách → hỏi
+  const anh = await multiWishService.findGuests('Anh');
+  assert.equal(anh.unsure, true);
+  assert.deepEqual(anh.matches.map((m) => m.name), ['Ánh', 'Bùi Phương Anh', 'Hải Anh', 'Vân Anh']);
+  // Tên bạn trong lớp: không đổ sang khách trùng một chữ
+  await assert.rejects(() => multiWishService.findGuests('Diệu Linh'), { statusCode: 404, message: /là bạn trong lớp.*Trong lớp/ });
+  await assert.rejects(() => multiWishService.findGuests('Linh Tần'), { statusCode: 404, message: /"Diệu Linh" là bạn trong lớp/ });
+  // ...khách có tên chứa đủ chữ đó thì gợi ý kèm lời nhắc
+  const pa = await multiWishService.findGuests('Phương Anh');
+  assert.deepEqual([ids(pa), pa.unsure, pa.alsoInClass], [[32], true, 'Phương Anh']);
+  // Trùng y tên một khách và một bạn trong lớp: thêm khách, nhắc tab lớp
+  const va = await multiWishService.findGuests('Vân Anh');
+  assert.deepEqual([ids(va), va.unsure, va.alsoInClass], [[31], false, 'Vân Anh']);
+  // Không có ai
+  await assert.rejects(() => multiWishService.findGuests('Minh Thư'), { statusCode: 404, message: /Không có khách tên "Minh Thư".*nhập lại/ });
+  await assert.rejects(() => multiWishService.findGuests('x'), { statusCode: 400 });
+  // Không lộ mã mở quà
+  assert.equal(JSON.stringify(anh).includes('bpa'), false);
 });

@@ -46,9 +46,16 @@ async function createLetter(accessCode, data, imageFiles = []) {
   return response.data.data
 }
 
-// Gửi lời chúc cho người NGOÀI lớp — backend tự tạo hồ sơ "bạn bè"
+// Gửi lời chúc cho một khách NGOÀI lớp đã có trong danh sách (admin thêm)
 async function createFriendLetter(data, imageFiles = []) {
   const response = await api.post('/api/friends/letters', toLetterPayload(data, imageFiles))
+  return response.data.data
+}
+
+// Ô "Ngoài lớp": tra một khách đã có theo tên → { matches: [{ id, name, nickname }], unsure }
+// Không có ai tên đó thì lỗi 404 (người gửi nhập lại tên)
+async function findWishGuest(name) {
+  const response = await api.post('/api/wishes/guest', { name })
   return response.data.data
 }
 
@@ -178,7 +185,7 @@ async function downloadKeepsake(accessCode, greeting = '') {
 
 export default {
   resolveStudent, getGift, getGiftContent, getGallery, getLetters,
-  createLetter, createFriendLetter, createWishes, listWishRecipients, generateGreeting,
+  createLetter, createFriendLetter, createWishes, findWishGuest, listWishRecipients, generateGreeting,
   faceStatus, matchFace, faceScanEnd, faceScanClaim,
   getEventStatus, recordOpen, createReply, listReplies, downloadKeepsake,
 }

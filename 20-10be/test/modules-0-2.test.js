@@ -1546,21 +1546,16 @@ test('endpoint lời chúc nhận kiểu "bạn thân" — controller và servic
   assert.equal((await post({ name: 'quyeniuu', audienceType: 'bestie' })).status, 400);
 });
 
-test('friend letters: creates a friend profile once and reuses it for later letters', async () => {
+test('friend letters: chỉ gửi được cho khách đã có — không có thì 404, không tự tạo hồ sơ', async () => {
   const friendService = require('../services/friendService');
   const original = pool.getConnection;
   const calls = [];
-  let friendExists = false;
   pool.getConnection = async () => ({
     beginTransaction: async () => calls.push('begin'),
     execute: async (sql, params) => {
       calls.push({ sql, params });
       if (sql.startsWith('SELECT') && sql.includes("member_type = 'friend'")) {
-        return friendExists ? [[{ id: 77, full_name: 'Minh Thư' }]] : [[]];
-      }
-      if (sql.includes('INSERT INTO students')) {
-        friendExists = true;
-        return [{ insertId: 77 }];
+        return [params[0] === 'minh thu' ? [{ id: 77, full_name: 'Minh Thư' }] : []];
       }
       if (sql.includes('INSERT INTO letters')) return [{ insertId: 500 }];
       return [[]];
@@ -1570,23 +1565,20 @@ test('friend letters: creates a friend profile once and reuses it for later lett
     release: () => calls.push('release'),
   });
   try {
-    const first = await friendService.createFriendLetter({
-      receiver_name: ' Minh Thư ', content: 'Chúc mừng 20/10!', is_anonymous: true,
+    const sent = await friendService.createFriendLetter({
+      receiver_name: ' minh thư ', content: 'Chúc mừng 20/10!', is_anonymous: true,
     });
-    assert.deepEqual([first.status, first.friend_created], ['pending', true]);
-    const studentInsert = calls.find((call) => call.sql?.includes('INSERT INTO students'));
-    assert.deepEqual(studentInsert.params.slice(0, 2), ['Minh Thư', 'minh thu']);
-    assert.match(studentInsert.sql, /'friend'/);
+    assert.deepEqual([sent.status, sent.friend_created], ['pending', false]);
     const letterInsert = calls.find((call) => call.sql?.includes('INSERT INTO letters'));
     assert.equal(letterInsert.params[0], 77);
     assert.equal(letterInsert.params[5], 'pending');
 
-    // Cùng tên (chuẩn hóa) → dùng lại hồ sơ, không tạo bản ghi mới
-    const second = await friendService.createFriendLetter({
-      receiver_name: 'minh thư', content: 'Lời chúc thứ hai', is_anonymous: true,
-    });
-    assert.deepEqual([second.status, second.friend_created], ['pending', false]);
-    assert.equal(calls.includes('rollback'), false);
+    await assert.rejects(
+      () => friendService.createFriendLetter({ receiver_name: 'phương anh', content: 'Chúc', is_anonymous: true }),
+      { statusCode: 404, message: /Không có khách tên "phương anh"/ },
+    );
+    assert.equal(calls.some((call) => call.sql?.includes('INSERT INTO students')), false);
+    assert.equal(calls.filter((call) => call.sql?.includes('INSERT INTO letters')).length, 1);
   } finally {
     pool.getConnection = original;
   }
@@ -1595,17 +1587,13 @@ test('friend letters: creates a friend profile once and reuses it for later lett
 test('friend letters: a letter to "Phượng" never lands in the profile of "Phương"', async () => {
   const friendService = require('../services/friendService');
   const original = pool.getConnection;
-  const friends = [{ id: 40, full_name: 'Phương' }];
+  const friends = [{ id: 40, full_name: 'Phương' }, { id: 41, full_name: 'Phượng' }];
   const letterTargets = [];
   pool.getConnection = async () => ({
     beginTransaction: async () => {},
     execute: async (sql, params) => {
       if (sql.startsWith('SELECT') && sql.includes("member_type = 'friend'")) {
         return [friends.filter((row) => normalizeName(row.full_name) === params[0])];
-      }
-      if (sql.includes('INSERT INTO students')) {
-        friends.push({ id: 41, full_name: params[0] });
-        return [{ insertId: 41 }];
       }
       if (sql.includes('INSERT INTO letters')) { letterTargets.push(params[0]); return [{ insertId: 1 }]; }
       return [[]];
@@ -1615,11 +1603,11 @@ test('friend letters: a letter to "Phượng" never lands in the profile of "Ph�
     release: () => {},
   });
   try {
-    assert.equal((await friendService.createFriendLetter({ receiver_name: 'Phượng', content: 'Chúc 20/10!', is_anonymous: true })).friend_created, true);
-    // Không dấu thì vẫn gộp như trước; đúng dấu thì về đúng hồ sơ
-    assert.equal((await friendService.createFriendLetter({ receiver_name: 'phuong', content: 'Chúc 20/10!', is_anonymous: true })).friend_created, false);
-    assert.equal((await friendService.createFriendLetter({ receiver_name: 'PHƯỢNG', content: 'Chúc 20/10!', is_anonymous: true })).friend_created, false);
-    assert.deepEqual(letterTargets, [41, 40, 41]);
+    for (const name of ['Phượng', 'phuong', 'PHƯỢNG', 'Phương']) {
+      await friendService.createFriendLetter({ receiver_name: name, content: 'Chúc 20/10!', is_anonymous: true });
+    }
+    // Đúng dấu thì về đúng hồ sơ; không dấu thì về hồ sơ đầu tiên cùng chữ
+    assert.deepEqual(letterTargets, [41, 40, 41, 40]);
   } finally {
     pool.getConnection = original;
   }
