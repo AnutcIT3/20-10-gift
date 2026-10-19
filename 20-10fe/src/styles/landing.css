@@ -1278,3 +1278,59 @@
   .wish-heap-scene.is-celebrating .envelope--open .envelope__flap,
   .wish-heap-scene.is-celebrating .envelope--open .envelope__letter { animation: none; }
 }
+
+/* ── Gửi một lời chúc cho nhiều bạn ── */
+.wish-recipients {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wish-recipients li {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 10px;
+  border: 1.5px solid var(--clay);
+  border-radius: 999px;
+  background: var(--peach-soft);
+  font: 16px/22px var(--font-hand);
+  color: var(--ink);
+}
+
+.wish-recipients li i {
+  font-style: normal;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.wish-recipients button {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--clay-dark);
+  font: 18px/1 var(--font-hand);
+  cursor: pointer;
+}
+
+.wish-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.wish-add-row .btn-dashed i {
+  font-style: normal;
+  color: var(--muted);
+}
+
+.wish-success__count {
+  margin: 0 0 6px;
+  color: var(--ink-2);
+}

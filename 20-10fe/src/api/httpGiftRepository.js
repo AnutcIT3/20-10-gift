@@ -52,6 +52,17 @@ async function createFriendLetter(data, imageFiles = []) {
   return response.data.data
 }
 
+// Một lời chúc gửi cho nhiều bạn cùng lúc. recipients: [{ code } | { friend }];
+// ảnh tải lên một lần, dùng chung cho mọi người nhận
+async function createWishes(recipients, data, imageFiles = []) {
+  const files = [imageFiles].flat().filter(Boolean)
+  const payload = files.length
+    ? toLetterPayload({ ...data, recipients: JSON.stringify(recipients) }, files)
+    : { ...data, recipients }
+  const response = await api.post('/api/wishes', payload)
+  return response.data.data
+}
+
 async function generateGreeting(name, audienceType = 'student') {
   const response = await api.post('/api/greetings/generate', { name, audienceType })
   return response.data.data
@@ -161,7 +172,7 @@ async function downloadKeepsake(accessCode, greeting = '') {
 
 export default {
   resolveStudent, getGift, getGiftContent, getGallery, getLetters,
-  createLetter, createFriendLetter, generateGreeting,
+  createLetter, createFriendLetter, createWishes, generateGreeting,
   faceStatus, matchFace, faceScanEnd, faceScanClaim,
   getEventStatus, recordOpen, createReply, listReplies, downloadKeepsake,
 }

@@ -11,6 +11,7 @@ const SHARED_DATA_PREFIXES = [
   '/api/admin/settings',
   '/api/admin/replies',
   '/api/friends',
+  '/api/wishes',
 ];
 // POST không đổi dữ liệu admin đang xem: thả cảm xúc, ghi lượt mở quà (bông
 // hoa tự làm mới ở trang Tổng quan) và tải bản lưu quà

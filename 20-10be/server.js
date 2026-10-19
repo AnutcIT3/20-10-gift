@@ -17,6 +17,7 @@ const { adminLettersRouter, lettersRouter } = require('./routes/letters-admin');
 const greetingRoutes = require('./routes/greetings');
 const { adminGreetingsRouter } = greetingRoutes;
 const friendRoutes = require('./routes/friends');
+const wishRoutes = require('./routes/wishes');
 const faceRoutes = require('./routes/face');
 const adminFaceRoutes = require('./routes/admin-face');
 const adminStatsRoutes = require('./routes/admin-stats');
@@ -102,6 +103,7 @@ app.use('/api/admin/letters', adminLettersRouter);
 app.use('/api/letters', lettersRouter);
 app.use('/api/greetings', greetingRoutes);
 app.use('/api/friends', friendRoutes);
+app.use('/api/wishes', wishRoutes);
 // Đếm ngược 20/10 + bông hoa 12A1, và Hộp thư hồi âm công khai
 app.use('/api/event', eventRoutes);
 app.use('/api/replies', repliesRouter);

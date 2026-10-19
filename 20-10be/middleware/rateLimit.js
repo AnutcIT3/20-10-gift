@@ -48,6 +48,17 @@ const friendLetterLimiter = rateLimit({
   message: { success: false, message: 'Quá nhiều lượt gửi, vui lòng thử lại sau.' },
 });
 
+// Một lời chúc gửi cho nhiều bạn (tối đa 10 lá mỗi lần, có thể tự tạo hồ sơ
+// "bạn bè"): cả lớp chung một IP Wi-Fi vẫn dư, script thì bị chặn
+const multiWishLimiter = rateLimit({
+  windowMs: WINDOW_15_MIN,
+  max: 150,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: ipKeyGenerator,
+  message: { success: false, message: 'Quá nhiều lượt gửi, vui lòng thử lại sau.' },
+});
+
 // Đường đã có limiter riêng thì không tính vào hạn mức chung: data-revision
 // được admin poll mỗi 5s (180 req/15 phút/tab), còn khung hình Face ID và tín
 // hiệu lượt quét đi dồn khi cả lớp quét cùng lúc — không được để chúng làm cạn
@@ -160,6 +171,7 @@ module.exports = {
   authLimiter,
   greetingLimiter,
   friendLetterLimiter,
+  multiWishLimiter,
   generalLimiter,
   reactionLimiter,
   resolveLimiter,
