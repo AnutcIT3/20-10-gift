@@ -21,7 +21,8 @@ function FlyingNote({ index, delay, onLanded }) {
     if (!el?.animate) { onLanded(); return undefined }
     const heapTop = el.parentElement.getBoundingClientRect().top
     const drop = Math.max(260, heapTop + 140)   // từ trên mép màn hình xuống
-    const drift = (Math.random() * 2 - 1) * 160
+    // Lệch ngang khi bắt đầu rơi — điện thoại hẹp thì lệch ít, không bay ra ngoài màn hình
+    const drift = (Math.random() * 2 - 1) * Math.min(160, window.innerWidth * 0.22)
     const animation = el.animate(leafFrames(spot, drop, drift), { duration: FLIGHT_MS, delay, easing: 'linear', fill: 'backwards' })
     animation.onfinish = () => onLanded()
     return () => { animation.onfinish = null; animation.cancel() }

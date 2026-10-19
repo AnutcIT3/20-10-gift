@@ -966,7 +966,8 @@
   top: 46%;
   z-index: 0;
   transform: translate(-50%, -50%) rotate(-8deg);
-  font: clamp(180px, 30vw, 380px)/1 var(--font-hand);
+  /* Càng ít chữ số càng to; 3 chữ số vẫn nằm gọn trong màn hình */
+  font: clamp(240px, calc(96vw / var(--digits, 2)), 600px)/1 var(--font-hand);
   color: var(--clay);
   opacity: .07;
   white-space: nowrap;
@@ -1107,15 +1108,46 @@
 @media (max-width: 719px) {
   /* Điện thoại: nằm sau tiêu đề và đồng hồ, không đè lên phong bì */
   .wish-ghost {
-    left: 58%;
+    left: 54%;
     top: 46%;
-    font-size: 200px;
+    font-size: calc(150vw / var(--digits, 2));
   }
 
   /* Phong bì điện thoại nhỏ hơn (250px): thu đống thư theo */
   .wish-heap {
     transform: scale(.84);
     transform-origin: bottom center;
+  }
+
+  /* Điện thoại: thu gọn phong bì + đống thư cho nút gửi lời chúc lọt màn hình
+     đầu, và chừa chỗ dưới cùng để nút nhạc nổi không che nội dung */
+  .landing {
+    padding-top: 40px;
+    padding-bottom: 84px;
+  }
+
+  .wish-heap-scene.has-heap {
+    transform: scale(.86);
+    transform-origin: top center;
+    margin-bottom: -32px;
+  }
+
+  /* Nút gửi lời chúc lúc khoá: gọn ở giữa, không chạm nút nhạc ở góc phải */
+  .landing__roles--locked {
+    align-items: center;
+  }
+
+  .landing__roles--locked .btn-stamp {
+    justify-content: center;
+  }
+
+  /* Nút nhạc nổi ở góc dưới phải đè lên nút gửi lời chúc trên điện thoại:
+     riêng trang chủ đưa nó lên góc trên trái (góc trên phải là "Quản trị") */
+  body:has(.landing) .music-player {
+    top: 12px;
+    bottom: auto;
+    left: 14px;
+    right: auto;
   }
 
   .wish-stats {
@@ -1126,5 +1158,19 @@
 @media (prefers-reduced-motion: reduce) {
   .wish-stats__recent::before {
     animation: none;
+  }
+}
+
+/* Điện thoại thấp (iPhone SE, Android nhỏ) lúc khoá: nút gửi lời chúc lên
+   trước đồng hồ đếm ngược để thấy ngay mà không phải cuộn */
+@media (max-width: 719px) and (max-height: 760px) {
+  .landing__locked {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .landing__locked > .landing__wait {
+    order: 1;
+    margin-top: 18px;
   }
 }
