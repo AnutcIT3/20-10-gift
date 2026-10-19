@@ -733,7 +733,7 @@ test('admin settings expose and toggle the Face ID switch separately from the lo
 
   const initial = await (await fetch(`${base}/api/admin/settings`, { headers })).json();
   assert.deepEqual(initial.data, {
-    gift_pages_locked: false, gift_unlock_at: null, gift_opens_since: null, face_enabled: false, face_only: false,
+    gift_pages_locked: false, gift_unlock_at: null, gift_opens_since: null, face_enabled: false, face_only: false, face_liveness: false,
   });
 
   const toggled = await fetch(`${base}/api/admin/settings`, {
@@ -783,4 +783,84 @@ test('công tắc "Chỉ mở bằng Face ID": bật thì tra tên bị chặn (
   assert.equal(settings.face_only, '1');
   const bad = await fetch(`${base}/api/admin/settings`, { method: 'PATCH', headers, body: JSON.stringify({ face_only: 'yes' }) });
   assert.equal(bad.status, 400);
+});
+
+// ── Chống giơ ảnh: thử thách quay đầu ─────────────────────────────────────
+
+// face-service giả trả lần lượt từng mặt trong `queue` (kèm yaw); công tắc
+// chống giơ ảnh chưa đặt = BẬT
+function livenessSetup(t, { liveness = null } = {}) {
+  const queue = [];
+  stubFaceService((url) => (url.endsWith('/health')
+    ? jsonResponse({ status: 'ok', model: 'arcface_r50' })
+    : jsonResponse({ faces: queue.length ? [queue.shift()] : [], image: { width: 480, height: 360 }, elapsed_ms: 10 })));
+  const original = pool.execute;
+  mockDatabase();
+  const execute = pool.execute;
+  pool.execute = async (sql, params = []) => {
+    if (sql.includes('FROM app_settings') && params[0] === 'face_liveness') return [liveness === null ? [] : [{ setting_value: liveness }]];
+    return execute(sql, params);
+  };
+  faceService.resetCache();
+  faceService.resetChallengesForTests();
+  t.after(() => { pool.execute = original; global.fetch = realFetch; faceService.resetCache(); });
+  const frame = async (face, context = {}) => {
+    queue.push(face);
+    return faceService.matchFrame(Buffer.from('x'), 'image/jpeg', context);
+  };
+  return frame;
+}
+
+const vyFace = (yaw, embedding = oneHot(0)) => ({
+  index: 0, face_px: 160, det_score: 0.9, brightness: 120, blur: 300, yaw, embedding,
+});
+
+test('chống giơ ảnh: nhận ra mặt chỉ ra lệnh quay đầu, chưa có link quà; ảnh đứng yên hay quay sai hướng không mở được', async (t) => {
+  const frame = livenessSetup(t);
+  const first = await frame(vyFace(0.02));
+  assert.equal(first.decision, 'challenge');
+  assert.ok(['left', 'right'].includes(first.direction));
+  assert.equal(first.giftPath, undefined);
+  assert.equal(first.displayName, 'Vy');
+  const sign = first.direction === 'left' ? 1 : -1;
+  // Ảnh giơ lên: nhìn thẳng mãi, hay nghiêng nhẹ → vẫn chỉ là lệnh, cùng mã
+  for (const yaw of [0.03, -0.01, sign * 0.1]) {
+    const still = await frame(vyFace(yaw), { challenge: first.challenge });
+    assert.deepEqual([still.decision, still.challenge, still.giftPath], ['challenge', first.challenge, undefined]);
+  }
+  // Quay SAI hướng → chưa mở
+  const wrong = await frame(vyFace(-sign * 0.45), { challenge: first.challenge });
+  assert.equal(wrong.giftPath, undefined);
+  // Quay ĐÚNG hướng (mặt nghiêng điểm thấp hơn vẫn là Vy) → mở
+  const turned = await frame(vyFace(sign * 0.35, mix(0.55, 0.2)), { challenge: first.challenge });
+  assert.equal(turned.decision, 'match');
+  assert.equal(turned.liveness, true);
+  assert.equal(turned.giftPath, '/gift/vy1020');
+  // Lệnh đã dùng thì hết hiệu lực: gửi lại mã cũ chỉ được lệnh mới
+  const reused = await frame(vyFace(sign * 0.35), { challenge: first.challenge });
+  assert.equal(reused.decision, 'challenge');
+  assert.notEqual(reused.challenge, first.challenge);
+});
+
+test('chống giơ ảnh: lệnh của bạn này không mở được quà của bạn khác; mã lệnh bịa thì bỏ qua', async (t) => {
+  const frame = livenessSetup(t);
+  const vy = await frame(vyFace(0));
+  const sign = vy.direction === 'left' ? 1 : -1;
+  // Đổi người (Hương) giữa chừng, quay đúng hướng của lệnh Vy → không mở quà ai, ra lệnh mới cho Hương
+  const huong = await frame(vyFace(sign * 0.4, oneHot(1)), { challenge: vy.challenge });
+  assert.equal(huong.decision, 'challenge');
+  assert.equal(huong.displayName, 'Hương');
+  assert.equal(huong.giftPath, undefined);
+  const forged = await frame(vyFace(0.5), { challenge: 'f'.repeat(24) });
+  assert.equal(forged.decision, 'challenge');
+  assert.equal(forged.giftPath, undefined);
+});
+
+test('chống giơ ảnh: admin tắt công tắc, hay face-service cũ chưa có yaw → như trước (mở sau 2 khung khớp)', async (t) => {
+  const off = livenessSetup(t, { liveness: '0' });
+  const plain = await off(vyFace(0));
+  assert.deepEqual([plain.decision, plain.giftPath], ['match', '/gift/vy1020']);
+  const old = livenessSetup(t);
+  const noYaw = await old({ ...vyFace(0), yaw: undefined });
+  assert.deepEqual([noYaw.decision, noYaw.giftPath], ['match', '/gift/vy1020']);
 });

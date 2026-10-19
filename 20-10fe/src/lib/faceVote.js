@@ -117,9 +117,39 @@ export function hintFor(result) {
  *   để chào và cho chọn một thiệp; nhóm đổi (ai bước ra) thì đếm lại.
  * Đủ VOTES_TO_CONCLUDE phiếu liên tiếp → `conclusion` là ứng viên để hỏi xác nhận.
  */
+// Chống giơ ảnh: máy chủ nhận ra mặt rồi bảo quay đầu (trái/phải ngẫu nhiên).
+// "Trái/phải" là của người đứng trước camera — khung xem trước lật như gương
+// nên mũi tên trên màn hình chỉ đúng hướng cậu ấy thấy mình quay
+export function turnHint(result) {
+  const name = result?.displayName ? `Chào ${result.displayName}! ` : ''
+  return result?.direction === 'left'
+    ? `${name}Quay mặt sang TRÁI một chút để mở quà nhé ⬅`
+    : `${name}Quay mặt sang PHẢI một chút để mở quà nhé ➡`
+}
+
 export function tallyVotes(votes, rawResult, excluded = []) {
   const result = narrowGroup(rawResult, excluded)
   const rejects = votes.rejects || 0
+  const excludedPerson = excluded.includes(result?.studentId)
+  if (result?.decision === 'challenge' && !excludedPerson) {
+    return { votes: { ...votes, rejects: 0 }, hint: turnHint(result), conclusion: null, giveUp: false, turn: result.direction }
+  }
+  // Đã quay đúng hướng: máy chủ mới trả link quà — hỏi "Có phải cậu là…" ngay
+  if (result?.decision === 'match' && result.liveness && !excludedPerson) {
+    return {
+      votes: { studentId: result.studentId, count: VOTES_TO_CONCLUDE, rejects: 0 },
+      hint: HINTS.almost,
+      giveUp: false,
+      conclusion: {
+        matchId: result.matchId,
+        studentId: result.studentId,
+        giftPath: result.giftPath,
+        displayName: result.displayName,
+        score: result.score,
+        margin: result.margin,
+      },
+    }
+  }
   if (result?.decision === 'many_match') {
     const groupKey = result.people.map((person) => person.studentId).sort((a, b) => a - b).join(',')
     const count = votes.groupKey === groupKey ? votes.count + 1 : 1

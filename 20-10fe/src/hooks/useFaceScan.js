@@ -31,6 +31,7 @@ const IDLE = Object.freeze({
   kind: null,          // lý do dừng khi status === 'stopped'
   message: '',
   candidate: null,     // { matchId, studentId, giftPath, displayName, score, margin } khi 'confirm'
+  turn: null,          // 'left' | 'right' khi máy chủ bảo quay đầu (chống giơ ảnh)
   people: [],          // những bạn nhận ra cùng lúc khi 'choose' — mỗi bạn một thiệp
   secondsLeft: SCAN_TIMEOUT_MS / 1000,
 })
@@ -138,6 +139,7 @@ function useFaceScan({ scope = 'class' } = {}) {
     let startedAt = Date.now()
     let trouble = NO_NETWORK_TROUBLE   // chuỗi khung liên tiếp không có phản hồi
     let pendingSince = null            // lúc gửi khung đang chờ phản hồi
+    let challenge = null               // mã lệnh quay đầu máy chủ đã ra (chống giơ ảnh)
     votesRef.current = INITIAL_VOTES
     const scan = newScan()
     scanRef.current = scan
@@ -189,12 +191,14 @@ function useFaceScan({ scope = 'class' } = {}) {
       pendingSince = sentAt
       try {
         const result = await giftRepository.matchFace(blob, {
-          signal: controller.signal, scan: scan.token, t, scope,
+          signal: controller.signal, scan: scan.token, t, scope, challenge,
         })
         if (done) return
         trouble = NO_NETWORK_TROUBLE
-        const { votes, hint, conclusion, giveUp } = tallyVotes(votesRef.current, result, excludedRef.current)
+        const { votes, hint, conclusion, giveUp, turn = null } = tallyVotes(votesRef.current, result, excludedRef.current)
         votesRef.current = votes
+        if (result?.decision === 'challenge') challenge = result.challenge
+        setState((current) => (current.turn === turn ? current : { ...current, turn }))
         if (conclusion) conclude(conclusion)
         // Nhìn rõ mặt vài giây mà không khớp ai: dừng ngay, khỏi chờ hết giờ
         else if (giveUp) finish('unrecognized')
@@ -345,6 +349,7 @@ function useFaceScan({ scope = 'class' } = {}) {
     title: STOP_TITLES[state.kind] || '',
     candidate: state.candidate,
     people: state.people,
+    turn: active ? state.turn : null,
     secondsLeft: state.secondsLeft,
     canRetry: state.status === 'stopped' && RETRYABLE_STOPS.includes(state.kind),
     videoRef,
