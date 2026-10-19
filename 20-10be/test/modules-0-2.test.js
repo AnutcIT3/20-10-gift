@@ -251,7 +251,7 @@ test('module 2: createLetter validates content and forces trusted fields', async
       content: ' Hello ',
       is_anonymous: true,
     });
-    assert.deepEqual(result, { status: 'pending' });
+    assert.equal(result.status, 'pending');
     assert.deepEqual(inserted[0].params, [7, null, null, 'Hello', true, 'pending', null, null, null]);
     // Không kèm ảnh thì không ghi gì vào letter_images
     assert.equal(inserted.length, 1);
@@ -1489,7 +1489,7 @@ test('friend letters: creates a friend profile once and reuses it for later lett
     const first = await friendService.createFriendLetter({
       receiver_name: ' Minh Thư ', content: 'Chúc mừng 20/10!', is_anonymous: true,
     });
-    assert.deepEqual(first, { status: 'pending', friend_created: true });
+    assert.deepEqual([first.status, first.friend_created], ['pending', true]);
     const studentInsert = calls.find((call) => call.sql?.includes('INSERT INTO students'));
     assert.deepEqual(studentInsert.params.slice(0, 2), ['Minh Thư', 'minh thu']);
     assert.match(studentInsert.sql, /'friend'/);
@@ -1501,7 +1501,7 @@ test('friend letters: creates a friend profile once and reuses it for later lett
     const second = await friendService.createFriendLetter({
       receiver_name: 'minh thư', content: 'Lời chúc thứ hai', is_anonymous: true,
     });
-    assert.deepEqual(second, { status: 'pending', friend_created: false });
+    assert.deepEqual([second.status, second.friend_created], ['pending', false]);
     assert.equal(calls.includes('rollback'), false);
   } finally {
     pool.getConnection = original;

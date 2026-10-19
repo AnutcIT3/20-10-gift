@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import giftRepository from '../api/giftRepository'
 import { serverOffset } from '../lib/event'
 
-const POLL_MS = 30_000
+const POLL_MS = 15_000
 
 /**
- * Trạng thái 20/10 dùng chung cho trang chủ: đang khoá hay đã mở, giờ tự mở,
- * bông hoa 12A1 (bao nhiêu bạn đã mở quà) và số thư hồi âm. Hỏi lại mỗi 30
+ * Trạng thái 20/10 dùng chung cho trang chủ: đang khoá hay đã mở, giờ tự mở, số lời chúc (đống thư),
+ * bông hoa 12A1 (bao nhiêu bạn đã mở quà) và số thư hồi âm. Hỏi lại mỗi 15
  * giây khi tab đang hiện. `offset` là độ lệch đồng hồ máy này so với máy chủ;
  * `justOpened` bật lên khi chính trang này chứng kiến quà chuyển từ khoá sang
  * mở, và tắt nếu quà bị khoá lại.

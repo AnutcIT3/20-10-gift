@@ -17,6 +17,9 @@ const FACE_MODEL = 'arcface_r50';
 // đổi bằng env để đo lại mà không sửa mã
 const FACE_TAU = Number(process.env.FACE_TAU ?? 0.45);
 const FACE_MARGIN = Number(process.env.FACE_MARGIN ?? 0.10);
+// Số lời chúc hiển thị trên trang chủ = số này + số lời chúc thật (để trang
+// không trống lúc đầu). Admin vẫn thấy số thật ở trang Tổng quan.
+const WISH_COUNT_BASE = Math.max(0, Math.trunc(Number(process.env.WISH_COUNT_BASE ?? 20)) || 0);
 // Cổng chất lượng khung hình: mặt nhỏ hơn, tối hơn hay nhòe hơn mức này thì
 // không chấm điểm mà nhắc người dùng chỉnh lại
 const FACE_MIN_FACE_PX = 80;
@@ -42,6 +45,7 @@ module.exports = {
   FACE_MODEL,
   FACE_TAU,
   FACE_MARGIN,
+  WISH_COUNT_BASE,
   FACE_MIN_FACE_PX,
   FACE_MIN_BRIGHTNESS,
   FACE_MIN_BLUR,

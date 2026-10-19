@@ -952,3 +952,179 @@
     width: 100%;
   }
 }
+
+/* ── Đống thư: mỗi lời chúc một lá thư nằm lung tung như đống lá ── */
+.landing {
+  position: relative;
+  overflow-x: clip;
+}
+
+/* Số lời chúc to, mờ, nghiêng, lệch phải giữa màn hình — sau nội dung */
+.wish-ghost {
+  position: absolute;
+  left: 60%;
+  top: 46%;
+  z-index: 0;
+  transform: translate(-50%, -50%) rotate(-8deg);
+  font: clamp(180px, 30vw, 380px)/1 var(--font-hand);
+  color: var(--clay);
+  opacity: .07;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+.wish-heap-scene {
+  position: relative;
+}
+
+/* Có đống thư: phong bì cắm hơi nghiêng, chân phong bì vùi trong đống */
+.wish-heap-scene.has-heap {
+  padding-bottom: 30px;
+}
+
+.wish-heap-scene.has-heap > .envelope {
+  transform: rotate(-4deg);
+  transform-origin: bottom center;
+}
+
+.wish-heap {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.wish-heap__shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(61, 47, 40, .2);
+  filter: blur(9px);
+  transform: translateX(-50%);
+  transition: width .5s;
+}
+
+.wish-note {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 46px;
+  height: 31px;
+  margin: 0 0 -15px -23px;
+  background: var(--c);
+  border: 1px solid rgba(169, 140, 112, .55);
+  border-radius: 2px;
+  box-shadow: 0 2px 4px rgba(61, 47, 40, .16);
+  transform: translate(var(--x), calc(-1 * var(--y))) rotate(var(--r)) scale(var(--s));
+}
+
+/* Mặt sau: nắp chữ V */
+.wish-note--back::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to bottom right, transparent 49.5%, rgba(169, 140, 112, .55) 50%, transparent 51.5%) left top / 50% 62% no-repeat,
+    linear-gradient(to bottom left, transparent 49.5%, rgba(169, 140, 112, .55) 50%, transparent 51.5%) right top / 50% 62% no-repeat;
+}
+
+/* Mặt trước: tem nhỏ và vài dòng địa chỉ */
+.wish-note--front::before {
+  content: '';
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 9px;
+  height: 11px;
+  background: var(--stamp);
+  outline: 1px dashed rgba(255, 255, 255, .7);
+  outline-offset: -2px;
+}
+
+.wish-note--front::after {
+  content: '';
+  position: absolute;
+  left: 7px;
+  right: 16px;
+  top: 15px;
+  height: 7px;
+  background: repeating-linear-gradient(to bottom, rgba(92, 74, 64, .32) 0 1px, transparent 1px 4px);
+}
+
+.wish-note--heart::after {
+  content: '♡';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -45%);
+  font: 13px/1 var(--font-hand);
+  color: var(--clay);
+}
+
+.wish-stats {
+  display: grid;
+  gap: 2px;
+  margin-top: 14px;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
+.wish-stats b {
+  font: 22px var(--font-hand);
+  color: var(--clay);
+}
+
+.wish-stats__recent {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.wish-stats__recent::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--moss);
+  vertical-align: 1px;
+  animation: wishPulse 2s ease-in-out infinite;
+}
+
+@keyframes wishPulse {
+  50% { opacity: .3; }
+}
+
+.wish-success__number {
+  margin: 0 0 6px;
+  font: 22px/1.3 var(--font-hand);
+  color: var(--clay);
+}
+
+@media (max-width: 719px) {
+  /* Điện thoại: nằm sau tiêu đề và đồng hồ, không đè lên phong bì */
+  .wish-ghost {
+    left: 58%;
+    top: 46%;
+    font-size: 200px;
+  }
+
+  /* Phong bì điện thoại nhỏ hơn (250px): thu đống thư theo */
+  .wish-heap {
+    transform: scale(.84);
+    transform-origin: bottom center;
+  }
+
+  .wish-stats {
+    justify-items: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wish-stats__recent::before {
+    animation: none;
+  }
+}

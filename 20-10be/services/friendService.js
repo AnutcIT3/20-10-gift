@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const normalizeName = require('../utils/normalizeName');
 const { accentKey, sameName } = require('../utils/nameKey');
 const letterImageService = require('./letterImageService');
+const wishCountService = require('./wishCountService');
 const { sanitizeLetterPayload } = require('./letterService');
 
 function httpError(message, statusCode) {
@@ -34,6 +35,8 @@ async function createFriendLetter(data, images = []) {
     { defaultStatus: 'pending' },
   );
 
+  let studentId;
+  let friendCreated = false;
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -50,8 +53,7 @@ async function createFriendLetter(data, images = []) {
     const key = accentKey(receiverName);
     const existing = rows.find((row) => accentKey(row.full_name) === key)
       || rows.find((row) => sameName(row.full_name, receiverName));
-    let studentId = existing?.id;
-    let friendCreated = false;
+    studentId = existing?.id;
 
     if (!studentId) {
       for (let attempt = 0; attempt < 3 && !studentId; attempt += 1) {
@@ -81,13 +83,13 @@ async function createFriendLetter(data, images = []) {
     await letterImageService.saveLetterImages(connection, letterResult.insertId, images);
 
     await connection.commit();
-    return { status: 'pending', friend_created: friendCreated };
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally {
     connection.release();
   }
+  return { status: 'pending', friend_created: friendCreated, wish_number: await wishCountService.numberAfterSend() };
 }
 
 module.exports = { createFriendLetter };
