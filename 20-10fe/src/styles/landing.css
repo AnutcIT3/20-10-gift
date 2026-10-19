@@ -1174,3 +1174,107 @@
     margin-top: 18px;
   }
 }
+
+/* ── Khoảnh khắc 00:00: quà chuyển từ khoá sang mở ── */
+/* Dấu "20.10" nứt đôi rơi xuống, nắp phong bì bật mở, lá thư chúc mừng trồi lên */
+.seal-crack {
+  position: absolute;
+  left: calc(50% - var(--env-seal) / 2);
+  top: var(--env-seal-top);
+  z-index: 5;
+  width: var(--env-seal);
+  height: var(--env-seal);
+  pointer-events: none;
+}
+
+.seal-crack i {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #c97a5a, var(--clay) 60%, var(--clay-dark));
+  box-shadow: 0 6px 14px rgba(61, 47, 40, .35);
+  font: normal var(--env-seal-font) var(--font-hand);
+  color: var(--peach-soft);
+}
+
+.seal-crack i:first-child {
+  clip-path: polygon(0 0, 54% 0, 44% 38%, 58% 62%, 46% 100%, 0 100%);
+  animation: sealCrackLeft 1s cubic-bezier(.4, .2, .6, 1) forwards;
+}
+
+.seal-crack i:last-child {
+  clip-path: polygon(54% 0, 100% 0, 100% 100%, 46% 100%, 58% 62%, 44% 38%);
+  animation: sealCrackRight 1s cubic-bezier(.4, .2, .6, 1) forwards;
+}
+
+@keyframes sealCrackLeft {
+  25% { transform: translate(-3px, 0) rotate(-6deg); }
+  to { transform: translate(-60px, 120px) rotate(-70deg); opacity: 0; }
+}
+
+@keyframes sealCrackRight {
+  25% { transform: translate(3px, 0) rotate(6deg); }
+  to { transform: translate(64px, 130px) rotate(80deg); opacity: 0; }
+}
+
+.wish-heap-scene.is-celebrating .envelope {
+  perspective: 700px;
+}
+
+.wish-heap-scene.is-celebrating .envelope--open .envelope__flap {
+  animation: flapOpen .9s cubic-bezier(.3, 1.3, .5, 1) .35s both;
+}
+
+.wish-heap-scene.is-celebrating .envelope--open .envelope__letter {
+  animation: letterRise 1s cubic-bezier(.3, 1.25, .5, 1) .8s both;
+}
+
+@keyframes flapOpen {
+  from { transform: rotateX(0); }
+  to { transform: rotateX(-160deg); }
+}
+
+@keyframes letterRise {
+  from { transform: translateY(90px); opacity: 0; }
+  20% { opacity: 1; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Mưa cánh hoa */
+.petal-rain {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.petal-rain__petal {
+  position: absolute;
+  top: -30px;
+  width: var(--size);
+  height: calc(var(--size) * .8);
+  border-radius: 80% 0 80% 0;
+  opacity: .9;
+  animation: petalRain var(--dur) linear var(--delay) both;
+}
+
+@keyframes petalRain {
+  0% { transform: translate(0, 0) rotate(0); }
+  33% { transform: translate(var(--sway), 36vh) rotate(160deg); }
+  66% { transform: translate(calc(var(--sway) * -.6), 72vh) rotate(320deg); }
+  100% { transform: translate(calc(var(--sway) * .4), 110vh) rotate(480deg); }
+}
+
+/* Số mờ thành "20.10" trong lúc ăn mừng */
+.wish-ghost.is-date {
+  opacity: .1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seal-crack { display: none; }
+  .wish-heap-scene.is-celebrating .envelope--open .envelope__flap,
+  .wish-heap-scene.is-celebrating .envelope--open .envelope__letter { animation: none; }
+}
