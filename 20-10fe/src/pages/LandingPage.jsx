@@ -139,6 +139,8 @@ function LandingPage() {
   const [name, setName] = useState('')
   const [matches, setMatches] = useState([])
   const [message, setMessage] = useState('')
+  // Danh sách chỉ là gợi ý (gõ "Phượng" mà lớp chỉ có "Phương"): hỏi "có phải…"
+  const [matchGuess, setMatchGuess] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -522,6 +524,7 @@ function LandingPage() {
         }
         if (result?.matches?.length) {
           setMatches(result.matches)
+          setMatchGuess(Boolean(result.unsure))
           setMessage(result.message || '')
           return
         }
@@ -538,7 +541,7 @@ function LandingPage() {
     try {
       const result = await giftRepository.resolveStudent(value)
       if (result?.giftPath) await openGiftWithReveal(result.giftPath, value)
-      else if (result?.matches?.length) { setMatches(result.matches); setMessage(result.message || '') }
+      else if (result?.matches?.length) { setMatches(result.matches); setMatchGuess(Boolean(result.unsure)); setMessage(result.message || '') }
       else setError('Không tìm thấy tên này trong danh sách.')
     } catch (err) {
       // Thành viên lớp nhưng không có trang quà riêng (ví dụ các bạn nam)
@@ -635,7 +638,9 @@ function LandingPage() {
           ) : matches.length > 0 ? (
             <>
               <button type="button" className="btn-dashed" onClick={() => { setMatches([]); setMessage('') }}>← Chọn lại</button>
-              <h1 className="landing__title landing__title--step">Có mấy bạn tên <span className="landing__name">{name.trim()}</span></h1>
+              <h1 className="landing__title landing__title--step">
+                {matchGuess ? 'Có phải cậu là…' : <>Có mấy bạn tên <span className="landing__name">{name.trim()}</span></>}
+              </h1>
               <p className="landing__intro">{message || 'Bạn là ai trong số này? Chọn đúng người để mở quà.'}</p>
               <MatchList matches={matches} onPick={(match) => openGiftWithReveal(match.giftPath, match.displayName)} />
               <p className="landing__note">

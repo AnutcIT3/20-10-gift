@@ -6,7 +6,7 @@ import { seatLabel } from '../../lib/seat'
 import { cld, CLD_TINY } from '../../lib/cloudinary'
 
 const EMPTY_FORM = {
-  full_name: '', nickname: '', avatar_url: '', intro_message: '', admin_wish: '', class_name: 'A1', access_code: '', is_active: true,
+  full_name: '', nickname: '', search_aliases: '', avatar_url: '', intro_message: '', admin_wish: '', class_name: 'A1', access_code: '', is_active: true,
   member_type: 'class',
 }
 const FILTERS = [
@@ -253,6 +253,7 @@ function StudentManager() {
       const data = {
         full_name: form.full_name.trim() || null,
         nickname: form.nickname.trim() || null,
+        search_aliases: form.search_aliases.trim() || null,
         avatar_url: form.avatar_url.trim() || null,
         intro_message: form.intro_message.trim() || null,
         admin_wish: form.admin_wish.trim() || null,
@@ -294,6 +295,7 @@ function StudentManager() {
     setForm({
       full_name: student.full_name || '',
       nickname: student.nickname || '',
+      search_aliases: student.search_aliases || '',
       avatar_url: student.avatar_url || '',
       intro_message: student.intro_message || '',
       admin_wish: student.admin_wish || '',
@@ -424,6 +426,10 @@ function StudentManager() {
           <h3>{editingId ? 'Sửa học sinh' : 'Thêm học sinh'}</h3>
           <label className="admin-field">Họ và tên<input className="input-hand" required maxLength={100} value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></label>
           <label className="admin-field">Tên gọi<input className="input-hand" maxLength={50} value={form.nickname} onChange={(e) => setForm({ ...form, nickname: e.target.value })} /></label>
+          <label className="admin-field">Tên gọi khác khi tìm
+            <input className="input-hand" maxLength={255} placeholder="Cô Phượng, Phượng" value={form.search_aliases} onChange={(e) => setForm({ ...form, search_aliases: e.target.value })} />
+            <small className="admin-hint">Gõ tên nào ở đây (cách nhau bằng dấu phẩy) ở trang chủ cũng mở đúng trang này — giữ dấu: "Phượng" khác "Phương".</small>
+          </label>
           <label className="admin-field">Mã truy cập
             <input
               className="input-hand input-hand--mono"

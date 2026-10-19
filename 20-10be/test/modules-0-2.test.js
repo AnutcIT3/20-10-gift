@@ -64,6 +64,8 @@ test('module 2: resolve normalizes input, returns at most 10 active matches', as
   const original = pool.execute;
   pool.execute = async (sql, params) => {
     assert.match(sql, /is_active = TRUE/);
+    // Câu thứ hai lấy cả lớp kèm biệt danh / tên gọi khác
+    if (sql.includes('AS search_aliases')) return [[]];
     assert.match(sql, /LIMIT 10/);
     assert.deepEqual(params, ['nguyen%', '% nguyen%', 'class', 'test']);
     return [[
@@ -131,6 +133,87 @@ test('module 2: resolve tells Thúy from Thủy and Phương from Phượng by t
     // Dấu không khớp ai ("Thùy") thì lùi về danh sách, không báo "không tìm thấy"
     const typo = await resolveService.resolve('Thùy');
     assert.deepEqual(typo.matches.map((m) => m.displayName).sort(), ['Thúy', 'Thủy']);
+  } finally {
+    pool.execute = original;
+  }
+});
+
+test('module 2: tên gọi khác — "phượng", "cô phượng", "cô giáo" đều vào trang cô; "Phương" vẫn là bạn Phương', async () => {
+  const original = pool.execute;
+  const classRows = [
+    { full_name: 'Phương', nickname: '', avatar_url: null, access_code: 'phuong' },
+    { full_name: 'Phương Anh', nickname: '', avatar_url: null, access_code: 'phuong-anh' },
+    { full_name: 'Phương Linh', nickname: '', avatar_url: null, access_code: 'phuong-linh' },
+    { full_name: 'Cô Giáo', nickname: '', search_aliases: 'Cô Phượng, Phượng', avatar_url: null, access_code: 'co-giao' },
+  ];
+  pool.execute = async (sql, params) => {
+    if (sql.includes('AS search_aliases')) {
+      assert.deepEqual(params, ['class', 'test']);
+      return [classRows];
+    }
+    const prefix = params[0].slice(0, -1);
+    // Câu theo họ tên không trả cột tên gọi khác
+    return [classRows.filter((row) => ` ${normalizeName(row.full_name)}`.includes(` ${prefix}`))
+      .map(({ search_aliases: _aliases, ...row }) => row)];
+  };
+  try {
+    for (const typed of ['phượng', 'Phượng', 'cô phượng', 'Cô Phượng', 'co phuong', 'cô giáo', 'Cô Giáo', 'co giao', ' CÔ   PHƯỢNG ']) {
+      assert.deepEqual(await resolveService.resolve(typed), { giftPath: '/gift/co-giao' }, typed);
+    }
+    // Có dấu khác: vẫn là bạn Phương, không phải cô
+    assert.deepEqual(await resolveService.resolve('Phương'), { giftPath: '/gift/phuong' });
+    // Không dấu thì không đoán: hỏi lại giữa bạn Phương và cô
+    const bare = await resolveService.resolve('phuong');
+    assert.deepEqual(bare.matches.map((m) => m.displayName).sort(), ['Cô Giáo', 'Phương']);
+    // Gõ dở "phượ" (có dấu) cũng chỉ ra cô
+    assert.deepEqual(await resolveService.resolve('phượ'), { giftPath: '/gift/co-giao' });
+  } finally {
+    pool.execute = original;
+  }
+});
+
+test('module 2: gõ cả họ tên, biệt danh, hay "Anh" giữa Ánh và Hải Anh — không mở nhầm ai', async () => {
+  const original = pool.execute;
+  const rowsOf = (list) => list.map(([full_name, nickname, access_code]) => ({ full_name, nickname, avatar_url: null, access_code }));
+  const classRows = rowsOf([
+    ['Phương', 'Phương', 'phuong'], ['Phương Anh', 'Phanh', 'phuong-anh'], ['Thủy', 'Thủy Phin', 'thuy'],
+    ['Vũ Huyền', 'Vũ Huyền', 'vu-huyen'], ['Mai Huyền', 'Mai Huyền', 'mai-huyen'], ['Diệu Linh', 'Linh Tần', 'dieu-linh'],
+  ]);
+  const friendRows = rowsOf([['Ánh', null, 'anh'], ['Hải Anh', null, 'hai-anh'], ['Vân Anh', null, 'van-anh']]);
+  pool.execute = async (sql, params) => {
+    const list = params.includes('friend') ? friendRows : classRows;
+    if (sql.includes('AS search_aliases')) return [list.map((row) => ({ ...row, search_aliases: null }))];
+    const prefix = params[0].slice(0, -1);
+    return [list.filter((row) => ` ${normalizeName(row.full_name)}`.includes(` ${prefix}`))];
+  };
+  const path = async (typed, scope) => (await resolveService.resolve(typed, scope)).giftPath;
+  try {
+    // Cả họ tên: chỉ còn tên trong danh sách
+    assert.equal(await path('Nguyễn Thị Phương'), '/gift/phuong');
+    assert.equal(await path('nguyen thi phuong anh'), '/gift/phuong-anh');
+    assert.equal(await path('Trần Thị Thủy'), '/gift/thuy');
+    assert.equal(await path('Lê Thị Diệu Linh'), '/gift/dieu-linh');
+    // Danh sách ghi họ + tên ("Vũ Huyền"), bạn gõ thêm tên đệm
+    assert.equal(await path('Vũ Thị Huyền'), '/gift/vu-huyen');
+    // Chỉ trùng một chữ thì không mở: "Nguyễn Thị Mai" không phải Mai Huyền
+    assert.equal((await resolveService.resolve('Nguyễn Thị Mai')).status, 404);
+    // Biệt danh
+    assert.equal(await path('Thủy Phin'), '/gift/thuy');
+    assert.equal(await path('phanh'), '/gift/phuong-anh');
+    assert.equal(await path('linh tan'), '/gift/dieu-linh');
+    // "Anh" không dấu: có thể là Ánh, cũng đúng là chữ của Hải Anh, Vân Anh → hỏi lại
+    const anh = await resolveService.resolve('Anh', 'friend');
+    assert.deepEqual(anh.matches.map((m) => m.displayName), ['Ánh', 'Hải Anh', 'Vân Anh']);
+    assert.equal(await path('Ánh', 'friend'), '/gift/anh');
+    assert.equal(await path('Hải Anh', 'friend'), '/gift/hai-anh');
+    // Dấu không khớp ai ("Phượng" khi lớp chỉ có Phương): hỏi lại, không mở thẳng
+    const guess = await resolveService.resolve('Phượng');
+    assert.equal(guess.giftPath, undefined);
+    assert.deepEqual(guess.matches.map((m) => m.displayName), ['Phương']);
+    const single = await resolveService.resolve('Thùy Phìn');
+    assert.deepEqual(single.matches.map((m) => m.displayName), ['Thủy']);
+    assert.equal(single.unsure, true);
+    assert.match(single.message, /Không thấy ai tên đúng như vậy/);
   } finally {
     pool.execute = original;
   }
@@ -212,6 +295,7 @@ test('module 2: resolve escapes LIKE wildcards so input cannot match everything'
   const original = pool.execute;
   let captured;
   pool.execute = async (sql, params) => {
+    if (sql.includes('AS search_aliases')) return [[]];
     captured = params;
     return [[{ full_name: 'Nguyễn A', nickname: 'A', avatar_url: null, access_code: 'code-a' }]];
   };
@@ -475,9 +559,9 @@ test('module 3: create student normalizes name and retries duplicate access code
     if (sql.includes('INSERT INTO students')) {
       inserts += 1;
       assert.equal(params[1], 'nguyen thi an');
-      assert.equal(params[7].length, 12);
-      assert.equal(params[8], 0);
-      assert.equal(params[9], 9);
+      assert.equal(params[8].length, 12);
+      assert.equal(params[9], 0);
+      assert.equal(params[10], 9);
       if (inserts < 3) throw Object.assign(new Error('duplicate'), { code: 'ER_DUP_ENTRY' });
       return [{ insertId: 8 }];
     }
@@ -1162,9 +1246,9 @@ test('module 3: admin thêm được khách ngoài lớp (không chỗ ngồi, l
   try {
     await studentService.createStudent({ full_name: 'Hùng', member_type: 'friend', seat_row: 1, seat_col: 2 });
     const [row] = inserts;
-    // full_name, …, class_name (vị trí 6), access_code, seat_row, seat_col, member_type
-    assert.equal(row[6], 'Bạn bè');
-    assert.deepEqual(row.slice(8), [null, null, 'friend']);
+    // full_name, …, class_name (vị trí 7), access_code, seat_row, seat_col, member_type
+    assert.equal(row[7], 'Bạn bè');
+    assert.deepEqual(row.slice(9), [null, null, 'friend']);
     await assert.rejects(() => studentService.createStudent({ full_name: 'minh thư', member_type: 'friend' }), { statusCode: 409 });
     // Đã tạo rồi thì không sửa thành khách được
     await assert.rejects(() => studentService.updateStudent(3, { member_type: 'friend' }), { statusCode: 400 });
