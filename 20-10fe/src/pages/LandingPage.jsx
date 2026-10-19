@@ -515,7 +515,9 @@ function LandingPage() {
         />
       )}
       {/* Số lời chúc to, mờ, nghiêng sau nội dung — trang trí; số đọc được ở dòng dưới nút gửi */}
-      {wishesShown !== null && <div className="wish-ghost" aria-hidden="true">{wishesShown}</div>}
+      {wishesShown !== null && (
+        <div className="wish-ghost" style={{ '--digits': String(wishesShown).length }} aria-hidden="true">{wishesShown}</div>
+      )}
       <div className="landing__grid">
         <div className="landing__envelope">
           <div className={`wish-heap-scene${wishesShown !== null ? ' has-heap' : ''}`}>
@@ -525,20 +527,23 @@ function LandingPage() {
         </div>
         <div className="landing__content">
           {giftsLocked ? (
-            <>
+            <div className="landing__locked">
               <p className="kicker">20 · 10 · {EVENT_YEAR}</p>
               <h1 className="landing__title">Một món quà nhỏ dành riêng cho bạn</h1>
               <p className="landing__intro">Góc lưu bút các bạn nam {CLASS_NAME} làm tặng đang được gói, sẽ mở vào ngày 20/10.</p>
-              {eventStatus.unlockAt
-                ? <EventCountdown unlockAt={eventStatus.unlockAt} offset={eventOffset} onDone={handleCountdownDone} />
-                : <p className="landing__ask">Hẹn bạn ngày 20/10 nhé!</p>}
+              {/* Điện thoại thấp: đồng hồ xuống dưới nút gửi lời chúc (CSS order) */}
+              <div className="landing__wait">
+                {eventStatus.unlockAt
+                  ? <EventCountdown unlockAt={eventStatus.unlockAt} offset={eventOffset} onDone={handleCountdownDone} />
+                  : <p className="landing__ask">Hẹn bạn ngày 20/10 nhé!</p>}
+              </div>
               <p className="landing__ask">Trong lúc chờ, bạn có thể gửi trước một lời chúc:</p>
-              <div className="landing__roles">
+              <div className="landing__roles landing__roles--locked">
                 <button type="button" className="btn-stamp" style={{ '--rot': '-1deg' }} onClick={openWish}>
                   <span className="btn-stamp__icon" aria-hidden="true">✉</span>Gửi lời chúc cho một bạn
                 </button>
               </div>
-            </>
+            </div>
           ) : !visitorRole ? (
             <>
               <p className="kicker">20 · 10 · {EVENT_YEAR}</p>
