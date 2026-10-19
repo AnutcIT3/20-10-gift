@@ -7,7 +7,7 @@ import LandingPage from './LandingPage'
 // Trang quà khoá chờ 20/10: trang chủ chỉ còn đếm ngược và gửi lời chúc —
 // không chọn vai trò, không tra tên để mở quà, không Face ID
 
-const event = vi.hoisted(() => ({ status: null }))
+const event = vi.hoisted(() => ({ status: null, justOpened: false }))
 
 vi.mock('../hooks/useFaceScan', () => ({
   default: () => ({
@@ -18,7 +18,7 @@ vi.mock('../hooks/useFaceScan', () => ({
 }))
 
 vi.mock('../hooks/useEventStatus', () => ({
-  default: () => ({ status: event.status, offset: 0, justOpened: false, refresh: vi.fn() }),
+  default: () => ({ status: event.status, offset: 0, justOpened: Boolean(event.justOpened), refresh: vi.fn() }),
 }))
 
 vi.mock('../api/giftRepository', () => ({
@@ -29,6 +29,8 @@ vi.mock('../api/giftRepository', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  event.justOpened = false
+  window.matchMedia = vi.fn(() => ({ matches: false }))
   Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true })
   Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: vi.fn() }, configurable: true })
   giftRepository.faceStatus.mockResolvedValue({ enabled: true })
@@ -155,4 +157,29 @@ test('trang bị khoá giữa chừng rồi mở lại: quay về bước chọn
   view.rerender(<MemoryRouter><LandingPage /></MemoryRouter>)
   expect(await screen.findByRole('button', { name: /Mình là thành viên trong lớp/ })).toBeTruthy()
   expect(screen.queryByLabelText(/Tên:/)).toBeNull()
+})
+
+test('00:00 — quà vừa mở trước mắt: dấu vỡ, phong bì mở lá thư chúc mừng, mưa cánh hoa, số mờ thành "20.10"', async () => {
+  event.status = { ...LOCKED, serverNow: new Date().toISOString(), wishes: { shown: 45, lastAt: null } }
+  const view = renderPage()
+  await vi.waitFor(() => expect(view.container.querySelector('.wish-ghost')).toHaveTextContent('45'))
+  expect(view.container.querySelector('.petal-rain')).toBeNull()
+
+  event.status = { ...event.status, locked: false, unlockAt: null }
+  event.justOpened = true
+  view.rerender(<MemoryRouter><LandingPage /></MemoryRouter>)
+  await vi.waitFor(() => expect(view.container.querySelector('.petal-rain')).not.toBeNull())
+  expect(view.container.querySelector('.wish-ghost')).toHaveTextContent('20.10')
+  expect(view.container.querySelector('.seal-crack')).not.toBeNull()
+  expect(view.container.querySelector('.envelope--open .envelope__letter')).toHaveTextContent('Chúc mừng 20/10! 💐')
+  expect(screen.getByText(/Quà đã mở rồi!/)).toBeTruthy()
+})
+
+test('máy đặt "giảm chuyển động" thì không có mưa cánh hoa', async () => {
+  window.matchMedia = vi.fn(() => ({ matches: true }))
+  event.status = { ...LOCKED, locked: false, unlockAt: null, wishes: { shown: 45, lastAt: null } }
+  event.justOpened = true
+  const view = renderPage()
+  await vi.waitFor(() => expect(view.container.querySelector('.wish-ghost')).toHaveTextContent('20.10'))
+  expect(view.container.querySelector('.petal-rain')).toBeNull()
 })

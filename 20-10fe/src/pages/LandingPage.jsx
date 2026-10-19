@@ -8,6 +8,7 @@ import Petals from '../components/paper/Petals'
 import Envelope from '../components/paper/Envelope'
 import Stamp from '../components/paper/Stamp'
 import Postmark from '../components/paper/Postmark'
+import PetalRain from '../components/PetalRain'
 import PickedImages from '../components/PickedImages'
 import WishHeap from '../components/WishHeap'
 import useDialogA11y from '../hooks/useDialogA11y'
@@ -110,6 +111,13 @@ function MatchList({ matches, onPick, disabled = false }) {
   )
 }
 
+// Thời gian hiệu ứng mở quà lúc 00:00 (mưa cánh hoa, số "20.10")
+const CELEBRATE_MS = 6000
+
+function prefersReducedMotion() {
+  return typeof window !== 'undefined' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+}
+
 // "✉ 24 lời chúc đã được gửi" và "Ai đó vừa gửi một lời chúc · 2 phút trước"
 // (không lộ ai gửi, gửi cho ai — chỉ cho thấy đang có người chúc)
 function WishStats({ shown, lastAt, offset = 0 }) {
@@ -165,6 +173,15 @@ function LandingPage() {
   // Trang quà đang khoá chờ 20/10: trang chủ chỉ còn đếm ngược và gửi lời
   // chúc — không chọn vai trò, không tra tên, không Face ID (máy chủ cũng chặn)
   const giftsLocked = Boolean(eventStatus?.locked)
+  // 00:00 — chính trang này thấy quà chuyển từ khoá sang mở: dấu "20.10" vỡ,
+  // phong bì mở ra lá thư chúc mừng, mưa cánh hoa và số mờ thành "20.10" vài giây
+  const [celebrating, setCelebrating] = useState(false)
+  useEffect(() => {
+    if (!justOpened) return undefined
+    const start = setTimeout(() => setCelebrating(true), 0)
+    const stop = setTimeout(() => setCelebrating(false), CELEBRATE_MS)
+    return () => { clearTimeout(start); clearTimeout(stop) }
+  }, [justOpened])
   // Số lời chúc (đã cộng sẵn số khởi đầu ở máy chủ): máy chủ báo mỗi 15 giây;
   // chính mình vừa gửi thì dùng luôn số trả về để thư bay vào ngay
   const [ownWishNumber, setOwnWishNumber] = useState(null)
@@ -535,12 +552,27 @@ function LandingPage() {
       )}
       {/* Số lời chúc to, mờ, nghiêng sau nội dung — trang trí; số đọc được ở dòng dưới nút gửi */}
       {wishesShown !== null && (
-        <div className="wish-ghost" style={{ '--digits': String(wishesShown).length }} aria-hidden="true">{wishesShown}</div>
+        <div
+          className={`wish-ghost${celebrating ? ' is-date' : ''}`}
+          style={{ '--digits': celebrating ? 5 : String(wishesShown).length }}
+          aria-hidden="true"
+        >
+          {celebrating ? '20.10' : wishesShown}
+        </div>
       )}
       <div className="landing__grid">
         <div className="landing__envelope">
-          <div className={`wish-heap-scene${wishesShown !== null ? ' has-heap' : ''}`}>
-            <Envelope open={Boolean(visitorRole)} sealWiggle />
+          <div className={`wish-heap-scene${wishesShown !== null ? ' has-heap' : ''}${celebrating ? ' is-celebrating' : ''}`}>
+            {/* Quà vừa mở: phong bì mở sẵn với lá thư chúc mừng cho tới khi chọn vai trò */}
+            <Envelope
+              open={Boolean(visitorRole) || justOpened}
+              letterText={visitorRole ? undefined : 'Chúc mừng 20/10! 💐'}
+              sealWiggle
+            >
+              {celebrating && (
+                <span className="seal-crack" aria-hidden="true"><i>20.10</i><i>20.10</i></span>
+              )}
+            </Envelope>
             {wishesShown !== null && <WishHeap count={wishesShown} flights={wishFlights} onLanded={landWish} />}
           </div>
         </div>
@@ -669,7 +701,7 @@ function LandingPage() {
         </div>
       </div>
       {/* Khoảnh khắc quà mở ngay trước mắt: thêm một đợt cánh hoa */}
-      {justOpened && <Petals count={4} fast />}
+      {celebrating && !prefersReducedMotion() && <PetalRain />}
 
       {wishOpen && (
         <div className="wish-backdrop" role="presentation" onClick={closeWish}>
