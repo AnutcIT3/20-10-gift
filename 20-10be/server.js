@@ -15,6 +15,7 @@ const studentRoutes = require('./routes/students');
 const { adminStudentGalleryRouter, galleryRouter } = require('./routes/gallery-admin');
 const { adminLettersRouter, lettersRouter } = require('./routes/letters-admin');
 const greetingRoutes = require('./routes/greetings');
+const { adminGreetingsRouter } = greetingRoutes;
 const friendRoutes = require('./routes/friends');
 const faceRoutes = require('./routes/face');
 const adminFaceRoutes = require('./routes/admin-face');
@@ -112,6 +113,7 @@ app.use('/api/face', faceRoutes);
 app.use('/api/admin/data-revision', revisionLimiter);
 app.use('/api/admin/face', adminFaceRoutes);
 app.use('/api/admin/replies', adminRepliesRouter);
+app.use('/api/admin/greetings', adminGreetingsRouter);
 app.use('/api/admin', adminStatsRoutes);
 
 // ── Serve frontend build (kích hoạt khi SERVE_STATIC=true hoặc NODE_ENV=production) ──
