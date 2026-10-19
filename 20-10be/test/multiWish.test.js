@@ -238,9 +238,12 @@ test('ô "Ngoài lớp": chỉ thêm thẳng khi gõ đúng cả tên khách; g�
   // Tên bạn trong lớp: không đổ sang khách trùng một chữ
   await assert.rejects(() => multiWishService.findGuests('Diệu Linh'), { statusCode: 404, message: /là bạn trong lớp.*Trong lớp/ });
   await assert.rejects(() => multiWishService.findGuests('Linh Tần'), { statusCode: 404, message: /"Diệu Linh" là bạn trong lớp/ });
-  // ...khách có tên chứa đủ chữ đó thì gợi ý kèm lời nhắc
+  // Gõ phần tên của khách (không kèm họ) thì thêm luôn, chỉ nhắc trong lớp cũng có tên đó
   const pa = await multiWishService.findGuests('Phương Anh');
-  assert.deepEqual([ids(pa), pa.unsure, pa.alsoInClass], [[32], true, 'Phương Anh']);
+  assert.deepEqual([ids(pa), pa.unsure, pa.alsoInClass], [[32], false, 'Phương Anh']);
+  assert.equal((await multiWishService.findGuests('phuong anh')).unsure, false);
+  // Chỉ một chữ đầu của tên ("Phương") thì vẫn hỏi
+  assert.equal((await multiWishService.findGuests('Phương')).unsure, true);
   // Trùng y tên một khách và một bạn trong lớp: thêm khách, nhắc tab lớp
   const va = await multiWishService.findGuests('Vân Anh');
   assert.deepEqual([ids(va), va.unsure, va.alsoInClass], [[31], false, 'Vân Anh']);
