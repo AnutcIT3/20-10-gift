@@ -2438,3 +2438,35 @@
   width: 96px;
   padding-bottom: 12px;
 }
+
+/* Lời chúc riêng / 💌: lời nhắn thêm (lời 2–4), mỗi lời một khung nhỏ */
+.wish-notes {
+  display: grid;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.wish-note {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0 0;
+  border-top: 1px dashed var(--line);
+}
+
+.wish-note__index {
+  margin: 0;
+  font: 600 13px var(--font-body, inherit);
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wish-note__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wish-notes__add {
+  justify-self: start;
+}

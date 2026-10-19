@@ -92,7 +92,62 @@ async function removeWishImage(req, res) {
   return sendSuccess(res, await studentService.removeWishImages(id, req.params.kind, imageId));
 }
 
+function parsePositiveId(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : null;
+}
+
+// Lời chúc riêng / 💌: thêm, sửa, xoá các lời nhắn thêm (lời thứ 2–4)
+async function addWishNote(req, res) {
+  const id = parseId(req, res);
+  if (id === null) return undefined;
+  return sendSuccess(res, await studentService.addWishNote(id, req.params.kind, req.body?.content), 201);
+}
+
+async function updateWishNote(req, res) {
+  const id = parseId(req, res);
+  if (id === null) return undefined;
+  const noteId = parsePositiveId(req.params.noteId);
+  if (noteId === null) return sendError(res, 'ID lời nhắn không hợp lệ', 400);
+  return sendSuccess(res, await studentService.updateWishNote(id, noteId, req.body?.content));
+}
+
+async function removeWishNote(req, res) {
+  const id = parseId(req, res);
+  if (id === null) return undefined;
+  const noteId = parsePositiveId(req.params.noteId);
+  if (noteId === null) return sendError(res, 'ID lời nhắn không hợp lệ', 400);
+  return sendSuccess(res, await studentService.removeWishNote(id, noteId));
+}
+
+async function uploadWishNoteImages(req, res) {
+  const images = extractLetterImages(req);
+  const id = parseId(req, res);
+  if (id === null) { await cleanupLetterImages(images); return undefined; }
+  const noteId = parsePositiveId(req.params.noteId);
+  if (noteId === null) { await cleanupLetterImages(images); return sendError(res, 'ID lời nhắn không hợp lệ', 400); }
+  if (!images.length) return sendError(res, 'Chọn ảnh để tải lên (trường "images")', 400);
+  await assertImageCount(images);
+  try {
+    return sendSuccess(res, await studentService.addWishNoteImages(id, noteId, images));
+  } catch (error) {
+    // Không có lời nhắn, hay quá 4 ảnh → dọn ảnh đã lỡ upload
+    await cleanupLetterImages(images);
+    throw error;
+  }
+}
+
+async function removeWishNoteImage(req, res) {
+  const id = parseId(req, res);
+  if (id === null) return undefined;
+  const noteId = parsePositiveId(req.params.noteId);
+  const imageId = parsePositiveId(req.params.imageId);
+  if (noteId === null || imageId === null) return sendError(res, 'ID không hợp lệ', 400);
+  return sendSuccess(res, await studentService.removeWishNoteImage(id, noteId, imageId));
+}
+
 module.exports = {
   list, getOne, create, update, deactivate, activate, remove, updateAccessCode, updateSeat,
   uploadWishImage, removeWishImage,
+  addWishNote, updateWishNote, removeWishNote, uploadWishNoteImages, removeWishNoteImage,
 };

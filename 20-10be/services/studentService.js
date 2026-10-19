@@ -5,6 +5,7 @@ const normalizeName = require('../utils/normalizeName');
 const { accentKey } = require('../utils/nameKey');
 const letterImageService = require('./letterImageService');
 const wishImageService = require('./wishImageService');
+const wishNoteService = require('./wishNoteService');
 
 const EDITABLE_FIELDS = ['nickname', 'avatar_url', 'intro_message', 'admin_wish', 'greeting_custom', 'class_name', 'member_type'];
 // Admin chỉ đổi qua lại giữa thành viên lớp và tài khoản thử; hồ sơ bạn ngoài
@@ -191,7 +192,8 @@ async function listStudents() {
     if (error?.code !== 'ER_NO_SUCH_TABLE') throw error;
     [rows] = await pool.execute(listStudentsSql(false));
   }
-  return wishImageService.withWishImages(rows.map(presentStudent));
+  // Ảnh lời chúc riêng và các lời nhắn thêm: mỗi thứ một truy vấn cho cả danh sách
+  return wishNoteService.withWishNotes(await wishImageService.withWishImages(rows.map(presentStudent)));
 }
 
 async function getStudent(id) {
@@ -203,7 +205,7 @@ async function getStudent(id) {
     [id],
   );
   if (!rows[0]) return null;
-  const [student] = await wishImageService.withWishImages([presentStudent(rows[0])]);
+  const [student] = await wishNoteService.withWishNotes(await wishImageService.withWishImages([presentStudent(rows[0])]));
   return student;
 }
 
@@ -333,6 +335,8 @@ async function deleteStudent(id) {
       `SELECT li.public_id FROM letter_images li JOIN letters l ON l.id = li.letter_id
        WHERE l.student_id = ? AND li.public_id IS NOT NULL`,
       'SELECT public_id FROM wish_images WHERE student_id = ? AND public_id IS NOT NULL',
+      `SELECT i.public_id FROM wish_note_images i JOIN wish_notes n ON n.id = i.note_id
+       WHERE n.student_id = ? AND i.public_id IS NOT NULL`,
     ]) {
       try {
         const [rows] = await connection.execute(sql, [id]);
@@ -478,8 +482,35 @@ async function removeWishImages(id, kind, imageId = null) {
   return getStudent(id);
 }
 
+// Lời chúc riêng / 💌: các lời nhắn THÊM (lời thứ 2–4) — xem wishNoteService
+async function addWishNote(id, kind, content) {
+  await wishNoteService.addNote(id, kind, content);
+  return getStudent(id);
+}
+
+async function updateWishNote(id, noteId, content) {
+  await wishNoteService.updateNote(id, noteId, content);
+  return getStudent(id);
+}
+
+async function removeWishNote(id, noteId) {
+  await wishNoteService.removeNote(id, noteId);
+  return getStudent(id);
+}
+
+async function addWishNoteImages(id, noteId, images) {
+  await wishNoteService.addNoteImages(id, noteId, images);
+  return getStudent(id);
+}
+
+async function removeWishNoteImage(id, noteId, imageId) {
+  await wishNoteService.removeNoteImage(id, noteId, imageId);
+  return getStudent(id);
+}
+
 module.exports = {
   listStudents, getStudent, createStudent, updateStudent, deactivateStudent, activateStudent,
   deleteStudent, updateAccessCode, updateSeat, validateAvatarUrl, addWishImages, removeWishImages,
+  addWishNote, updateWishNote, removeWishNote, addWishNoteImages, removeWishNoteImage,
   WISH_IMAGE_COLUMNS: wishImageService.WISH_IMAGE_COLUMNS,
 };
