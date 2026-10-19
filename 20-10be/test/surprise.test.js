@@ -309,11 +309,12 @@ test('hồi âm luôn chờ duyệt và chỉ trả lời được thư đã duy
   const student = { id: 3 };
 
   const reply = await replyService.createReply(student, {
-    target: 'letter', letter_id: 5, content: '  Cảm ơn cậu nhiều lắm!  ', status: 'approved',
+    target: 'letter', letter_id: 5, content: '  Cảm ơn cậu nhiều lắm!  ', status: 'rejected',
   });
-  assert.equal(reply.status, 'pending');
+  // Hồi âm không cần duyệt: lên luôn, trạng thái người gửi khai bị bỏ qua
+  assert.equal(reply.status, 'approved');
   assert.equal(reply.content, 'Cảm ơn cậu nhiều lắm!');
-  assert.match(inserts[0].sql, /'pending'\)/);
+  assert.match(inserts[0].sql, /'approved'\)/);
   assert.deepEqual(inserts[0].params, [3, 'letter', 5, 'Cảm ơn cậu nhiều lắm!']);
   // Thư phải của đúng trang này, đã duyệt và đã tới giờ hiện
   assert.deepEqual(letterLookup.params, [5, 3]);
@@ -428,7 +429,7 @@ test('hồi âm ẩn danh: ghi cờ khi gửi, Hộp thư và trang admin không
 
   const reply = await replyService.createReply({ id: 7 }, { target: 'class', content: 'Cảm ơn các cậu', is_anonymous: true });
   assert.equal(reply.is_anonymous, true);
-  assert.match(inserts[0].sql, /is_anonymous, status\)\s+VALUES \(\?, \?, \?, \?, TRUE, 'pending'\)/);
+  assert.match(inserts[0].sql, /is_anonymous, status\)\s+VALUES \(\?, \?, \?, \?, TRUE, 'approved'\)/);
   // Không chọn ẩn danh: câu INSERT y như trước migration 022
   await replyService.createReply({ id: 7 }, { target: 'class', content: 'Có tên' });
   assert.doesNotMatch(inserts[1].sql, /is_anonymous/);
@@ -519,7 +520,7 @@ test('hồi âm: gửi qua trang quà, hộp thư công khai và các đường 
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target: 'class', content: 'Cảm ơn cả lớp!' }),
   });
   assert.equal(created.status, 201);
-  assert.equal((await created.json()).data.status, 'pending');
+  assert.equal((await created.json()).data.status, 'approved');
 
   const missing = await fetch(`${base}/api/gifts/khong-co/replies`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target: 'class', content: 'Hi' }),

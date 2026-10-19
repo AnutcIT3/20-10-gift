@@ -3,11 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { adminApi } from '../../api/adminApi'
 import { CLASS_NAME, formatStamp } from '../../lib/event'
 
+// Hồi âm không cần duyệt: gửi xong là hiện. Admin chỉ ẩn hồi âm lạ giọng
+// (hoặc hiện lại). 'pending' chỉ còn ở hồi âm cũ trước khi bỏ bước duyệt.
 const STATUSES = [
-  { value: 'pending', label: 'Chờ duyệt' },
-  { value: 'approved', label: 'Đã duyệt' },
-  { value: 'rejected', label: 'Từ chối' },
+  { value: 'approved', label: 'Đang hiện' },
+  { value: 'rejected', label: 'Đã ẩn' },
 ]
+const STATUS_LABELS = { pending: 'Chờ duyệt', approved: 'Đang hiện', rejected: 'Đã ẩn' }
 const TARGET_LABELS = { letter: 'trả lời thư', class: 'gửi các bạn nam', admin: 'gửi admin' }
 
 function recipientOf(reply) {
@@ -19,13 +21,14 @@ function recipientOf(reply) {
 }
 
 /**
- * Duyệt thư hồi âm: các bạn nữ đọc thư xong viết lại cho người gửi, cả lớp
- * hoặc admin. Hồi âm đã duyệt hiện ở Hộp thư hồi âm (/hoi-am) cho cả lớp đọc.
+ * Thư hồi âm: các bạn nữ đọc thư xong viết lại cho người gửi, cả lớp hoặc
+ * admin. Hồi âm hiện ngay ở Hộp thư hồi âm (/hoi-am) cho cả lớp đọc; ở đây
+ * admin đọc và ẩn hồi âm lạ giọng.
  */
 function ReplyManager() {
   const navigate = useNavigate()
   const location = useLocation()
-  const status = new URLSearchParams(location.search).get('status') || 'pending'
+  const status = new URLSearchParams(location.search).get('status') || 'approved'
   const [page, setPage] = useState(1)
   const [data, setData] = useState({ items: [], pagination: { total: 0, totalPages: 0 } })
   const [counts, setCounts] = useState(null)
@@ -93,14 +96,14 @@ function ReplyManager() {
   // Thông báo nói đúng hồi âm sẽ hiện ở đâu: thư riêng gửi admin và hồi âm cho
   // lá thư đã bị xoá không bao giờ lên Hộp thư công khai
   const approvedMessage = (reply) => {
-    if (reply.target === 'admin') return 'Đã đánh dấu đã đọc — thư riêng, không lên Hộp thư hồi âm.'
-    if (reply.to?.kind === 'missing') return 'Đã duyệt — lá thư gốc đã bị gỡ nên hồi âm không hiện ở Hộp thư.'
-    return 'Đã duyệt hồi âm — giờ nó nằm ở Hộp thư hồi âm.'
+    if (reply.target === 'admin') return 'Đã hiện lại — thư riêng, không lên Hộp thư hồi âm.'
+    if (reply.to?.kind === 'missing') return 'Đã hiện lại — lá thư gốc đã bị gỡ nên hồi âm không hiện ở Hộp thư.'
+    return 'Đã hiện lại hồi âm ở Hộp thư hồi âm.'
   }
 
   const changeStatus = (reply, next) => run(
     () => adminApi.updateReplyStatus(reply.id, next),
-    next === 'approved' ? approvedMessage(reply) : 'Đã từ chối hồi âm.',
+    next === 'approved' ? approvedMessage(reply) : 'Đã ẩn hồi âm.',
   )
 
   const bulkChange = (next) => {
@@ -143,11 +146,11 @@ function ReplyManager() {
       </header>
 
       <p className="admin-hint reply-manager__hint">
-        Các bạn nữ đọc thư xong viết lại cho người gửi, cho các bạn nam hoặc cho admin. Hồi âm đã
-        duyệt hiện ở{' '}
-        <a href="/hoi-am" target="_blank" rel="noreferrer">Hộp thư hồi âm</a> — ai có link trang đều đọc được;
+        Các bạn nữ đọc thư xong viết lại cho người gửi, cho các bạn nam hoặc cho admin. Hồi âm không
+        cần duyệt — gửi xong là hiện ngay ở{' '}
+        <a href="/hoi-am" target="_blank" rel="noreferrer">Hộp thư hồi âm</a>, ai có link trang đều đọc được;
         riêng hồi âm <b>gửi admin</b> là thư riêng, chỉ hiện ở đây. Ai gõ được tên một bạn cũng mở được trang
-        quà của bạn ấy, nên hồi âm lạ giọng thì cứ từ chối như lời chúc lạ.
+        quà của bạn ấy, nên thấy hồi âm lạ giọng thì bấm <b>Ẩn</b>.
       </p>
 
       <div className="admin-filters">
@@ -163,8 +166,8 @@ function ReplyManager() {
       {selectedIds.length > 0 && (
         <div className="admin-bulk-bar">
           <b>{selectedIds.length} đã chọn</b>
-          <button type="button" className="admin-btn admin-btn--sm admin-btn--moss" onClick={() => bulkChange('approved')} disabled={busy}>✓ Duyệt</button>
-          <button type="button" className="admin-btn admin-btn--sm" onClick={() => bulkChange('rejected')} disabled={busy}>Từ chối</button>
+          <button type="button" className="admin-btn admin-btn--sm admin-btn--moss" onClick={() => bulkChange('approved')} disabled={busy}>Hiện lại</button>
+          <button type="button" className="admin-btn admin-btn--sm" onClick={() => bulkChange('rejected')} disabled={busy}>Ẩn</button>
           <button type="button" className="admin-btn admin-btn--sm" onClick={() => setSelectedIds([])}>Bỏ chọn</button>
         </div>
       )}
@@ -194,7 +197,7 @@ function ReplyManager() {
                     {reply.member_type === 'friend' && <span className="chip chip--moss">bạn ngoài lớp</span>}
                     {reply.member_type === 'test' && <span className="chip chip--moss">tài khoản thử</span>}
                     <span className={`admin-badge ${reply.status}`}>
-                      {STATUSES.find((item) => item.value === reply.status)?.label || reply.status}
+                      {STATUS_LABELS[reply.status] || reply.status}
                     </span>
                   </div>
                   <p className="letter-row__content">{reply.content}</p>
@@ -211,12 +214,12 @@ function ReplyManager() {
                 <div className="letter-row__side">
                   {reply.status !== 'approved' && (
                     <button type="button" className="admin-btn admin-btn--moss" onClick={() => changeStatus(reply, 'approved')} disabled={busy}>
-                      {reply.target === 'admin' ? '✓ Đã đọc' : '✓ Duyệt'}
+                      Hiện lại
                     </button>
                   )}
                   <div className="letter-row__pair">
                     {reply.status !== 'rejected' && (
-                      <button type="button" className="admin-btn" onClick={() => changeStatus(reply, 'rejected')} disabled={busy}>Từ chối</button>
+                      <button type="button" className="admin-btn" onClick={() => changeStatus(reply, 'rejected')} disabled={busy}>Ẩn</button>
                     )}
                     <button type="button" className="admin-btn admin-btn--ghost" onClick={() => remove(reply.id)} disabled={busy}>Xoá</button>
                   </div>
@@ -227,7 +230,7 @@ function ReplyManager() {
         </div>
       ) : (
         <div className="admin-empty">
-          {status === 'pending' ? 'Không còn hồi âm nào chờ duyệt 🎉' : 'Chưa có hồi âm nào ở đây.'}
+          Chưa có hồi âm nào ở đây.
         </div>
       )}
 

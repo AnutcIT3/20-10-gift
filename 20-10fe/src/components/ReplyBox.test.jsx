@@ -12,7 +12,7 @@ afterEach(cleanup)
 
 test('viết hồi âm cho một lá thư: gửi đúng người nhận rồi báo lên trang', async () => {
   const onSent = vi.fn()
-  const reply = { id: 9, target: 'letter', letter_id: 5, content: 'Cảm ơn Tuấn!', status: 'pending' }
+  const reply = { id: 9, target: 'letter', letter_id: 5, content: 'Cảm ơn Tuấn!', status: 'approved' }
   giftRepository.createReply.mockResolvedValue(reply)
   render(<ReplyBox accessCode="12a1-vy" target="letter" letterId={5} recipient="Tuấn" onSent={onSent} />)
 
@@ -29,12 +29,14 @@ test('viết hồi âm cho một lá thư: gửi đúng người nhận rồi b�
   // Gửi xong thì ô viết đóng lại, focus về nút mở ô viết và trình đọc màn hình được báo
   expect(screen.queryByRole('button', { name: 'Gửi hồi âm ✉' })).toBeNull()
   expect(document.activeElement).toBe(screen.getByRole('button', { name: '✉ Hồi âm' }))
-  expect(screen.getByRole('status').textContent).toMatch(/Đã gửi hồi âm/)
+  // Không cần duyệt: báo là đã lên Hộp thư, không nhắc chờ duyệt
+  expect(screen.getByRole('status').textContent).toMatch(/Đã gửi hồi âm — giờ nó đã nằm ở Hộp thư hồi âm/)
+  expect(screen.queryByText(/duyệt/)).toBeNull()
 })
 
 test('chọn "Gửi ẩn danh": gửi kèm cờ, ô viết nói rõ tên không hiện, hồi âm đã gửi ghi "ẩn danh"', async () => {
   const onSent = vi.fn()
-  const reply = { id: 10, target: 'class', content: 'Cảm ơn các cậu', is_anonymous: true, status: 'pending' }
+  const reply = { id: 10, target: 'class', content: 'Cảm ơn các cậu', is_anonymous: true, status: 'approved' }
   giftRepository.createReply.mockResolvedValue(reply)
   render(<ReplyBox accessCode="12a1-vy" target="class" recipient="các bạn nam 12A1" onSent={onSent} />)
 
@@ -55,7 +57,7 @@ test('chọn "Gửi ẩn danh": gửi kèm cờ, ô viết nói rõ tên không 
 
   cleanup()
   render(<ReplyBox accessCode="12a1-vy" target="class" recipient="các bạn nam 12A1" replies={[reply]} />)
-  expect(screen.getByText('✉ Cậu đã hồi âm ẩn danh · chờ duyệt')).toBeTruthy()
+  expect(screen.getByText('✉ Cậu đã hồi âm ẩn danh')).toBeTruthy()
 })
 
 test('bấm "Thôi" thì focus trở lại nút mở ô viết, không rơi về đầu trang', () => {
