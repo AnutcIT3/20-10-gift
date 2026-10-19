@@ -20,8 +20,10 @@
   height: 100svh;
   display: flex;
   flex-direction: column;
-  gap: 26px;
-  padding: 26px 18px;
+  gap: 12px;
+  padding: 18px 16px 14px;
+  /* Nhiều công tắc: màn thấp thì cuộn được, nút Đăng xuất luôn ghim ở đáy */
+  overflow-y: auto;
   background: var(--ink);
   color: var(--paper);
 }
@@ -49,14 +51,15 @@
 
 .admin-brand h1 {
   margin: 0;
-  font-size: 24px;
+  font-size: 19px;
+  white-space: nowrap;
   color: #fff;
 }
 
 .admin-sidebar nav {
   display: grid;
-  gap: 4px;
-  font: 17px var(--font-hand);
+  gap: 2px;
+  font: 16px var(--font-hand);
 }
 
 .admin-sidebar nav a {
@@ -64,7 +67,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  padding: 11px 12px;
+  padding: 7px 12px;
   border-radius: 6px;
   color: var(--beige);
   text-decoration: none;
@@ -93,8 +96,8 @@
 .admin-lock {
   margin-top: auto;
   display: grid;
-  gap: 10px;
-  padding: 14px;
+  gap: 6px;
+  padding: 10px 12px;
   border: 1.5px dashed #7a6558;
   border-radius: 8px;
 }
@@ -103,14 +106,14 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  font: 17px var(--font-hand);
+  gap: 8px;
+  font: 15px/1.25 var(--font-hand);
 }
 
 .admin-toggle {
   position: relative;
-  width: 46px;
-  height: 26px;
+  width: 38px;
+  height: 22px;
   flex: none;
   padding: 0;
   border: 0;
@@ -124,8 +127,8 @@
   position: absolute;
   left: 3px;
   top: 3px;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #fff;
   transition: transform .2s ease;
@@ -136,25 +139,25 @@
 }
 
 .admin-toggle.is-locked::after {
-  transform: translateX(20px);
+  transform: translateX(16px);
 }
 
 /* Công tắc Face ID: BẬT giữ nền rêu (is-locked màu đất là "khóa", không mượn),
    chỉ đẩy nút sang phải */
 .admin-toggle.is-on::after {
-  transform: translateX(20px);
+  transform: translateX(16px);
 }
 
 /* Hai công tắc chung một khối: gạch đứt mảnh tách Face ID khỏi khóa trang quà */
 .admin-lock p + .admin-lock__row {
-  padding-top: 8px;
+  padding-top: 6px;
   border-top: 1px dashed #4d3d35;
 }
 
 .admin-lock p {
   margin: 0;
-  font-size: 12.5px;
-  line-height: 1.45;
+  font-size: 11.5px;
+  line-height: 1.35;
   color: var(--line);
 }
 
@@ -163,10 +166,15 @@
 }
 
 .admin-logout {
-  min-height: 40px;
+  /* Ghim ở đáy thanh bên (cuộn thì vẫn thấy), nền đặc che chữ cuộn phía sau */
+  position: sticky;
+  bottom: 14px;
+  flex: none;
+  min-height: 38px;
+  box-shadow: 0 0 0 14px var(--ink);
+  background: var(--ink);
   border: 1px solid #7a6558;
   border-radius: 6px;
-  background: transparent;
   color: var(--paper);
   font: 16px var(--font-hand);
 }
@@ -1795,7 +1803,7 @@
   }
 
   .admin-brand { grid-row: 1; grid-column: 1; }
-  .admin-logout { grid-row: 1; grid-column: 2; padding: 8px 14px; }
+  .admin-logout { grid-row: 1; grid-column: 2; position: static; margin: 0; min-height: 40px; padding: 8px 14px; box-shadow: none; }
 
   /* Tab bị cắt ở mép phải tự nó là gợi ý cuộn ngang — không dùng mask fade */
   .admin-sidebar nav {
