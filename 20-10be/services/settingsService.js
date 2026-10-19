@@ -12,6 +12,9 @@ const FACE_LIVENESS_KEY = 'face_liveness';
 const GIFT_UNLOCK_AT_KEY = 'gift_unlock_at';
 // Mốc bắt đầu đếm lượt mở quà cho bông hoa 12A1 (ISO UTC); rỗng = đếm hết
 const GIFT_OPENS_SINCE_KEY = 'gift_opens_since';
+// Mốc kết thúc đếm (ISO UTC): lượt mở SAU mốc này không vào bông hoa — "đóng
+// băng" hoa ở những bạn mở sớm. Rỗng = đếm mãi. "Đặt lại bông hoa" xoá mốc này
+const GIFT_OPENS_UNTIL_KEY = 'gift_opens_until';
 const MAX_SCHEDULE_MS = 366 * 24 * 60 * 60 * 1000;
 // Việt Nam không đổi giờ theo mùa: 00:00 ngày 20/10 luôn là 17:00 UTC ngày 19/10
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
@@ -137,12 +140,31 @@ async function getGiftOpensSince() {
   return parseIso(await readValue(GIFT_OPENS_SINCE_KEY));
 }
 
+async function getGiftOpensUntil() {
+  return parseIso(await readValue(GIFT_OPENS_UNTIL_KEY));
+}
+
+// null/'' bỏ đóng băng; chuỗi thời điểm (ISO) thì từ đó về sau không đếm thêm
+async function setGiftOpensUntil(value) {
+  if (value === null || value === '') {
+    await writeValue(GIFT_OPENS_UNTIL_KEY, '');
+    return { gift_opens_until: null };
+  }
+  const date = typeof value === 'string' ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) throw httpError('gift_opens_until không phải thời điểm hợp lệ', 400);
+  const iso = date.toISOString();
+  await writeValue(GIFT_OPENS_UNTIL_KEY, iso);
+  return { gift_opens_until: iso };
+}
+
 // "Đặt lại bông hoa": chỉ dời mốc đếm, không xoá lượt mở nào. Làm tròn xuống
 // tới giây vì opened_at chỉ lưu tới giây — lượt mở ngay trong giây đặt lại
 // không bị loại oan
 async function resetGiftOpens(now = new Date()) {
   const iso = new Date(Math.floor(now.getTime() / 1000) * 1000).toISOString();
   await writeValue(GIFT_OPENS_SINCE_KEY, iso);
+  // Đếm lại từ đầu thì cũng thôi đóng băng
+  await writeValue(GIFT_OPENS_UNTIL_KEY, '');
   return { gift_opens_since: iso };
 }
 
@@ -189,10 +211,12 @@ async function setFaceLiveness(enabled) {
 async function getSettings() {
   const lock = await getGiftLockState();
   const opensSince = await getGiftOpensSince();
+  const opensUntil = await getGiftOpensUntil();
   return {
     gift_pages_locked: lock.locked,
     gift_unlock_at: lock.unlockAt ? lock.unlockAt.toISOString() : null,
     gift_opens_since: opensSince ? opensSince.toISOString() : null,
+    gift_opens_until: opensUntil ? opensUntil.toISOString() : null,
     face_enabled: await isFaceEnabled(),
     face_only: await isFaceOnly(),
     face_liveness: await isFaceLivenessOn(),
@@ -205,6 +229,8 @@ module.exports = {
   setGiftPagesLocked,
   setGiftUnlockAt,
   getGiftOpensSince,
+  getGiftOpensUntil,
+  setGiftOpensUntil,
   resetGiftOpens,
   isFaceEnabled,
   setFaceEnabled,

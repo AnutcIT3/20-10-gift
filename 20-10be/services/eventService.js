@@ -25,12 +25,17 @@ async function classTotal() {
 // thứ tự này chính là "bạn thứ mấy mở quà". Xếp theo id tự tăng (đúng thứ tự
 // ghi) chứ không theo opened_at: TIMESTAMP chỉ chính xác tới giây, hai bạn mở
 // cùng một giây lúc nửa đêm sẽ cùng được báo "bạn thứ 1"
-async function firstOpens(since) {
+// until: mốc đóng băng (gift_opens_until) — lượt mở sau mốc đó không tính
+async function firstOpens(since, until = null) {
   const params = [];
   let window = '';
   if (since) {
     window = 'AND o.opened_at >= ?';
     params.push(since);
+  }
+  if (until) {
+    window += ' AND o.opened_at <= ?';
+    params.push(until);
   }
   const [rows] = await pool.execute(
     `SELECT o.student_id, MIN(o.id) AS first_id
@@ -43,12 +48,15 @@ async function firstOpens(since) {
   return rows;
 }
 
-// { opened, total, since } cho bông hoa; null khi máy chưa chạy migration 020
+// { opened, total, since, until } cho bông hoa; null khi máy chưa chạy migration 020
 async function openSummary() {
   const since = await settingsService.getGiftOpensSince();
+  const until = await settingsService.getGiftOpensUntil();
   try {
-    const [rows, total] = await Promise.all([firstOpens(since), classTotal()]);
-    return { opened: rows.length, total, since: since ? since.toISOString() : null };
+    const [rows, total] = await Promise.all([firstOpens(since, until), classTotal()]);
+    return {
+      opened: rows.length, total, since: since ? since.toISOString() : null, until: until ? until.toISOString() : null,
+    };
   } catch (error) {
     if (isMissingTable(error)) return null;
     throw error;
@@ -88,8 +96,11 @@ async function recordOpen(student, via) {
   const method = OPEN_METHODS.has(via) ? via : 'name';
   await pool.execute('INSERT INTO gift_opens (student_id, via) VALUES (?, ?)', [student.id, method]);
   countsCache = null;
+  // Hoa đã đóng băng: vẫn ghi lượt mở (lịch sử) nhưng không góp cánh nữa
+  const until = await settingsService.getGiftOpensUntil();
+  if (until && Date.now() > until.getTime()) return { counted: false };
   const since = await settingsService.getGiftOpensSince();
-  const [rows, total] = await Promise.all([firstOpens(since), classTotal()]);
+  const [rows, total] = await Promise.all([firstOpens(since, until), classTotal()]);
   const index = rows.findIndex((row) => Number(row.student_id) === Number(student.id));
   return {
     counted: true,
