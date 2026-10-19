@@ -5,6 +5,7 @@ const wishCountService = require('./wishCountService');
 const { findFriend, guestNotFound, cleanReceiverName } = require('./friendService');
 const resolveService = require('./resolveService');
 const normalizeName = require('../utils/normalizeName');
+const { accentKey, hasDiacritics } = require('../utils/nameKey');
 
 // Một người gửi một lời chúc cho nhiều bạn cùng lúc (form gửi lời chúc ở trang
 // chủ). Mỗi người nhận có một lá thư riêng — như gửi từng lá — nhưng ảnh chỉ
@@ -26,8 +27,9 @@ async function listRecipients() {
     .sort((a, b) => Number(isTeacher(b)) - Number(isTeacher(a)) || a.name.localeCompare(b.name, 'vi'));
 }
 
-// Người có CẢ tên (họ tên, biệt danh, tên gọi khác) đúng như chữ đã gõ
-async function wholeNameRows(typed, memberTypes) {
+// Người có CẢ tên (họ tên, biệt danh, tên gọi khác) đúng như chữ đã gõ.
+// givenName: gõ phần tên không kèm họ ("Phương Anh" của "Bùi Phương Anh") cũng tính
+async function wholeNameRows(typed, memberTypes, { givenName = false } = {}) {
   const [rows] = await pool.execute(
     `SELECT id, full_name, nickname, search_aliases FROM students WHERE is_active = TRUE
      AND member_type IN (${memberTypes.map(() => '?').join(',')})`,
@@ -41,12 +43,25 @@ async function wholeNameRows(typed, memberTypes) {
     );
   });
   const normalized = normalizeName(typed);
-  return rows.filter((row) => resolveService.namesOf(row).some((n) => resolveService.isWholeName(n, typed, normalized)));
+  const typedKey = accentKey(typed);
+  const typedBare = !hasDiacritics(typed);
+  // Phần tên không kèm họ: đúng y dấu, hoặc gõ không dấu mà cùng chữ — "Ánh"
+  // không phải phần "Anh" của Hải Anh
+  const givenMatches = (name) => {
+    const words = name.trim().split(/\s+/);
+    return words.slice(1).some((_, index) => {
+      const form = words.slice(index + 1).join(' ');
+      return accentKey(form) === typedKey || (typedBare && normalizeName(form) === normalized);
+    });
+  };
+  return rows.filter((row) => resolveService.namesOf(row)
+    .some((n) => resolveService.isWholeName(n, typed, normalized) || (givenName && givenMatches(n))));
 }
 
 // Ô "Ngoài lớp" của form gửi lời chúc: gõ tên một khách đã có trong danh sách
-// (admin thêm). CHỈ thêm thẳng khi gõ đúng cả tên (hay biệt danh) của đúng một
-// khách; gần giống ("Phương" ↔ Bùi Phương Anh) thì chỉ gợi ý, hỏi "có phải…".
+// (admin thêm). Thêm thẳng khi gõ đúng cả tên, phần tên không kèm họ ("Phương
+// Anh", "bùi phương anh") hay biệt danh của đúng một khách; chỉ trùng một phần
+// ("Phương", "Bùi Phương") thì gợi ý, hỏi "có phải…".
 // Gõ tên một bạn TRONG lớp thì nói rõ để chọn ở tab "Trong lớp" — không bao
 // giờ đổ nhầm sang một khách trùng một chữ ("Diệu Linh" ↛ khách "Linh").
 // { matches: [{ id, name, nickname }], unsure, alsoInClass }
@@ -55,7 +70,7 @@ async function findGuests(name) {
   const result = await resolveService.resolve(typed, 'friend', { locked: true });
   if (result.error && result.status !== 404) throw httpError(result.error, result.status || 400);
   const [inClass] = await wholeNameRows(typed, ['class']);
-  const strong = await wholeNameRows(typed, ['friend']);
+  const strong = await wholeNameRows(typed, ['friend'], { givenName: true });
 
   let rows = [];
   if (!result.error) {
