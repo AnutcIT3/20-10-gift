@@ -21,7 +21,10 @@ async function updateSettings(req, res) {
   if (Object.hasOwn(body, 'face_enabled')) {
     return sendSuccess(res, await settingsService.setFaceEnabled(body.face_enabled));
   }
-  return sendError(res, 'Cần gift_pages_locked, gift_unlock_at, reset_gift_opens hoặc face_enabled', 400);
+  if (Object.hasOwn(body, 'face_only')) {
+    return sendSuccess(res, await settingsService.setFaceOnly(body.face_only));
+  }
+  return sendError(res, 'Cần gift_pages_locked, gift_unlock_at, reset_gift_opens, face_enabled hoặc face_only', 400);
 }
 
 module.exports = { getSettings, updateSettings };

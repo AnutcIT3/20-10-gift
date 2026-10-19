@@ -15,12 +15,13 @@ function AdminLayout() {
   // Sidebar: số lời chúc chờ duyệt (badge), trạng thái khóa trang quà và công
   // tắc Face ID (null = chưa biết, chưa cho bấm)
   const [sidebar, setSidebar] = useState({
-    pending: null, repliesPending: null, locked: null, unlockAt: null, faceEnabled: null,
+    pending: null, repliesPending: null, locked: null, unlockAt: null, faceEnabled: null, faceOnly: null,
   })
   const [lockSaving, setLockSaving] = useState(false)
   const [lockError, setLockError] = useState('')
   const [faceSaving, setFaceSaving] = useState(false)
   const [faceError, setFaceError] = useState('')
+  const [faceOnlySaving, setFaceOnlySaving] = useState(false)
 
   const loadSidebar = useCallback(async () => {
     try {
@@ -31,6 +32,7 @@ function AdminLayout() {
         locked: Boolean(settings?.gift_pages_locked),
         unlockAt: settings?.gift_unlock_at || null,
         faceEnabled: Boolean(settings?.face_enabled),
+        faceOnly: Boolean(settings?.face_only),
       })
     } catch {
       // Giữ giá trị cũ — badge/khóa lệch vài giây không đáng chặn thao tác
@@ -134,6 +136,22 @@ function AdminLayout() {
     }
   }
 
+  // "Chỉ mở bằng Face ID": trang chủ ẩn ô gõ tên, máy chủ chặn tra tên.
+  // Gửi lời chúc và trang quà đã mở (link riêng) không bị ảnh hưởng
+  const toggleFaceOnly = async () => {
+    if (sidebar.faceOnly === null || faceOnlySaving) return
+    setFaceOnlySaving(true)
+    setFaceError('')
+    try {
+      const updated = await adminApi.updateSettings({ face_only: !sidebar.faceOnly })
+      setSidebar((current) => ({ ...current, faceOnly: Boolean(updated?.face_only) }))
+    } catch (err) {
+      setFaceError(err.message)
+    } finally {
+      setFaceOnlySaving(false)
+    }
+  }
+
   const logout = () => {
     adminAuth.clear()
     navigate('/', { replace: true })
@@ -141,6 +159,7 @@ function AdminLayout() {
 
   const locked = sidebar.locked
   const faceEnabled = sidebar.faceEnabled
+  const faceOnly = sidebar.faceOnly
   return (
     <div className="admin-shell">
       <aside className="admin-sidebar">
@@ -211,6 +230,25 @@ function AdminLayout() {
               : faceEnabled
                 ? <>Face ID đang <b>BẬT</b> — thẻ ✨ hiện cạnh ô gõ tên.</>
                 : <>Face ID đang <b>TẮT</b> — thẻ tự ẩn trên trang chủ.</>}
+          </p>
+          <div className="admin-lock__row">
+            <span>🔒 Chỉ mở bằng Face ID</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={Boolean(faceOnly)}
+              aria-label={faceOnly ? 'Đang chỉ cho mở quà bằng Face ID — bấm để cho gõ tên lại' : 'Đang cho gõ tên để mở quà — bấm để chỉ mở bằng Face ID'}
+              className={`admin-toggle${faceOnly ? ' is-on' : ''}`}
+              disabled={faceOnly === null || faceOnlySaving}
+              onClick={toggleFaceOnly}
+            />
+          </div>
+          <p>
+            {faceOnly === null
+              ? 'Đang kiểm tra trạng thái…'
+              : faceOnly
+                ? <>Đang <b>CHỈ MỞ BẰNG FACE ID</b> — trang chủ ẩn ô gõ tên.{!faceEnabled && <> <b>Face ID đang tắt</b> nên chưa ai mở quà được!</>}</>
+                : <>Gõ tên hay Face ID đều mở được quà.</>}
           </p>
         </div>
         <button type="button" className="admin-logout" onClick={logout}>Đăng xuất</button>

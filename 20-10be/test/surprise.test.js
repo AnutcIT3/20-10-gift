@@ -217,7 +217,7 @@ test('trạng thái 20/10: đang khoá chỉ có đếm ngược, đã mở thì
   const now = new Date('2099-10-19T16:00:00.000Z');
   // Đang khoá vẫn có số lời chúc (đống thư rủ mọi người gửi): 20 + số thật
   assert.deepEqual(await eventService.getStatus(now), {
-    locked: true, unlockAt, serverNow: now.toISOString(), wishes: { shown: 20, lastAt: null },
+    locked: true, unlockAt, serverNow: now.toISOString(), wishes: { shown: 20, lastAt: null }, faceOnly: false,
   });
 
   eventService.clearCache();
@@ -240,7 +240,7 @@ test('trạng thái 20/10: đang khoá chỉ có đếm ngược, đã mở thì
   const open = await eventService.getStatus(new Date('2099-10-20T01:00:00.000Z'));
   assert.deepEqual(open, {
     locked: false, unlockAt: null, serverNow: '2099-10-20T01:00:00.000Z', opened: 2, total: 23, replies: 4,
-    wishes: { shown: 27, lastAt: '2099-10-20T00:58:00.000Z' },
+    wishes: { shown: 27, lastAt: '2099-10-20T00:58:00.000Z' }, faceOnly: false,
   });
 });
 
