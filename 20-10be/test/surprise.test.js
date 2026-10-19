@@ -215,11 +215,13 @@ test('trạng thái 20/10: đang khoá chỉ có đếm ngược, đã mở thì
   const unlockAt = '2099-10-19T17:00:00.000Z';
   mockSettings({ gift_pages_locked: '1', gift_unlock_at: unlockAt });
   const now = new Date('2099-10-19T16:00:00.000Z');
+  // Đang khoá vẫn có số lời chúc (đống thư rủ mọi người gửi): 20 + số thật
   assert.deepEqual(await eventService.getStatus(now), {
-    locked: true, unlockAt, serverNow: now.toISOString(),
+    locked: true, unlockAt, serverNow: now.toISOString(), wishes: { shown: 20, lastAt: null },
   });
 
   eventService.clearCache();
+  require('../services/wishCountService').clearCache();
   mockSettings({ gift_opens_since: '2099-10-19T17:00:00.000Z' }, async (sql, params) => {
     if (sql.includes('FROM gift_opens')) {
       assert.deepEqual(params, [new Date('2099-10-19T17:00:00.000Z')]);
@@ -227,11 +229,18 @@ test('trạng thái 20/10: đang khoá chỉ có đếm ngược, đã mở thì
     }
     if (sql.includes('FROM students')) return [[{ total: 23 }]];
     if (sql.includes('FROM letter_replies')) return [[{ total: 4 }]];
+    if (sql.includes('FROM letters l JOIN students s')) {
+      // Không đếm lời bị từ chối và thư gửi tài khoản thử
+      assert.match(sql, /status <> 'rejected'/);
+      assert.match(sql, /member_type <> 'test'/);
+      return [[{ total: 7, last_at: new Date('2099-10-20T00:58:00.000Z') }]];
+    }
     return undefined;
   });
   const open = await eventService.getStatus(new Date('2099-10-20T01:00:00.000Z'));
   assert.deepEqual(open, {
     locked: false, unlockAt: null, serverNow: '2099-10-20T01:00:00.000Z', opened: 2, total: 23, replies: 4,
+    wishes: { shown: 27, lastAt: '2099-10-20T00:58:00.000Z' },
   });
 });
 

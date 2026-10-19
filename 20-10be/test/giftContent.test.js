@@ -100,7 +100,7 @@ test('lời chúc gửi qua form công khai luôn vào nhóm khách, dù payload
       sender_kind: 'classmate',
       status: 'approved',
     });
-    assert.deepEqual(result, { status: 'pending' });
+    assert.equal(result.status, 'pending');
     assert.match(insertSql, /VALUES \(\?, \?, 'guest',/);
     // status bị ép về 'pending' và sender_kind không nằm trong tham số
     assert.deepEqual(insertParams, [7, 'Người lạ', null, 'Chúc mừng 20/10', false, 'pending', null, null, null]);

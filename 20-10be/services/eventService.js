@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const settingsService = require('./settingsService');
 const replyService = require('./replyService');
+const wishCountService = require('./wishCountService');
 
 const OPEN_METHODS = new Set(['name', 'face']);
 // Cả lớp cùng chờ ở trang chủ, mỗi người hỏi trạng thái 30 giây một lần: đệm
@@ -70,6 +71,8 @@ async function getStatus(now = new Date()) {
     locked: lock.locked,
     unlockAt: lock.unlockAt ? lock.unlockAt.toISOString() : null,
     serverNow: now.toISOString(),
+    // Đống thư và số lời chúc hiện cả lúc khoá — lúc đó chính là lúc rủ mọi người gửi
+    wishes: await wishCountService.getSummary(now.getTime()),
   };
   if (lock.locked) return status;
   return { ...status, ...(await cachedCounts(now)) };

@@ -3,6 +3,7 @@ const { sanitizeLetterPayload } = require('./letterService');
 const letterImageService = require('./letterImageService');
 const wishImageService = require('./wishImageService');
 const wishNoteService = require('./wishNoteService');
+const wishCountService = require('./wishCountService');
 
 function httpError(message, statusCode) {
   return Object.assign(new Error(message), { statusCode });
@@ -116,7 +117,8 @@ async function createLetter(studentId, data, images = []) {
     connection.release();
   }
 
-  return { status: 'pending' };
+  // wish_number: "Bạn là người gửi lời chúc thứ N" (cùng số với trang chủ)
+  return { status: 'pending', wish_number: await wishCountService.numberAfterSend() };
 }
 
 module.exports = { getStudentByCode, getGallery, getApprovedLetters, createLetter };

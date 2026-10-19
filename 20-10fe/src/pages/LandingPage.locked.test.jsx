@@ -66,7 +66,7 @@ test('đang khoá vẫn gửi được lời chúc; trùng tên thì chọn theo
       { displayName: 'Phương Linh', nickname: '', avatarUrl: '', giftPath: '/gift/b', seatRow: null, seatCol: null },
     ],
   })
-  giftRepository.createLetter.mockResolvedValue({ status: 'pending' })
+  giftRepository.createLetter.mockResolvedValue({ status: 'pending', wish_number: 25 })
   renderPage()
   fireEvent.click(screen.getByRole('button', { name: /Gửi lời chúc cho một bạn/ }))
   const dialog = within(screen.getByRole('dialog'))
@@ -81,6 +81,9 @@ test('đang khoá vẫn gửi được lời chúc; trùng tên thì chọn theo
   expect(dialog.queryAllByRole('img')).toHaveLength(0)
   fireEvent.click(first)
   await vi.waitFor(() => expect(giftRepository.createLetter).toHaveBeenCalledWith('a', expect.objectContaining({ content: 'Chúc mừng 20/10!' }), []))
+
+  // Màn "Thư đã vào hộp": người gửi biết mình là người thứ mấy
+  expect(await dialog.findByText(/Bạn là người gửi lời chúc thứ/)).toHaveTextContent('Bạn là người gửi lời chúc thứ 25!')
 })
 
 test('quà đã mở: trang chủ trở lại như cũ', () => {
@@ -89,4 +92,20 @@ test('quà đã mở: trang chủ trở lại như cũ', () => {
   expect(screen.getByRole('button', { name: /Mình là thành viên trong lớp/ })).toBeTruthy()
   expect(screen.getByRole('button', { name: /Mình là khách ghé thăm/ })).toBeTruthy()
   expect(screen.getByRole('button', { name: /Mình muốn gửi lời chúc cho một bạn/ })).toBeTruthy()
+})
+
+test('trang chủ có đống thư, số lời chúc và dòng "vừa xong" — cả lúc đang khoá', async () => {
+  event.status = { ...LOCKED, serverNow: new Date().toISOString(), wishes: { shown: 24, lastAt: new Date(Date.now() - 2 * 60000).toISOString() } }
+  const { container } = renderPage()
+  await vi.waitFor(() => expect(container.querySelector('.wish-stats')).toHaveTextContent('✉ 24 lời chúc đã được gửi'))
+  expect(screen.getByText(/Ai đó vừa gửi một lời chúc/)).toHaveTextContent('2 phút trước')
+  expect(container.querySelectorAll('.wish-heap .wish-note')).toHaveLength(24)
+  expect(container.querySelector('.wish-ghost')).toHaveTextContent('24')
+})
+
+test('máy chủ cũ chưa có số lời chúc thì không có đống thư hay dòng số lượng', () => {
+  event.status = LOCKED
+  const { container } = renderPage()
+  expect(container.querySelector('.wish-heap')).toBeNull()
+  expect(screen.queryByText(/lời chúc đã được gửi/)).toBeNull()
 })

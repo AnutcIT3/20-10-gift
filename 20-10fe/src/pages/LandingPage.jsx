@@ -9,14 +9,18 @@ import Envelope from '../components/paper/Envelope'
 import Stamp from '../components/paper/Stamp'
 import Postmark from '../components/paper/Postmark'
 import PickedImages from '../components/PickedImages'
+import WishHeap from '../components/WishHeap'
 import useDialogA11y from '../hooks/useDialogA11y'
 import useEventStatus from '../hooks/useEventStatus'
 import useFaceScan from '../hooks/useFaceScan'
 import useImagePicks, { MAX_WISH_IMAGES, WISH_IMAGE_ACCEPT } from '../hooks/useImagePicks'
+import useNow from '../hooks/useNow'
+import useWishFlights from '../hooks/useWishFlights'
 import { CLASS_NAME, EVENT_YEAR, formatStamp } from '../lib/event'
 import { CLD_TINY, cld } from '../lib/cloudinary'
 import { greetingFor, greetNames, showCountdown } from '../lib/faceVote'
 import { seatLabel } from '../lib/seat'
+import { sentAgo } from '../lib/wishHeap'
 import '../styles/landing.css'
 
 // Đồng hồ về 0 mà máy chủ vẫn báo khoá (đồng hồ hai bên lệch nhau vài giây):
@@ -106,6 +110,19 @@ function MatchList({ matches, onPick, disabled = false }) {
   )
 }
 
+// "✉ 24 lời chúc đã được gửi" và "Ai đó vừa gửi một lời chúc · 2 phút trước"
+// (không lộ ai gửi, gửi cho ai — chỉ cho thấy đang có người chúc)
+function WishStats({ shown, lastAt, offset = 0 }) {
+  const now = useNow(30000)
+  const ago = sentAgo(lastAt, now + offset)
+  return (
+    <div className="wish-stats">
+      <span>✉ <b aria-live="polite">{shown}</b> lời chúc đã được gửi</span>
+      {ago && <span className="wish-stats__recent">Ai đó vừa gửi một lời chúc · {ago}</span>}
+    </div>
+  )
+}
+
 function LandingPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -148,6 +165,11 @@ function LandingPage() {
   // Trang quà đang khoá chờ 20/10: trang chủ chỉ còn đếm ngược và gửi lời
   // chúc — không chọn vai trò, không tra tên, không Face ID (máy chủ cũng chặn)
   const giftsLocked = Boolean(eventStatus?.locked)
+  // Số lời chúc (đã cộng sẵn số khởi đầu ở máy chủ): máy chủ báo mỗi 15 giây;
+  // chính mình vừa gửi thì dùng luôn số trả về để thư bay vào ngay
+  const [ownWishNumber, setOwnWishNumber] = useState(null)
+  const serverWishes = eventStatus?.wishes
+  const wishTarget = serverWishes ? Math.max(serverWishes.shown, ownWishNumber || 0) : null
   const faceAvailable = !giftsLocked && visitorRole !== null && faceReadyScope === faceScope
   // Destructure ngay tại đây: videoRef là ref, phần còn lại là giá trị render —
   // gộp chung một object thì React Compiler coi mọi lần đọc thuộc tính là đọc ref
@@ -191,6 +213,8 @@ function LandingPage() {
     if (searchParams.has('wish')) setSearchParams({}, { replace: true })
   }
   const wishDialogRef = useDialogA11y(wishOpen, closeWish)
+  // Đang mở khung gửi lời chúc thì chờ; đóng rồi mới cho thư bay vào đống
+  const { landed: wishesShown, flights: wishFlights, land: landWish } = useWishFlights(wishTarget, { paused: wishOpen })
   // Esc / bấm nền / nút × đều đi qua đây → hook nhả camera ngay
   const faceDialogRef = useDialogA11y(faceActive, closeFace)
 
@@ -342,10 +366,12 @@ function LandingPage() {
     reveal_at: wishForm.revealAt || null,
   })
 
-  const finishWish = ({ friend = false } = {}) => {
+  const finishWish = ({ friend = false, sent = null } = {}) => {
+    const number = Number.isInteger(sent?.wish_number) ? sent.wish_number : null
+    if (number) setOwnWishNumber((current) => Math.max(current || 0, number))
     setWishMatches([])
     setWishMessage('')
-    setWishSent({ revealAt: wishForm.revealAt || null, friend })
+    setWishSent({ revealAt: wishForm.revealAt || null, friend, number })
     setWishForm(EMPTY_WISH)
     clearWishImage()
     setShowReveal(false)
@@ -354,8 +380,8 @@ function LandingPage() {
   const sendWishToGiftPath = async (giftPath) => {
     const accessCode = accessCodeFromGiftPath(giftPath)
     if (!accessCode) throw new Error('Không xác định được người nhận.')
-    await giftRepository.createLetter(accessCode, wishLetterData(), wishImages.files)
-    finishWish()
+    const sent = await giftRepository.createLetter(accessCode, wishLetterData(), wishImages.files)
+    finishWish({ sent })
   }
 
   const submitWish = async (event) => {
@@ -383,11 +409,11 @@ function LandingPage() {
       // Người nhận NGOÀI lớp: không tra danh sách — backend tự tạo hồ sơ
       // "bạn bè" và lưu lời chúc cho họ
       if (wishForm.receiverType === 'friend') {
-        await giftRepository.createFriendLetter(
+        const sent = await giftRepository.createFriendLetter(
           { ...wishLetterData(), receiver_name: receiverName },
           wishImages.files,
         )
-        finishWish({ friend: true })
+        finishWish({ friend: true, sent })
         return
       }
 
@@ -488,9 +514,14 @@ function LandingPage() {
             : undefined)}
         />
       )}
+      {/* Số lời chúc to, mờ, nghiêng sau nội dung — trang trí; số đọc được ở dòng dưới nút gửi */}
+      {wishesShown !== null && <div className="wish-ghost" aria-hidden="true">{wishesShown}</div>}
       <div className="landing__grid">
         <div className="landing__envelope">
-          <Envelope open={Boolean(visitorRole)} sealWiggle />
+          <div className={`wish-heap-scene${wishesShown !== null ? ' has-heap' : ''}`}>
+            <Envelope open={Boolean(visitorRole)} sealWiggle />
+            {wishesShown !== null && <WishHeap count={wishesShown} flights={wishFlights} onLanded={landWish} />}
+          </div>
         </div>
         <div className="landing__content">
           {giftsLocked ? (
@@ -590,6 +621,7 @@ function LandingPage() {
               <span className="link-dashed">✉ Mình muốn gửi lời chúc cho một bạn</span>
             </button>
           )}
+          {wishesShown !== null && <WishStats shown={wishesShown} lastAt={serverWishes?.lastAt} offset={eventOffset} />}
           {eventStatus && !eventStatus.locked && eventStatus.replies > 0 && (
             <Link to="/hoi-am" className="landing__wish landing__replies">
               <span className="link-dashed">📬 Hộp thư hồi âm · {eventStatus.replies} lá</span>
@@ -643,6 +675,9 @@ function LandingPage() {
                   </Envelope>
                 </div>
                 <h2 id="wish-modal-title">Thư đã vào hộp!</h2>
+                {wishSent.number && (
+                  <p className="wish-success__number">Bạn là người gửi lời chúc thứ <b>{wishSent.number}</b>!</p>
+                )}
                 <p role="status">
                   {wishSent.revealAt
                     ? <>Lời chúc bí mật sẽ hiện đúng lúc <b>{formatReveal(wishSent.revealAt).split(' · ').reverse().join(' · ')}</b>, sau khi admin duyệt.</>
