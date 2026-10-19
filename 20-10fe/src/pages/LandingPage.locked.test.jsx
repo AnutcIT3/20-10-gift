@@ -90,7 +90,7 @@ test('trang chủ có đống thư, số lời chúc và dòng "vừa xong" — 
   const { container } = renderPage()
   await vi.waitFor(() => expect(container.querySelector('.wish-stats')).toHaveTextContent('✉ 24 lời chúc đã được gửi'))
   expect(screen.getByText(/Ai đó vừa gửi một lời chúc/)).toHaveTextContent('2 phút trước')
-  expect(container.querySelectorAll('.wish-heap .wish-note')).toHaveLength(24)
+  expect(container.querySelectorAll('.wish-heap .heap-note')).toHaveLength(24)
   expect(container.querySelector('.wish-ghost')).toHaveTextContent('24')
 })
 
