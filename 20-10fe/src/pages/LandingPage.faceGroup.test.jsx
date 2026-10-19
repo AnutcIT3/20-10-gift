@@ -36,7 +36,7 @@ vi.mock('../hooks/useFaceScan', () => ({
 }))
 
 // Nhạc nền: chỉ cần biết Face ID có gọi bật nhạc (lib/music lo việc không phát chồng)
-vi.mock('../lib/music', () => ({ playMusic: vi.fn() }))
+vi.mock('../lib/music', () => ({ playMusic: vi.fn(), primeMusic: vi.fn(), releaseMusic: vi.fn() }))
 
 vi.mock('../hooks/useEventStatus', () => ({
   default: () => ({ status: null, refresh: vi.fn() }),

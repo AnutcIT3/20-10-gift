@@ -20,7 +20,7 @@ import useWishFlights from '../hooks/useWishFlights'
 import { CLASS_NAME, EVENT_YEAR, formatStamp } from '../lib/event'
 import { CLD_TINY, cld } from '../lib/cloudinary'
 import { greetingFor, greetNames, showCountdown } from '../lib/faceVote'
-import { playMusic } from '../lib/music'
+import { playMusic, primeMusic, releaseMusic } from '../lib/music'
 import { seatLabel } from '../lib/seat'
 import { sentAgo } from '../lib/wishHeap'
 import '../styles/landing.css'
@@ -511,6 +511,9 @@ function LandingPage() {
     const value = name.trim()
     setError(''); setMatches([]); setMessage('')
     if (value.length < 2) { setError('Vui lòng nhập ít nhất 2 ký tự.'); return }
+    // Nhạc nền chạy tắt tiếng ngay trong cú bấm (trình duyệt chỉ cho phát lúc
+    // này); tra ra trang quà / thư chúc thì bật tiếng, không thì dừng hẳn
+    primeMusic()
 
     // Khách KHÔNG tra danh sách lớp — chỉ tra các hồ sơ "bạn bè" (người ngoài
     // lớp từng được ai đó gửi lời chúc); không có thì sang trang chúc chung
@@ -519,20 +522,29 @@ function LandingPage() {
       try {
         const result = await giftRepository.resolveStudent(value, 'friend')
         if (result?.giftPath) {
+          playMusic()
           await openGiftWithReveal(result.giftPath, value)
           return
         }
+        // Trùng tên: chưa mở gì — nhạc chờ bạn chọn thiệp (cú bấm đó bật nhạc)
+        releaseMusic()
         if (result?.matches?.length) {
           setMatches(result.matches)
           setMatchGuess(Boolean(result.unsure))
           setMessage(result.message || '')
           return
         }
+        playMusic()
         navigate(`/celebrate/${encodeURIComponent(value)}?audience=visitor`)
       } catch (err) {
-        if (err.status === 404) navigate(`/celebrate/${encodeURIComponent(value)}?audience=visitor`)
-        else if (!navigator.onLine || err.isNetworkError) setError('Bạn đang offline hoặc backend chưa được bật.')
-        else setError(err.message)
+        if (err.status === 404) {
+          playMusic()
+          navigate(`/celebrate/${encodeURIComponent(value)}?audience=visitor`)
+        } else {
+          releaseMusic()
+          if (!navigator.onLine || err.isNetworkError) setError('Bạn đang offline hoặc backend chưa được bật.')
+          else setError(err.message)
+        }
       } finally { setLoading(false) }
       return
     }
@@ -540,14 +552,24 @@ function LandingPage() {
     setLoading(true)
     try {
       const result = await giftRepository.resolveStudent(value)
-      if (result?.giftPath) await openGiftWithReveal(result.giftPath, value)
-      else if (result?.matches?.length) { setMatches(result.matches); setMatchGuess(Boolean(result.unsure)); setMessage(result.message || '') }
-      else setError('Không tìm thấy tên này trong danh sách.')
+      if (result?.giftPath) {
+        playMusic()
+        await openGiftWithReveal(result.giftPath, value)
+      } else {
+        releaseMusic()
+        if (result?.matches?.length) { setMatches(result.matches); setMatchGuess(Boolean(result.unsure)); setMessage(result.message || '') }
+        else setError('Không tìm thấy tên này trong danh sách.')
+      }
     } catch (err) {
       // Thành viên lớp nhưng không có trang quà riêng (ví dụ các bạn nam)
-      if (err.status === 404) navigate(`/celebrate/${encodeURIComponent(value)}?audience=classmate`)
-      else if (!navigator.onLine || err.isNetworkError) setError('Bạn đang offline hoặc backend chưa được bật.')
-      else setError(err.message)
+      if (err.status === 404) {
+        playMusic()
+        navigate(`/celebrate/${encodeURIComponent(value)}?audience=classmate`)
+      } else {
+        releaseMusic()
+        if (!navigator.onLine || err.isNetworkError) setError('Bạn đang offline hoặc backend chưa được bật.')
+        else setError(err.message)
+      }
     } finally { setLoading(false) }
   }
 
@@ -642,7 +664,7 @@ function LandingPage() {
                 {matchGuess ? 'Có phải cậu là…' : <>Có mấy bạn tên <span className="landing__name">{name.trim()}</span></>}
               </h1>
               <p className="landing__intro">{message || 'Bạn là ai trong số này? Chọn đúng người để mở quà.'}</p>
-              <MatchList matches={matches} onPick={(match) => openGiftWithReveal(match.giftPath, match.displayName)} />
+              <MatchList matches={matches} onPick={(match) => { playMusic(); openGiftWithReveal(match.giftPath, match.displayName) }} />
               <p className="landing__note">
                 Không thấy tên mình? <button type="button" className="landing__link" onClick={() => setMatches([])}>Nhập lại tên đầy đủ</button>
               </p>

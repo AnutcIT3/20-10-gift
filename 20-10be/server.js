@@ -121,7 +121,8 @@ app.use('/api/admin', adminStatsRoutes);
 // ── Serve frontend build (kích hoạt khi SERVE_STATIC=true hoặc NODE_ENV=production) ──
 const serveStatic = process.env.SERVE_STATIC === 'true' || process.env.NODE_ENV === 'production';
 if (serveStatic) {
-  const DIST = path.join(__dirname, '..', '20-10fe', 'dist');
+  // STATIC_DIR: link test thứ hai chạy bản build riêng, không đụng dist của link chính
+  const DIST = process.env.STATIC_DIR || path.join(__dirname, '..', '20-10fe', 'dist');
   app.use(express.static(DIST, {
     setHeaders(res, filePath) {
       if (path.basename(filePath) === 'index.html') {
