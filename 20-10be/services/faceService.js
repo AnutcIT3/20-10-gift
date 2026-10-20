@@ -155,18 +155,19 @@ function round4(value) {
 
 // ── Quyết định thuần ────────────────────────────────────────────────────────
 
-// candidates: [{ studentId, score }] — điểm cao nhất của mỗi bạn.
-// Khớp khi top1 ≥ τ VÀ cách biệt top1 − top2 ≥ margin; thư viện chỉ có một
+// candidates: [{ studentId, score, tau? }] — điểm cao nhất của mỗi bạn.
+// Khớp khi top1 ≥ τ VÀ cách biệt top1 − top2 ≥ margin; τ là ngưỡng riêng của
+// bạn đứng đầu (students.face_tau) nếu có, không thì FACE_TAU. Thư viện chỉ có một
 // bạn thì cách biệt lấy bằng chính top1 (không có ai để so). candidateId là
 // top1 kể cả khi từ chối — chỉ để ghi nhật ký cho admin, không trả về client.
 function decide(candidates, options = {}) {
-  const tau = options.tau ?? FACE_TAU;
   const minMargin = options.margin ?? FACE_MARGIN;
   const sorted = [...candidates].sort((a, b) => b.score - a.score);
   if (!sorted.length) {
     return { decision: 'reject', studentId: null, candidateId: null, score: 0, margin: 0 };
   }
   const [top1, top2] = sorted;
+  const tau = options.tau ?? top1.tau ?? FACE_TAU;
   const margin = top2 ? top1.score - top2.score : top1.score;
   const matched = top1.score >= tau && margin >= minMargin;
   return {
@@ -285,7 +286,7 @@ function normalizeScope(scope) {
 
 function gallerySql(scope) {
   const types = SCOPE_MEMBER_TYPES[scope].map((type) => `'${type}'`).join(', ');
-  return `SELECT fp.student_id, fp.kind, fp.embedding, s.full_name, s.nickname, s.access_code, s.avatar_url
+  return `SELECT fp.student_id, fp.kind, fp.embedding, s.full_name, s.nickname, s.access_code, s.avatar_url, s.face_tau
      FROM face_profiles fp
      JOIN students s ON s.id = fp.student_id
      WHERE fp.model = ? AND s.is_active = TRUE AND s.member_type IN (${types})`;
@@ -318,6 +319,8 @@ async function loadGallery(scope = 'class') {
         displayName: row.nickname || row.full_name,
         accessCode: row.access_code,
         avatarUrl: row.avatar_url || null,
+        // Ngưỡng riêng (migration 030); null = ngưỡng chung
+        tau: row.face_tau == null ? null : Number(row.face_tau),
         vectors: [],
       });
     }
@@ -424,6 +427,7 @@ function judgeFace(gallery, face) {
   return decide(gallery.students.map((student) => ({
     studentId: student.studentId,
     score: Math.max(...student.vectors.map((vector) => dot(probe, vector))),
+    tau: student.tau,
   })));
 }
 
@@ -572,6 +576,7 @@ async function matchFrame(buffer, mimetype, context = {}) {
   const candidates = gallery.students.map((student) => ({
     studentId: student.studentId,
     score: Math.max(...student.vectors.map((vector) => dot(probe, vector))),
+    tau: student.tau,
   }));
   const verdict = decide(candidates);
   const score = round4(verdict.score);
