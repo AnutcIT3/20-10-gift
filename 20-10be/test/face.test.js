@@ -190,6 +190,19 @@ test('face decide: accepts only a clear winner above the threshold', () => {
   assert.equal(faceService.decide([]).decision, 'reject');
 });
 
+test('face decide: a per-student threshold applies only to that student when on top', () => {
+  // Bạn có ngưỡng riêng 0,40: 0,42 vẫn khớp
+  const own = faceService.decide([{ studentId: 6, score: 0.42, tau: 0.4 }, { studentId: 2, score: 0.2 }]);
+  assert.equal(own.decision, 'match');
+  assert.equal(own.studentId, 6);
+  // Bạn đứng đầu không có ngưỡng riêng: vẫn ngưỡng chung, ngưỡng của bạn khác không lây sang
+  const other = faceService.decide([{ studentId: 2, score: 0.42 }, { studentId: 6, score: 0.2, tau: 0.4 }]);
+  assert.equal(other.decision, 'reject');
+  // Ngưỡng riêng không bỏ qua cách biệt
+  const close = faceService.decide([{ studentId: 6, score: 0.42, tau: 0.4 }, { studentId: 2, score: 0.38 }]);
+  assert.equal(close.decision, 'reject');
+});
+
 test('face embedding survives the BLOB round-trip, even from an unaligned buffer', () => {
   const values = mix(0.8, 0.6);
   const encoded = faceService.encodeEmbedding(values);
