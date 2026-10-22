@@ -177,7 +177,7 @@ test('one scan comes with every frame in time order, numbers only', async (t) =>
   assert.equal(scan.issue, 'dark');
   assert.equal(scan.frames, 2);
   assert.deepEqual(scan.thresholds, {
-    tau: 0.45, margin: 0.1, minFacePx: 80, minBrightness: 40, minBlur: 40,
+    tau: 0.45, margin: 0.1, minFacePx: 60, minBrightness: 40, minBlur: 40,
   });
   assert.equal(scan.timeline.length, 2);
   assert.deepEqual(

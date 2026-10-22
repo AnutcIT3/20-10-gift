@@ -22,7 +22,8 @@ const FACE_MARGIN = Number(process.env.FACE_MARGIN ?? 0.10);
 const WISH_COUNT_BASE = Math.max(0, Math.trunc(Number(process.env.WISH_COUNT_BASE ?? 20)) || 0);
 // Cổng chất lượng khung hình: mặt nhỏ hơn, tối hơn hay nhòe hơn mức này thì
 // không chấm điểm mà nhắc người dùng chỉnh lại
-const FACE_MIN_FACE_PX = 80;
+// Hạ 80 → 60 (20/10): nhiều bạn cầm điện thoại xa, mặt chỉ ~66 px vẫn rõ
+const FACE_MIN_FACE_PX = 60;
 const FACE_MIN_BRIGHTNESS = 40;
 const FACE_MIN_BLUR = 40;
 // Khung hình quét đã thu nhỏ ≤ 480 px nên 1 MB là dư; chặn sớm ở multer
