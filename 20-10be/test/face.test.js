@@ -226,7 +226,7 @@ test('face quality gate runs no_face, many_faces, small, dark, blurry in that or
   assert.deepEqual(faceService.gate([good, { ...good, face_px: 100 }]), { decision: 'many_faces', faces: 2 });
   // Một mặt nhỏ phía sau không tính là "nhiều người"
   assert.equal(faceService.gate([good, { ...good, face_px: 30 }]), null);
-  assert.equal(faceService.gate([{ ...good, face_px: 60, brightness: 10 }]).reason, 'small');
+  assert.equal(faceService.gate([{ ...good, face_px: 50, brightness: 10 }]).reason, 'small');
   assert.equal(faceService.gate([{ ...good, brightness: 20, blur: 5 }]).reason, 'dark');
   assert.equal(faceService.gate([{ ...good, blur: 5 }]).reason, 'blurry');
   assert.equal(faceService.gate([good]), null);
